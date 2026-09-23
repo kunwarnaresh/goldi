@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}{{ product.name }} - Goldi ERP{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-32">
+    <div class="flex justify-between items-center mb-8">
+        <div>
+            <h2 class="text-4xl font-bold gradient-text mb-2">{{ product.name }}</h2>
+            <p class="text-gray-400">SKU: {{ product.sku }} | {{ product.metal_type|title }} {{ product.purity }}</p>
+        </div>
+        <div class="space-x-3">
+            <a href="{% url 'product_edit' product.pk %}" class="btn-gold">Edit</a>
+            <a href="{% url 'product_delete' product.pk %}" class="btn-red">Delete</a>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div class="glass-glow p-6">
+            <p class="text-gray-400 mb-2">Stock Quantity</p>
+            <p class="text-3xl gold-text font-bold">{{ product.stock_quantity }}</p>
+        </div>
+        <div class="glass-glow p-6">
+            <p class="text-gray-400 mb-2">Sale Price</p>
+            <p class="text-3xl gold-text font-bold">₹{{ product.sale_price }}</p>
+        </div>
+        <div class="glass-glow p-6">
+            <p class="text-gray-400 mb-2">Weight</p>
+            <p class="text-3xl gold-text font-bold">{{ product.weight_grams }}g</p>
+        </div>
+    </div>
+
+    <div class="glass-glow p-6 mb-8">
+        <h3 class="text-xl font-bold mb-4"><i class="fas fa-info-circle mr-2 gold-text"></i>Details</h3>
+        <table class="w-full">
+            <tr class="border-b border-white/10">
+                <td class="py-2 text-gray-400">Category</td>
+                <td class="py-2">{{ product.item_category.name|default:"N/A" }}</td>
+            </tr>
+            <tr class="border-b border-white/10">
+                <td class="py-2 text-gray-400">Purchase Price</td>
+                <td class="py-2">₹{{ product.purchase_price }}</td>
+            </tr>
+            <tr class="border-b border-white/10">
+                <td class="py-2 text-gray-400">Making Charge</td>
+                <td class="py-2">₹{{ product.making_charge }}</td>
+            </tr>
+            <tr class="border-b border-white/10">
+                <td class="py-2 text-gray-400">MRP</td>
+                <td class="py-2">₹{{ product.mrp }}</td>
+            </tr>
+            <tr class="border-b border-white/10">
+                <td class="py-2 text-gray-400">Barcode</td>
+                <td class="py-2 font-mono">{{ product.barcode|default:"N/A" }}</td>
+            </tr>
+            <tr class="border-b border-white/10">
+                <td class="py-2 text-gray-400">HSN Code</td>
+                <td class="py-2">{{ product.hsn_code|default:"N/A" }}</td>
+            </tr>
+            <tr>
+                <td class="py-2 text-gray-400">Status</td>
+                <td class="py-2"><span class="px-3 py-1 rounded-full {% if product.is_active %}bg-green-500/15 text-green-300{% else %}bg-red-500/15 text-red-300{% endif %}">{% if product.is_active %}Active{% else %}Inactive{% endif %}</span></td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-8 mb-8">
+        <div class="glass-glow p-6">
+            <h3 class="text-xl font-bold mb-4"><i class="fas fa-barcode mr-2 gold-text"></i>Barcodes ({{ barcodes|length }})</h3>
+            <div class="space-y-2">
+                {% for barcode in barcodes %}
+                <div class="glass p-3 rounded-lg"><span class="text-sm text-gray-400">{{ barcode.barcode_type }}:</span> <span class="font-mono">{{ barcode.barcode }}</span></div>
+                {% empty %}
+                <p class="text-gray-400">No barcodes.</p>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="glass-glow p-6">
+            <h3 class="text-xl font-bold mb-4"><i class="fas fa-tags mr-2 gold-text"></i>Prices ({{ prices|length }})</h3>
+            <div class="space-y-2">
+                {% for price in prices %}
+                <div class="glass p-3 rounded-lg"><span class="text-sm text-gray-400">{{ price.get_price_type_display }}:</span> <span class="gold-text font-semibold">₹{{ price.amount }}</span></div>
+                {% empty %}
+                <p class="text-gray-400">No prices.</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="glass-glow p-6 mb-8">
+        <h3 class="text-xl font-bold mb-4"><i class="fas fa-layer-group mr-2 gold-text"></i>Batches ({{ batches|length }})</h3>
+        <div class="space-y-3">
+            {% for batch in batches %}
+            <div class="glass p-4 rounded-lg">
+                <p class="font-semibold">{{ batch.batch_no }}</p>
+                <p class="text-sm text-gray-400">Qty: {{ batch.quantity }} | Status: {{ batch.status }}</p>
+            </div>
+            {% empty %}
+            <p class="text-gray-400">No batches.</p>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="mt-8">
+        <a href="{% url 'product_list' %}" class="glass px-6 py-3 rounded-lg font-semibold hover:bg-white/10 transition inline-flex items-center">
+            <i class="fas fa-arrow-left mr-2"></i>Back
+        </a>
+    </div>
+</div>
+{% endblock %}

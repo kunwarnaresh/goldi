@@ -1,0 +1,313 @@
+{% extends "base.html" %}
+
+{% block title %}POS Terminal | Goldi ERP{% endblock %}
+
+{% block extra_css %}
+<style>
+    .pos-shell { --pos-ink: #102033; --pos-muted: #66758a; --pos-line: #dce4ec; --pos-paper: #f7f9fb; --pos-amber: #d9822b; --pos-teal: #087f8c; margin: -1.5rem -1.5rem 0; min-height: calc(100vh - 2rem); background: var(--pos-paper); color: var(--pos-ink); }
+    .pos-shell button, .pos-shell input, .pos-shell select { font: inherit; }
+    .pos-status { display: grid; grid-template-columns: minmax(160px, 1.3fr) repeat(5, minmax(100px, .8fr)) auto; gap: 1px; background: #1b3148; color: #fff; }
+    .pos-status > div { padding: .75rem 1rem; background: #173047; min-width: 0; }
+    .pos-status .status-kicker { display: block; color: #9bb3c9; font-size: .63rem; letter-spacing: .13em; text-transform: uppercase; }
+    .pos-status strong { display: block; margin-top: .18rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .86rem; }
+    .pos-status .receipt { background: #234a59; }
+    .online-dot { color: #6ee7b7; }
+    .pos-content { padding: 1.1rem; }
+    .pos-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: .9rem; }
+    .pos-title { font-family: Georgia, serif; font-size: 1.45rem; font-weight: 700; letter-spacing: -.02em; }
+    .pos-title small { color: var(--pos-muted); display: block; font: 500 .72rem 'Trebuchet MS', sans-serif; letter-spacing: .08em; text-transform: uppercase; }
+    .pos-actions { display: flex; gap: .45rem; flex-wrap: wrap; justify-content: flex-end; }
+    .pos-btn { min-height: 42px; border: 1px solid var(--pos-line); border-radius: 5px; padding: .62rem .8rem; background: #fff; color: var(--pos-ink); cursor: pointer; font-weight: 700; font-size: .78rem; transition: transform .15s ease, border-color .15s ease, background .15s ease; }
+    .pos-btn:hover { border-color: var(--pos-teal); background: #f0fbfc; transform: translateY(-1px); }
+    .pos-btn.primary { background: var(--pos-teal); border-color: var(--pos-teal); color: #fff; }
+    .pos-btn.primary:hover { background: #076b75; }
+    .pos-btn.amber { background: var(--pos-amber); border-color: var(--pos-amber); color: #fff; }
+    .pos-btn.icon { width: 42px; padding: 0; }
+    .pos-btn i { margin-right: .38rem; }
+    .pos-btn.icon i { margin-right: 0; }
+    .quick-item i { display: block; margin-bottom: .55rem; color: var(--pos-teal); font-size: 1rem; }
+    .react-pos-enhancements { margin-left: auto; }
+    .ai-command-strip { display: flex; align-items: center; gap: .55rem; padding: .38rem; border: 1px solid rgba(8,127,140,.24); border-radius: 8px; background: linear-gradient(110deg, #092333, #123949); color: #dffefd; box-shadow: 0 10px 28px rgba(8,127,140,.13); }
+    .ai-command-strip button { border: 0; border-radius: 5px; padding: .48rem .7rem; background: transparent; color: #c6e9e7; cursor: pointer; font-size: .7rem; font-weight: 700; }
+    .ai-command-strip button:hover, .ai-command-strip button.active { background: rgba(101,230,224,.15); color: var(--ai-cyan); }
+    .ai-command-label { display: flex; align-items: center; gap: .4rem; padding: 0 .45rem; color: var(--ai-lime); font-size: .68rem; letter-spacing: .05em; text-transform: uppercase; }
+    .ai-pulse { width: 7px; height: 7px; border-radius: 50%; background: var(--ai-lime); box-shadow: 0 0 0 4px rgba(200,241,105,.13); animation: aiPulse 2s ease-in-out infinite; }
+    @keyframes aiPulse { 50% { box-shadow: 0 0 0 8px rgba(200,241,105,0); } }
+    .react-toast { position: fixed; right: 1.4rem; bottom: 4.6rem; z-index: 90; max-width: 320px; padding: .85rem 1rem; border: 1px solid rgba(101,230,224,.3); border-radius: 8px; background: #092333; color: #efffff; box-shadow: 0 18px 40px rgba(7,21,34,.22); animation: toastIn .22s ease-out; }
+    .react-toast strong { display: block; color: var(--ai-cyan); font-size: .76rem; }
+    .react-toast span { display: block; margin-top: .25rem; color: #b5cbd0; font-size: .72rem; }
+    @keyframes toastIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .pos-workspace { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: .9rem; align-items: start; }
+    .pos-panel { border: 1px solid var(--pos-line); background: #fff; box-shadow: 0 5px 18px rgba(20, 47, 70, .06); }
+    .pos-panel-head { display: flex; justify-content: space-between; align-items: center; gap: .75rem; padding: .78rem .95rem; border-bottom: 1px solid var(--pos-line); }
+    .pos-panel-head h2 { margin: 0; font-size: .75rem; letter-spacing: .12em; text-transform: uppercase; }
+    .pos-panel-head span { color: var(--pos-muted); font-size: .72rem; }
+    .scan-panel { padding: .9rem; background: #fffdf8; border: 1px solid #efd6b7; }
+    .scan-row { display: flex; align-items: center; gap: .65rem; }
+    .scan-input { flex: 1; min-height: 50px; border: 2px solid var(--pos-amber) !important; border-radius: 5px !important; background: #fff !important; padding: .8rem 1rem !important; color: var(--pos-ink) !important; font-size: 1rem !important; box-shadow: 0 0 0 3px rgba(217,130,43,.08) !important; }
+    .scan-hint { margin-top: .5rem; display: flex; justify-content: space-between; color: var(--pos-muted); font-size: .7rem; }
+    .scan-hint kbd, .shortcut kbd { padding: .15rem .35rem; border: 1px solid #c7d2dd; border-bottom-width: 2px; border-radius: 3px; background: #fff; color: #44556a; font-size: .65rem; }
+    .grid-wrap { overflow-x: auto; }
+    .line-grid { width: 100%; border-collapse: collapse; min-width: 650px; }
+    .line-grid th { padding: .7rem .8rem; color: var(--pos-muted); background: #f8fafc; font-size: .65rem; letter-spacing: .08em; text-align: left; text-transform: uppercase; }
+    .line-grid td { padding: .8rem; border-top: 1px solid #edf1f4; font-size: .82rem; vertical-align: middle; }
+    .item-name { font-weight: 800; color: var(--pos-ink); }
+    .item-meta { display: block; margin-top: .18rem; color: var(--pos-muted); font-size: .68rem; }
+    .qty-control { display: inline-flex; align-items: center; border: 1px solid var(--pos-line); border-radius: 4px; overflow: hidden; }
+    .qty-control button { width: 29px; height: 31px; border: 0; background: #f3f7fa; color: var(--pos-teal); cursor: pointer; font-weight: 800; }
+    .qty-control input { width: 42px; height: 31px; border: 0; border-left: 1px solid var(--pos-line); border-right: 1px solid var(--pos-line); padding: 0; text-align: center; color: var(--pos-ink); }
+    .money { font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .line-action { border: 0; background: none; color: #9a5360; cursor: pointer; font-size: .8rem; }
+    .empty-line { padding: 2.4rem 1rem !important; color: var(--pos-muted); text-align: center; }
+    .quick-panel { margin-top: .9rem; }
+    .quick-body { display: grid; grid-template-columns: repeat(4, minmax(90px, 1fr)); gap: .55rem; padding: .8rem; }
+    .quick-item { min-height: 72px; border: 1px solid #d8e3ea; border-radius: 5px; background: #f8fbfc; color: var(--pos-ink); cursor: pointer; text-align: left; padding: .65rem; }
+    .quick-item:hover { border-color: var(--pos-teal); background: #effbfc; }
+    .quick-item strong { display: block; font-size: .78rem; }
+    .quick-item span { display: block; margin-top: .35rem; color: var(--pos-muted); font-size: .68rem; }
+    .summary-panel { position: sticky; top: 1rem; }
+    .summary-body { padding: .9rem; }
+    .summary-row { display: flex; justify-content: space-between; gap: 1rem; padding: .42rem 0; color: var(--pos-muted); font-size: .8rem; }
+    .summary-row strong { color: var(--pos-ink); font-variant-numeric: tabular-nums; }
+    .summary-total { margin: .55rem -.9rem .8rem; padding: .8rem .9rem; border-top: 1px solid var(--pos-line); border-bottom: 1px solid var(--pos-line); background: #f6fbfb; }
+    .summary-total .summary-row { color: var(--pos-teal); font-weight: 800; }
+    .summary-total strong { color: var(--pos-teal); font-size: 1.25rem; }
+    .tax-breakup { display: grid; grid-template-columns: repeat(3, 1fr); gap: .45rem; margin: .8rem 0; }
+    .tax-cell { padding: .55rem .4rem; border: 1px solid var(--pos-line); text-align: center; }
+    .tax-cell span { display: block; color: var(--pos-muted); font-size: .62rem; text-transform: uppercase; }
+    .tax-cell strong { display: block; margin-top: .18rem; font-size: .78rem; }
+    .customer-strip { display: grid; grid-template-columns: minmax(180px, 1fr) 1.5fr auto auto auto; gap: .55rem; align-items: end; padding: .8rem; border-top: 1px solid var(--pos-line); border-bottom: 1px solid var(--pos-line); background: #fff; }
+    .field-label { display: block; margin-bottom: .3rem; color: var(--pos-muted); font-size: .63rem; letter-spacing: .08em; text-transform: uppercase; }
+    .pos-shell input, .pos-shell select, .pos-shell textarea { border-color: var(--pos-line); border-radius: 4px; color: var(--pos-ink); background: #fff; }
+    .customer-strip select { min-height: 42px; }
+    .payment-panel { margin-top: .9rem; }
+    .payment-body { padding: .85rem; }
+    .tender-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: .5rem; }
+    .tender { min-height: 48px; border: 1px solid #cbdbe1; border-radius: 4px; background: #f8fbfc; color: var(--pos-ink); cursor: pointer; font-size: .75rem; font-weight: 800; }
+    .tender:hover, .tender.active { border-color: var(--pos-teal); background: #eaf8f9; color: var(--pos-teal); }
+    .payment-entry { display: grid; grid-template-columns: 1fr 1fr auto; gap: .55rem; align-items: end; margin-top: .7rem; }
+    .tender-lines { margin-top: .75rem; border-top: 1px solid var(--pos-line); }
+    .tender-line { display: flex; justify-content: space-between; gap: 1rem; padding: .6rem 0; border-bottom: 1px solid #edf1f4; font-size: .78rem; }
+    .tender-line span { color: var(--pos-muted); }
+    .shortcuts { display: flex; flex-wrap: wrap; gap: .5rem 1rem; padding: .7rem .9rem; color: var(--pos-muted); font-size: .68rem; }
+    .drawer { display: none; position: fixed; inset: 0; z-index: 80; background: rgba(16,32,51,.35); }
+    .drawer.open { display: flex; justify-content: flex-end; }
+    .drawer-card { width: min(430px, 100%); height: 100%; overflow-y: auto; padding: 1.2rem; background: #fff; box-shadow: -10px 0 28px rgba(16,32,51,.16); }
+    .drawer-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.1rem; }
+    .drawer-head h2 { font-family: Georgia, serif; font-size: 1.35rem; }
+    .drawer-grid { display: grid; gap: .8rem; }
+    .drawer-grid .pos-btn { width: 100%; }
+    .price-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .55rem; margin: 1rem 0; }
+    .price-detail-cell { padding: .65rem; border: 1px solid #dce4ec; background: #f8fafc; }
+    .price-detail-cell span { display: block; color: var(--pos-muted); font-size: .64rem; text-transform: uppercase; }
+    .price-detail-cell strong { display: block; margin-top: .2rem; color: var(--pos-ink); }
+    @media (max-width: 1100px) { .pos-status { grid-template-columns: repeat(4, 1fr); } .pos-status > div:first-child, .pos-status .receipt { grid-column: span 2; } .pos-workspace { grid-template-columns: 1fr; } .summary-panel { position: static; } }
+    @media (max-width: 700px) { .workspace-nav { position: relative !important; bottom: auto !important; height: auto !important; z-index: 1 !important; } .workspace-main { position: relative; z-index: 2; } .pos-shell { margin: -1rem -.75rem 0; } .pos-content { padding: .7rem; } .pos-toolbar, .scan-row { align-items: stretch; flex-direction: column; } .pos-actions { justify-content: flex-start; } .pos-status { grid-template-columns: repeat(2, 1fr); } .pos-status > div:first-child, .pos-status .receipt { grid-column: span 2; } .quick-body { grid-template-columns: repeat(2, 1fr); } .customer-strip { grid-template-columns: 1fr 1fr; } .customer-strip > :first-child { grid-column: span 2; } .tender-grid { grid-template-columns: repeat(2, 1fr); } .payment-entry { grid-template-columns: 1fr 1fr; } .payment-entry .pos-btn { grid-column: span 2; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="pos-shell" id="pos-app">
+    <header class="pos-status" aria-label="POS status">
+        <div><span class="status-kicker">Current time</span><strong id="pos-clock">--:--:--</strong></div>
+        <div><span class="status-kicker">Store</span><strong>DKG / Goldi Main</strong></div>
+        <div><span class="status-kicker">Terminal</span><strong>POS-003 · Register 01</strong></div>
+        <div class="receipt"><span class="status-kicker">Receipt</span><strong id="receipt-label">DRAFT</strong></div>
+        <div><span class="status-kicker">Cashier</span><strong>{{ pos_session.staff.name }}</strong></div>
+        <div><span class="status-kicker">Shift</span><strong>{{ pos_session.shift.shift_code }} · <span class="online-dot">● ONLINE</span></strong></div>
+        <div><a href="{% url 'pos_logout' %}" class="pos-btn" style="padding:.35rem .55rem; min-height:32px; color:#fff; background:transparent; border-color:#6b8498"><i class="fas fa-right-from-bracket"></i> Logout</a></div>
+    </header>
+
+    <main class="pos-content">
+        <div class="pos-toolbar">
+            <div class="pos-title"><small>Retail transaction workspace</small>New sale <span style="color:var(--pos-amber)">/</span> ready to scan</div>
+            <div class="pos-actions">
+                <button type="button" class="pos-btn" data-action="new"><i class="fas fa-plus"></i> New</button>
+                <button type="button" class="pos-btn" data-action="hold"><i class="fas fa-pause"></i> Hold</button>
+                <button type="button" class="pos-btn" data-action="recall"><i class="fas fa-rotate-left"></i> Recall</button>
+                <button type="button" class="pos-btn" data-action="return"><i class="fas fa-reply"></i> Return</button>
+                <button type="button" class="pos-btn" data-action="void"><i class="fas fa-ban"></i> Void</button>
+            </div>
+            <div id="react-pos-enhancements" class="react-pos-enhancements"></div>
+        </div>
+
+        <form method="post" id="pos-form">
+            {% csrf_token %}
+            <div class="pos-workspace">
+                <section>
+                    <div class="scan-panel">
+                        <div class="pos-panel-head" style="padding:0 0 .7rem; border:0"><h2><i class="fas fa-barcode" style="color:var(--pos-amber)"></i> Scan or search item</h2><span><kbd>F3</kbd> item search</span></div>
+                        <div class="scan-row">
+                            <input id="scan-input" class="scan-input" type="text" name="barcode" autocomplete="off" placeholder="Scan barcode, SKU, item name, brand or category">
+                            <button type="button" class="pos-btn amber" id="scan-add"><i class="fas fa-plus"></i> Add item</button>
+                        </div>
+                        <div class="scan-hint"><span id="scan-status">Scanner ready · type to filter products</span><span><kbd>Enter</kbd> add selected <kbd>Esc</kbd> clear</span></div>
+                    </div>
+
+                    <div class="pos-panel" style="margin-top:.9rem">
+                        <div class="pos-panel-head"><h2>Transaction lines</h2><span id="line-count">0 items · 0 qty</span></div>
+                        <div class="grid-wrap">
+                            <table class="line-grid">
+                                <thead><tr><th style="width:36%">Item</th><th>UOM</th><th>Qty</th><th>Price</th><th>Discount</th><th>Tax</th><th style="text-align:right">Net</th><th></th></tr></thead>
+                                <tbody id="line-body"><tr><td colspan="8" class="empty-line"><i class="fas fa-barcode" style="font-size:1.5rem; color:#b6c5d0; display:block; margin-bottom:.55rem"></i>Scan an item to start the transaction</td></tr></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="pos-panel quick-panel">
+                        <div class="pos-panel-head"><h2>Quick items</h2><span>Tap to add · configured for this terminal</span></div>
+                        <div class="quick-body">
+                            {% for product in products|slice:':8' %}
+                            <button type="button" class="quick-item" data-product-id="{{ product.pk }}"><i class="fas fa-gem"></i><strong>{{ product.name|truncatechars:21 }}</strong><span>{{ product.sku|default:'SKU pending' }} · ₹{{ product.sale_price|default:product.mrp|default:'0' }}</span></button>
+                            {% empty %}<div style="padding:.5rem; color:var(--pos-muted); font-size:.8rem">No active quick items configured.</div>{% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="pos-panel payment-panel">
+                        <div class="pos-panel-head"><h2><i class="fas fa-wallet" style="color:var(--pos-teal)"></i> Payment</h2><span id="payment-state">No tender added</span></div>
+                        <div class="payment-body">
+                            <div class="tender-grid">
+                                <button type="button" class="tender" data-tender="Cash">Cash</button><button type="button" class="tender" data-tender="Card">Card</button><button type="button" class="tender" data-tender="UPI">UPI</button><button type="button" class="tender" data-tender="Gift Card">Gift card</button><button type="button" class="tender" data-tender="Credit">Credit memo</button>
+                            </div>
+                            <div class="payment-entry">
+                                <div><label class="field-label" for="payment-tender">Tender</label><input id="payment-tender" value="Cash" readonly></div>
+                                <div><label class="field-label" for="payment-amount">Amount received</label><input id="payment-amount" type="number" min="0" step="0.01" placeholder="0.00"></div>
+                                <button type="button" class="pos-btn primary" id="add-payment"><i class="fas fa-plus"></i> Add tender</button>
+                            </div>
+                            <div class="tender-lines" id="tender-lines"><div class="tender-line"><span>No payments recorded</span><strong>₹0.00</strong></div></div>
+                        </div>
+                    </div>
+                </section>
+
+                <aside class="pos-panel summary-panel">
+                    <div class="pos-panel-head"><h2>Transaction summary</h2><span class="online-dot">● Live</span></div>
+                    <div class="summary-body">
+                        <div class="summary-row"><span>Unique items</span><strong id="summary-items">0</strong></div>
+                        <div class="summary-row"><span>Total quantity</span><strong id="summary-qty">0</strong></div>
+                        <div class="summary-row"><span>Gross amount</span><strong id="summary-gross">₹0.00</strong></div>
+                        <div class="summary-row"><span>Total discount</span><strong id="summary-discount">-₹0.00</strong></div>
+                        <div class="summary-row"><span>Taxable value</span><strong id="summary-taxable">₹0.00</strong></div>
+                        <div class="tax-breakup"><div class="tax-cell"><span>CGST</span><strong id="summary-cgst">₹0.00</strong></div><div class="tax-cell"><span>SGST</span><strong id="summary-sgst">₹0.00</strong></div><div class="tax-cell"><span>IGST</span><strong>₹0.00</strong></div></div>
+                        <div class="summary-row"><span>Total GST · 3%</span><strong id="summary-gst">₹0.00</strong></div>
+                        <div class="summary-total"><div class="summary-row"><span>Net value</span><strong id="summary-total">₹0.00</strong></div></div>
+                        <div class="summary-row"><span>Amount paid</span><strong id="summary-paid">₹0.00</strong></div>
+                        <div class="summary-row"><span>Balance due</span><strong id="summary-balance">₹0.00</strong></div>
+                        <div class="summary-row" style="color:var(--pos-amber); font-weight:800"><span>Change due</span><strong id="summary-change" style="color:var(--pos-amber)">₹0.00</strong></div>
+                        <button type="submit" class="pos-btn primary" style="width:100%; margin-top:1rem; min-height:50px" id="complete-sale"><i class="fas fa-check-circle"></i> Complete sale <span style="opacity:.7">· F10</span></button>
+                        <button type="button" class="pos-btn" style="width:100%; margin-top:.5rem" id="open-price-details"><i class="fas fa-calculator"></i> Jewellery price details</button>
+                        <button type="button" class="pos-btn" style="width:100%; margin-top:.5rem" data-action="print"><i class="fas fa-print"></i> Print preview <span style="color:var(--pos-muted)">· F9</span></button>
+                    </div>
+                </aside>
+            </div>
+
+            <div class="customer-strip" style="margin-top:.9rem">
+                <div><label class="field-label" for="customer-select">Customer</label>{{ form.customer }}</div>
+                <div><label class="field-label" for="customer-search">Customer search</label><input id="customer-search" type="search" placeholder="Mobile, name, GSTIN or customer ID"></div>
+                <button type="button" class="pos-btn" id="open-customer"><i class="fas fa-user-plus"></i> Add</button>
+                <button type="button" class="pos-btn" id="edit-customer"><i class="fas fa-pen"></i> Edit</button>
+                <div><label class="field-label" for="place-of-supply">Place of supply</label><input id="place-of-supply" name="place_of_supply" value="27" style="min-height:42px; width:80px"></div>
+            </div>
+
+            <div class="customer-strip" style="margin-top:.55rem; grid-template-columns: minmax(180px, 1fr) 2fr">
+                <div><label class="field-label" for="sales-staff">Sales staff</label><select id="sales-staff" name="sales_staff"><option value="">No sales staff selected</option>{% for staff in sales_staff %}<option value="{{ staff.pk }}">{{ staff.name }} · {{ staff.employee_code }}</option>{% endfor %}</select></div>
+                <div style="align-self:center; color:var(--pos-muted); font-size:.72rem"><i class="fas fa-shield-halved" style="color:var(--pos-teal)"></i> Cashier: {{ pos_session.staff.name }} · Bill attribution is captured from the authenticated POS session.</div>
+            </div>
+
+            <div class="shortcuts"><span class="shortcut"><kbd>F1</kbd> <i class="fas fa-plus"></i> New</span><span class="shortcut"><kbd>F2</kbd> <i class="fas fa-user"></i> Customer</span><span class="shortcut"><kbd>F3</kbd> <i class="fas fa-search"></i> Search</span><span class="shortcut"><kbd>F5</kbd> <i class="fas fa-pause"></i> Hold</span><span class="shortcut"><kbd>F6</kbd> <i class="fas fa-wallet"></i> Payment</span><span class="shortcut"><kbd>F8</kbd> <i class="fas fa-ban"></i> Void</span><span class="shortcut"><kbd>F10</kbd> <i class="fas fa-check"></i> Complete</span><span class="shortcut"><kbd>F12</kbd> <i class="fas fa-rotate"></i> New transaction</span></div>
+
+            <div class="drawer" id="customer-drawer" aria-hidden="true"><div class="drawer-card"><div class="drawer-head"><h2>Customer details</h2><button type="button" class="pos-btn icon" id="close-customer" aria-label="Close customer drawer"><i class="fas fa-times"></i></button></div><div class="drawer-grid"><div><label class="field-label">Customer name</label><input name="customer_name" placeholder="Full name"></div><div><label class="field-label">Mobile</label><input name="customer_phone" placeholder="10 digit mobile"></div><div><label class="field-label">GSTIN</label><input name="customer_gstin" placeholder="Optional GSTIN"></div><div><label class="field-label">Notes</label>{{ form.notes }}</div><button type="button" class="pos-btn primary" id="save-customer"><i class="fas fa-check"></i> Attach customer</button></div></div></div>
+            <div class="drawer" id="price-drawer" aria-hidden="true"><div class="drawer-card"><div class="drawer-head"><h2>Jewellery price breakdown</h2><button type="button" class="pos-btn icon" id="close-price" aria-label="Close price details"><i class="fas fa-times"></i></button></div><p id="price-detail-item" style="color:var(--pos-muted)">Select a jewellery item to inspect its components.</p><div class="price-detail-grid"><div class="price-detail-cell"><span>Metal / purity</span><strong id="detail-metal">-</strong></div><div class="price-detail-cell"><span>HUID</span><strong id="detail-huid">-</strong></div><div class="price-detail-cell"><span>Gross weight</span><strong id="detail-gross">0.000 g</strong></div><div class="price-detail-cell"><span>Stone weight</span><strong id="detail-stone-weight">0.000 g</strong></div><div class="price-detail-cell"><span>Net metal weight</span><strong id="detail-net">0.000 g</strong></div><div class="price-detail-cell"><span>Metal rate</span><strong id="detail-rate">₹0.00/g</strong></div><div class="price-detail-cell"><span>Metal value</span><strong id="detail-metal-value">₹0.00</strong></div><div class="price-detail-cell"><span>Wastage</span><strong id="detail-wastage">₹0.00</strong></div><div class="price-detail-cell"><span>Making charge</span><strong id="detail-making">₹0.00</strong></div><div class="price-detail-cell"><span>Stone value</span><strong id="detail-stones">₹0.00</strong></div><div class="price-detail-cell"><span>Other charges</span><strong id="detail-other">₹0.00</strong></div><div class="price-detail-cell"><span>Taxable value</span><strong id="detail-taxable">₹0.00</strong></div></div><div class="summary-total"><div class="summary-row"><span>Final item price</span><strong id="detail-final">₹0.00</strong></div></div></div></div>
+
+            <div style="display:none">{{ form.invoice_no }}{{ form.discount_amount }}{{ form.terms_conditions }}<input name="item_id" id="item-id"><input name="quantity" id="quantity" value="1"><input name="making_charge" value="0"><input name="stone_value" value="0"><input name="stone_name"><input name="batch_no"><input name="serial_no"><input name="gst_rate" id="gst-rate" value="3"></div>
+        </form>
+    </main>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(() => {
+    const products = [{% for product in products %}{id: '{{ product.pk }}', name: '{{ product.name|escapejs }}', sku: '{{ product.sku|default:''|escapejs }}', barcode: '{{ product.barcode|default:''|escapejs }}', price: Number('{{ product.sale_price|default:product.mrp|default:'0' }}')},{% endfor %}];
+    const jewelleryUnits = [{% for unit in jewellery_units %}{id: '{{ unit.product_id }}', barcode: '{{ unit.barcode|escapejs }}', name: '{{ unit.product.name|escapejs }}', sku: '{{ unit.product.sku|escapejs }}', price: Number('{{ unit.product.sale_price|default:unit.product.mrp|default:'0' }}'), metal: '{{ unit.metal_type|escapejs }}', purity: '{{ unit.purity|escapejs }}', huid: '{{ unit.huid|escapejs }}', gross: '{{ unit.gross_weight }}', stoneWeight: '{{ unit.stone_weight }}', net: '{{ unit.net_metal_weight }}'},{% endfor %}];
+    const state = { product: null, quantity: 1, payments: [], tender: 'Cash' };
+    const $ = (id) => document.getElementById(id);
+    const money = (value) => `₹${Number(value || 0).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+    const total = () => { const gross = (state.product?.price || 0) * state.quantity; const discount = Number($('id_discount_amount')?.value || 0); const taxable = Math.max(gross - discount, 0); const gst = taxable * Number($('gst-rate').value || 3) / 100; return {gross, discount, taxable, gst, net: taxable + gst}; };
+    function render() {
+        const tbody = $('line-body'); const t = total();
+        if (!state.product) tbody.innerHTML = '<tr><td colspan="8" class="empty-line"><i class="fas fa-barcode" style="font-size:1.5rem; color:#b6c5d0; display:block; margin-bottom:.55rem"></i>Scan an item to start the transaction</td></tr>';
+        else tbody.innerHTML = `<tr><td><span class="item-name">${state.product.name}</span><span class="item-meta">${state.product.sku || 'SKU pending'} ${state.product.barcode ? '· ' + state.product.barcode : ''}</span></td><td>PCS</td><td><span class="qty-control"><button type="button" data-qty="-1">−</button><input id="line-quantity" type="number" min="1" step="1" value="${state.quantity}"><button type="button" data-qty="1">+</button></span></td><td class="money">${money(state.product.price)}</td><td class="money">-${money(t.discount)}</td><td class="money">${money(t.gst)}</td><td class="money" style="text-align:right;font-weight:800">${money(t.net)}</td><td><button type="button" class="line-action" id="remove-line" title="Remove item"><i class="fas fa-trash"></i></button></td></tr>`;
+        const paid = state.payments.reduce((sum, payment) => sum + payment.amount, 0); const balance = Math.max(t.net - paid, 0); const change = Math.max(paid - t.net, 0);
+        $('line-count').textContent = `${state.product ? 1 : 0} item${state.product ? '' : 's'} · ${state.product ? state.quantity : 0} qty`;
+        $('summary-items').textContent = state.product ? '1' : '0'; $('summary-qty').textContent = state.product ? state.quantity : '0'; $('summary-gross').textContent = money(t.gross); $('summary-discount').textContent = `-${money(t.discount)}`; $('summary-taxable').textContent = money(t.taxable); $('summary-cgst').textContent = money(t.gst / 2); $('summary-sgst').textContent = money(t.gst / 2); $('summary-gst').textContent = money(t.gst); $('summary-total').textContent = money(t.net); $('summary-paid').textContent = money(paid); $('summary-balance').textContent = money(balance); $('summary-change').textContent = money(change);
+        $('quantity').value = state.quantity; $('item-id').value = state.product?.id || ''; $('receipt-label').textContent = state.product ? 'DRAFT · 1 LINE' : 'DRAFT'; $('payment-state').textContent = paid ? `${money(paid)} recorded` : 'No tender added';
+        $('tender-lines').innerHTML = state.payments.length ? state.payments.map((payment, index) => `<div class="tender-line"><span><strong>${payment.tender}</strong> · confirmed</span><strong>${money(payment.amount)} <button type="button" class="line-action" data-remove-payment="${index}">×</button></strong></div>`).join('') : '<div class="tender-line"><span>No payments recorded</span><strong>₹0.00</strong></div>';
+    }
+    function addProduct(product) { state.product = product; state.quantity = 1; $('scan-input').value = ''; $('scan-status').textContent = `✓ ${product.name} added · scanner ready`; $('scan-input').focus(); render(); }
+    function findProduct(query) { const value = query.trim().toLowerCase(); return products.find(product => product.barcode.toLowerCase() === value || product.sku.toLowerCase() === value) || products.find(product => product.name.toLowerCase().includes(value)) || jewelleryUnits.find(unit => unit.barcode.toLowerCase() === value || unit.sku.toLowerCase() === value); }
+    $('scan-add').addEventListener('click', () => { const product = findProduct($('scan-input').value) || products[0]; if (product) addProduct(product); else $('scan-status').textContent = 'Barcode not found · try item search'; });
+    $('scan-input').addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); $('scan-add').click(); } if (event.key === 'Escape') { event.target.value = ''; } });
+    document.querySelectorAll('.quick-item').forEach(button => button.addEventListener('click', () => addProduct(products.find(product => product.id === button.dataset.productId))));
+    document.addEventListener('click', (event) => { const qty = event.target.closest('[data-qty]'); if (qty) { state.quantity = Math.max(1, state.quantity + Number(qty.dataset.qty)); render(); } if (event.target.id === 'remove-line') { state.product = null; state.quantity = 1; render(); $('scan-input').focus(); } const removePayment = event.target.closest('[data-remove-payment]'); if (removePayment) { state.payments.splice(Number(removePayment.dataset.removePayment), 1); render(); } });
+    document.addEventListener('input', event => { if (event.target.id === 'line-quantity') { state.quantity = Math.max(1, Number(event.target.value || 1)); render(); } });
+    document.querySelectorAll('[data-tender]').forEach(button => button.addEventListener('click', () => { state.tender = button.dataset.tender; $('payment-tender').value = state.tender; document.querySelectorAll('.tender').forEach(item => item.classList.toggle('active', item === button)); $('payment-amount').focus(); }));
+    $('add-payment').addEventListener('click', () => { const amount = Number($('payment-amount').value || 0); if (amount > 0) { state.payments.push({tender: state.tender, amount}); $('payment-amount').value = ''; render(); } });
+    function showPriceDetails() { const unit = jewelleryUnits.find(item => item.barcode === state.product?.barcode); if (!unit) { $('price-detail-item').textContent = state.product ? `${state.product.name} · No physical jewellery unit pricing snapshot is configured yet.` : 'Select a jewellery item to inspect its components.'; } else { $('price-detail-item').textContent = `${unit.name} · ${unit.barcode}`; $('detail-metal').textContent = `${unit.metal || '-'} / ${unit.purity || '-'}`; $('detail-huid').textContent = unit.huid || 'Not recorded'; $('detail-gross').textContent = `${unit.gross} g`; $('detail-stone-weight').textContent = `${unit.stoneWeight} g`; $('detail-net').textContent = `${unit.net} g`; } $('price-drawer').classList.add('open'); $('price-drawer').setAttribute('aria-hidden', 'false'); }
+    $('open-price-details').addEventListener('click', showPriceDetails); $('close-price').addEventListener('click', () => { $('price-drawer').classList.remove('open'); $('price-drawer').setAttribute('aria-hidden', 'true'); });
+    $('open-customer').addEventListener('click', () => { $('customer-drawer').classList.add('open'); $('customer-drawer').setAttribute('aria-hidden', 'false'); }); $('edit-customer').addEventListener('click', () => $('open-customer').click()); $('close-customer').addEventListener('click', () => { $('customer-drawer').classList.remove('open'); $('customer-drawer').setAttribute('aria-hidden', 'true'); }); $('save-customer').addEventListener('click', () => { $('customer-drawer').classList.remove('open'); $('customer-drawer').setAttribute('aria-hidden', 'true'); });
+    document.querySelectorAll('[data-action="new"]').forEach(button => button.addEventListener('click', () => { state.product = null; state.payments = []; render(); $('scan-input').focus(); }));
+    document.querySelectorAll('[data-action="print"]').forEach(button => button.addEventListener('click', () => window.print()));
+    const completedInvoice = new URLSearchParams(window.location.search).get('completed');
+    if (completedInvoice) {
+        window.open(`/invoice/${completedInvoice}/pdf/`, '_blank', 'noopener');
+        window.history.replaceState({}, document.title, window.location.pathname);
+    }
+    document.addEventListener('keydown', event => { if (event.key === 'F1' || event.key === 'F12') { event.preventDefault(); document.querySelector('[data-action="new"]').click(); } if (event.key === 'F2') { event.preventDefault(); $('open-customer').click(); } if (event.key === 'F3') { event.preventDefault(); $('scan-input').focus(); } if (event.key === 'F6') { event.preventDefault(); $('payment-amount').focus(); } if (event.key === 'F9') { event.preventDefault(); window.print(); } if (event.key === 'F10') { event.preventDefault(); $('complete-sale').click(); } });
+    setInterval(() => { $('pos-clock').textContent = new Date().toLocaleString('en-IN', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false}); }, 1000); render(); if (window.innerWidth > 700) $('scan-input').focus();
+})();
+</script>
+<script type="module">
+    import React, { useEffect, useState } from 'https://esm.sh/react@latest';
+    import { createRoot } from 'https://esm.sh/react-dom@latest/client';
+
+    const h = React.createElement;
+    const icons = { scan: 'fa-crosshairs', payment: 'fa-wallet', details: 'fa-calculator' };
+
+    function PosCommandCenter() {
+        const [active, setActive] = useState('scan');
+        const [toast, setToast] = useState(null);
+        useEffect(() => {
+            if (!toast) return undefined;
+            const timeout = window.setTimeout(() => setToast(null), 2600);
+            return () => window.clearTimeout(timeout);
+        }, [toast]);
+
+        const run = (command) => {
+            setActive(command);
+            const targets = {
+                scan: ['scan-input', 'Scanner focused. Ready for the next barcode.'],
+                payment: ['payment-amount', 'Payment workspace focused.'],
+                details: ['open-price-details', 'Pricing intelligence opened.'],
+            };
+            const [targetId, message] = targets[command];
+            document.getElementById(targetId)?.click();
+            if (command !== 'details') document.getElementById(targetId)?.focus();
+            setToast({ title: 'POS copilot', message });
+        };
+
+        return h(React.Fragment, null,
+            h('div', { className: 'ai-command-strip', role: 'toolbar', 'aria-label': 'POS copilot commands' },
+                h('span', { className: 'ai-command-label' }, h('span', { className: 'ai-pulse' }), 'Copilot'),
+                ...Object.entries({ scan: 'Scan', payment: 'Pay', details: 'Price' }).map(([key, label]) =>
+                    h('button', { type: 'button', className: active === key ? 'active' : '', onClick: () => run(key), key },
+                        h('i', { className: `fas ${icons[key]}` }), ' ', label)
+                )
+            ),
+            toast && h('div', { className: 'react-toast', role: 'status' }, h('strong', null, toast.title), h('span', null, toast.message))
+        );
+    }
+
+    const reactHost = document.getElementById('react-pos-enhancements');
+    if (reactHost) createRoot(reactHost).render(h(PosCommandCenter));
+</script>
+{% endblock %}

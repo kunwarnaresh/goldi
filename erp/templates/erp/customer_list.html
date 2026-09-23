@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}Customer Master - Goldi ERP{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pb-32">
+    <!-- Header -->
+    <div class="mb-8 animate-in">
+        <h2 class="text-4xl font-bold gradient-text mb-2">
+            <i class="fas fa-users mr-3"></i>Customer Master
+        </h2>
+        <p class="text-gray-400">Manage all customer information and accounts</p>
+    </div>
+
+    <!-- Customers Table -->
+    <div class="glass-glow overflow-hidden animate-on-scroll">
+        <table class="w-full">
+            <thead>
+                <tr class="border-b border-white/10">
+                    <th class="px-6 py-4 text-left text-sm font-semibold text-gray-400">
+                        <i class="fas fa-id-card mr-2"></i>Customer
+                    </th>
+                    <th class="px-6 py-4 text-left text-sm font-semibold text-gray-400">
+                        <i class="fas fa-phone mr-2"></i>Phone
+                    </th>
+                    <th class="px-6 py-4 text-left text-sm font-semibold text-gray-400">
+                        <i class="fas fa-receipt mr-2"></i>GSTIN
+                    </th>
+                    <th class="px-6 py-4 text-left text-sm font-semibold text-gray-400">
+                        <i class="fas fa-tag mr-2"></i>Type
+                    </th>
+                    <th class="px-6 py-4 text-left text-sm font-semibold text-gray-400">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for customer in customers %}
+                <tr class="border-b border-white/5 hover:bg-white/5 transition">
+                    <td class="px-6 py-4 font-semibold"><a href="{% url 'customer_detail' customer.pk %}" class="text-cyan-300 hover:text-cyan-200">{{ customer.customer_no|default:'CUS-'|add:customer.pk }} · {{ customer.name }}</a></td>
+                    <td class="px-6 py-4 text-gray-400">{{ customer.phone|default:"N/A" }}</td>
+                    <td class="px-6 py-4 text-gray-400">{{ customer.gstin|default:"N/A" }}</td>
+                    <td class="px-6 py-4">
+                        <span class="px-3 py-1 bg-amber-500/20 text-amber-400 rounded-lg text-sm font-semibold">
+                            {{ customer.customer_type|upper }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 text-gray-400">{{ customer.customer_status|title }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4" class="px-6 py-12 text-center">
+                        <i class="fas fa-inbox text-gray-500 text-3xl mb-3 block"></i>
+                        <p class="text-gray-400">No customers found. Start by adding a new customer!</p>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Summary Stats -->
+    <div class="grid grid-cols-3 gap-6 mt-8">
+        <div class="glass-glow p-6 text-center animate-on-scroll" style="animation-delay: 0.1s;">
+            <p class="text-gray-400 mb-2">Total Customers</p>
+            <p class="text-3xl font-bold gold-text">{{ customers|length }}</p>
+        </div>
+        <div class="glass-glow p-6 text-center animate-on-scroll" style="animation-delay: 0.2s;">
+            <p class="text-gray-400 mb-2">Active Accounts</p>
+            <p class="text-3xl font-bold gold-text">{{ customers|length }}</p>
+        </div>
+        <div class="glass-glow p-6 text-center animate-on-scroll" style="animation-delay: 0.3s;">
+            <p class="text-gray-400 mb-2">Business Partners</p>
+            <p class="text-3xl font-bold gold-text">{{ customers|length }}</p>
+        </div>
+    </div>
+
+    <!-- Back Button -->
+    <div class="mt-8">
+        <a href="{% url 'dashboard' %}" class="glass px-6 py-3 rounded-lg font-semibold hover:bg-white/10 transition inline-flex items-center">
+            <i class="fas fa-arrow-left mr-2"></i>Back to Dashboard
+        </a>
+    </div>
+</div>
+{% endblock %}

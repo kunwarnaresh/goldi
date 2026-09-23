@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}GST Management - Goldi ERP{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-32">
+    <div class="mb-8 animate-in">
+        <h2 class="text-4xl font-bold gradient-text mb-2">
+            <i class="fas fa-receipt mr-3"></i>GST Management
+        </h2>
+        <p class="text-gray-400">Detailed GST slab, HSN, state-based tax configuration and ledger logic.</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div class="glass-glow p-6 text-center animate-on-scroll"><p class="text-gray-400">GST Slabs</p><p class="text-3xl gold-text font-bold">{{ gst_rates|length }}</p></div>
+        <div class="glass-glow p-6 text-center animate-on-scroll" style="animation-delay: 0.05s;"><p class="text-gray-400">Applicable Rate</p><p class="text-3xl gold-text font-bold">{{ total_tax }}</p></div>
+        <div class="glass-glow p-6 text-center animate-on-scroll" style="animation-delay: 0.1s;"><p class="text-gray-400">State Code</p><p class="text-3xl gold-text font-bold">27</p></div>
+    </div>
+
+    <div class="glass-glow p-6 animate-on-scroll">
+        <h3 class="text-xl font-bold mb-4"><i class="fas fa-file-invoice-dollar mr-2 gold-text"></i>GST Slab Matrix</h3>
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead>
+                    <tr class="border-b border-white/10">
+                        <th class="px-4 py-3 text-left text-gray-400">Name</th>
+                        <th class="px-4 py-3 text-left text-gray-400">State</th>
+                        <th class="px-4 py-3 text-left text-gray-400">GST</th>
+                        <th class="px-4 py-3 text-left text-gray-400">CESS</th>
+                        <th class="px-4 py-3 text-left text-gray-400">HSN</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for slab in gst_rates %}
+                    <tr class="border-b border-white/5 hover:bg-white/5 transition">
+                        <td class="px-4 py-3">{{ slab.name }}</td>
+                        <td class="px-4 py-3">{{ slab.state_code }}</td>
+                        <td class="px-4 py-3 gold-text font-semibold">{{ slab.gst_rate }}%</td>
+                        <td class="px-4 py-3">{{ slab.cess_rate }}%</td>
+                        <td class="px-4 py-3">{{ slab.hsn_code|default:'N/A' }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="5" class="px-4 py-8 text-center text-gray-400">No GST slabs configured.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="mt-8">
+        <a href="{% url 'dashboard' %}" class="glass px-6 py-3 rounded-lg font-semibold hover:bg-white/10 transition inline-flex items-center">
+            <i class="fas fa-arrow-left mr-2"></i>Back to Dashboard
+        </a>
+    </div>
+</div>
+{% endblock %}

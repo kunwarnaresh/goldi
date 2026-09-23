@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}{{ customer.name }} - Goldi ERP{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-32">
+    <div class="flex justify-between items-center mb-8">
+        <div>
+            <h2 class="text-4xl font-bold gradient-text mb-2">{{ customer.name }}</h2>
+            <p class="text-gray-400">{{ customer.customer_no }} · {{ customer.customer_type|title }} · {{ customer.customer_status|title }}</p>
+        </div>
+        <div class="space-x-3">
+            <a href="{% url 'customer_edit' customer.pk %}" class="btn-gold">Edit</a>
+            <a href="{% url 'customer_delete' customer.pk %}" class="btn-red">Delete</a>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <div class="glass-glow p-6">
+            <h3 class="text-lg font-bold mb-4">Contact Information</h3>
+            <table class="w-full text-sm">
+                <tr class="border-b border-white/10"><td class="py-2 text-gray-400">Phone</td><td class="py-2">{{ customer.phone|default:"N/A" }}</td></tr>
+                <tr class="border-b border-white/10"><td class="py-2 text-gray-400">Email</td><td class="py-2">{{ customer.email|default:"N/A" }}</td></tr>
+                <tr class="border-b border-white/10"><td class="py-2 text-gray-400">GSTIN</td><td class="py-2 font-mono">{{ customer.gstin|default:"N/A" }}</td></tr>
+                <tr><td class="py-2 text-gray-400">PAN</td><td class="py-2 font-mono">{{ customer.pan|default:"N/A" }}</td></tr>
+            </table>
+        </div>
+
+        <div class="glass-glow p-6">
+            <h3 class="text-lg font-bold mb-4">Address</h3>
+            <p class="text-gray-300">{{ customer.address|default:"No address" }}</p>
+            <div class="mt-4">
+                <span class="px-3 py-1 rounded-full {% if customer.is_active %}bg-green-500/15 text-green-300{% else %}bg-red-500/15 text-red-300{% endif %} text-sm">
+                    {% if customer.is_active %}Active{% else %}Inactive{% endif %}
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <div class="glass-glow p-6">
+            <h3 class="text-lg font-bold mb-4"><i class="fas fa-shield-halved mr-2 gold-text"></i>GST & Financial</h3>
+            <p class="text-gray-400">GST type: <strong>{{ customer.gst_customer_type|title }}</strong></p>
+            <p class="text-gray-400 mt-2">Registration: <strong>{{ customer.gst_registration_type }}</strong> · {{ customer.gstin|default:'Not registered' }}</p>
+            <p class="text-gray-400 mt-2">Posting group: <strong>{{ customer.customer_posting_group|default:'Not assigned' }}</strong></p>
+            <p class="text-gray-400 mt-2">Price group: <strong>{{ customer.customer_price_group|default:'Standard' }}</strong></p>
+            <p class="text-gray-400 mt-2">Discount group: <strong>{{ customer.customer_discount_group|default:'Standard' }}</strong></p>
+        </div>
+        <div class="glass-glow p-6">
+            <h3 class="text-lg font-bold mb-4"><i class="fas fa-truck mr-2 gold-text"></i>Shipping Addresses</h3>
+            {% for address in shipping_addresses %}
+            <div class="border-b border-white/10 py-2"><strong>{{ address.address_name }}</strong><span class="text-gray-400"> · {{ address.city }}, {{ address.state }} {{ address.pin_code }}</span>{% if address.is_default %}<span class="ml-2 text-xs text-emerald-300">Default</span>{% endif %}</div>
+            {% empty %}<p class="text-gray-400">No shipping addresses configured.</p>{% endfor %}
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div class="glass-glow p-6"><h3 class="font-bold mb-3"><i class="fas fa-gem mr-2 gold-text"></i>Jewellery Preferences</h3><p class="text-gray-400">Metal: {{ preferences.preferred_metal|default:'-' }}</p><p class="text-gray-400">Purity: {{ preferences.preferred_purity|default:'-' }}</p><p class="text-gray-400">Style: {{ preferences.preferred_style|default:'-' }}</p></div>
+        <div class="glass-glow p-6"><h3 class="font-bold mb-3"><i class="fas fa-bullhorn mr-2 gold-text"></i>Marketing</h3><p class="text-gray-400">Segment: {{ marketing.segment|default:'-' }}</p><p class="text-gray-400">Tier: {{ marketing.tier|default:'-' }}</p><p class="text-gray-400">Loyalty: {{ marketing.loyalty_number|default:'-' }}</p></div>
+        <div class="glass-glow p-6"><h3 class="font-bold mb-3"><i class="fas fa-check-double mr-2 gold-text"></i>KYC & Consent</h3><p class="text-gray-400">KYC: {{ kyc.status|default:'Not started'|title }}</p><p class="text-gray-400">Promotions: {% if communication.promotional_consent %}Allowed{% else %}Not allowed{% endif %}</p><p class="text-gray-400">Transactions: {% if communication.transactional_consent %}Allowed{% else %}Not allowed{% endif %}</p></div>
+    </div>
+
+    <div class="glass-glow p-6">
+        <h3 class="text-xl font-bold mb-4"><i class="fas fa-file-invoice mr-2 gold-text"></i>Recent Invoices</h3>
+        <table class="w-full">
+            <thead>
+                <tr class="border-b border-white/10">
+                    <th class="px-4 py-3 text-left text-gray-400">Invoice #</th>
+                    <th class="px-4 py-3 text-left text-gray-400">Date</th>
+                    <th class="px-4 py-3 text-left text-gray-400">Amount</th>
+                    <th class="px-4 py-3 text-left text-gray-400">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for invoice in invoices %}
+                <tr class="border-b border-white/5 hover:bg-white/5 transition">
+                    <td class="px-4 py-3"><a href="{% url 'invoice_detail' invoice.pk %}" class="text-blue-400 hover:text-blue-300">{{ invoice.invoice_no }}</a></td>
+                    <td class="px-4 py-3 text-sm">{{ invoice.created_at|date:"M d, Y" }}</td>
+                    <td class="px-4 py-3 gold-text font-semibold">₹{{ invoice.total_amount }}</td>
+                    <td class="px-4 py-3"><span class="px-2 py-1 bg-blue-500/15 text-blue-300 rounded text-xs font-semibold">{{ invoice.get_status_display|default:invoice.status }}</span></td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="4" class="px-4 py-8 text-center text-gray-400">No invoices.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="mt-8">
+        <a href="{% url 'customer_list' %}" class="glass px-6 py-3 rounded-lg font-semibold hover:bg-white/10 transition inline-flex items-center">
+            <i class="fas fa-arrow-left mr-2"></i>Back
+        </a>
+    </div>
+</div>
+{% endblock %}

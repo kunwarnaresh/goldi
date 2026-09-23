@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+
+{% block title %}Master Management - Goldi ERP{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-32">
+    <div class="mb-8 animate-in">
+        <h2 class="text-4xl font-bold gradient-text mb-2">
+            <i class="fas fa-database mr-3"></i>Master Management
+        </h2>
+        <p class="text-gray-400">Items, prices, barcodes, batches, serials, users, employees, roles and permissions.</p>
+    </div>
+
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+        <div class="glass-glow p-5 card-hover animate-on-scroll"><p class="text-gray-400">Items</p><p class="text-3xl gold-text font-bold">{{ item_count }}</p></div>
+        <div class="glass-glow p-5 card-hover animate-on-scroll" style="animation-delay: 0.05s;"><p class="text-gray-400">Prices</p><p class="text-3xl gold-text font-bold">{{ price_count }}</p></div>
+        <div class="glass-glow p-5 card-hover animate-on-scroll" style="animation-delay: 0.1s;"><p class="text-gray-400">Barcodes</p><p class="text-3xl gold-text font-bold">{{ barcode_count }}</p></div>
+        <div class="glass-glow p-5 card-hover animate-on-scroll" style="animation-delay: 0.15s;"><p class="text-gray-400">Batches</p><p class="text-3xl gold-text font-bold">{{ batch_count }}</p></div>
+        <div class="glass-glow p-5 card-hover animate-on-scroll" style="animation-delay: 0.2s;"><p class="text-gray-400">Serials</p><p class="text-3xl gold-text font-bold">{{ serial_count }}</p></div>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-8 mb-8">
+        <div class="glass-glow p-6 animate-on-scroll">
+            <h3 class="text-xl font-bold mb-4"><i class="fas fa-cube mr-2 gold-text"></i>Item Master</h3>
+            <div class="space-y-3">
+                {% for item in items %}
+                <div class="glass p-4 rounded-lg flex justify-between items-center">
+                    <div>
+                        <p class="font-semibold">{{ item.name }}</p>
+                        <p class="text-sm text-gray-400">SKU: {{ item.sku }} | {{ item.metal_type|title }} | {{ item.purity }}</p>
+                    </div>
+                    <span class="px-3 py-1 bg-amber-500/15 text-amber-300 rounded-full text-xs font-semibold">{{ item.stock_quantity }}</span>
+                </div>
+                {% empty %}
+                <p class="text-gray-400">No items available.</p>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="glass-glow p-6 animate-on-scroll">
+            <h3 class="text-xl font-bold mb-4"><i class="fas fa-tags mr-2 gold-text"></i>Pricing</h3>
+            <div class="space-y-3">
+                {% for price in prices %}
+                <div class="glass p-4 rounded-lg flex justify-between items-center">
+                    <div>
+                        <p class="font-semibold">{{ price.item.name }}</p>
+                        <p class="text-sm text-gray-400">{{ price.get_price_type_display }}</p>
+                    </div>
+                    <span class="gold-text font-semibold">₹{{ price.amount }}</span>
+                </div>
+                {% empty %}
+                <p class="text-gray-400">No price records available.</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-8 mb-8">
+        <div class="glass-glow p-6 animate-on-scroll">
+            <h3 class="text-xl font-bold mb-4"><i class="fas fa-barcode mr-2 gold-text"></i>Barcodes</h3>
+            <div class="space-y-3">
+                {% for barcode in barcodes %}
+                <div class="glass p-4 rounded-lg flex justify-between items-center">
+                    <div>
+                        <p class="font-semibold">{{ barcode.item.name }}</p>
+                        <p class="text-sm text-gray-400">{{ barcode.barcode_type }}</p>
+                    </div>
+                    <span class="text-sm text-green-300">{{ barcode.barcode }}</span>
+                </div>
+                {% empty %}
+                <p class="text-gray-400">No barcode records available.</p>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="glass-glow p-6 animate-on-scroll">
+            <h3 class="text-xl font-bold mb-4"><i class="fas fa-boxes mr-2 gold-text"></i>Batches & Serials</h3>
+            <div class="space-y-3">
+                {% for batch in batches %}
+                <div class="glass p-4 rounded-lg flex justify-between items-center">
+                    <div>
+                        <p class="font-semibold">{{ batch.item.name }}</p>
+                        <p class="text-sm text-gray-400">Batch: {{ batch.batch_no }}</p>
+                    </div>
+                    <span class="text-sm text-amber-300">Qty {{ batch.quantity }}</span>
+                </div>
+                {% empty %}
+                <p class="text-gray-400">No batch records available.</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-8 mb-8">
+        <div class="glass-glow p-6 animate-on-scroll">
+            <h3 class="text-xl font-bold mb-4"><i class="fas fa-user-friends mr-2 gold-text"></i>Customers, Users & Roles</h3>
+            <div class="space-y-3">
+                <div class="glass p-4 rounded-lg flex justify-between"><span>Customers</span><span class="gold-text font-bold">{{ customer_count }}</span></div>
+                <div class="glass p-4 rounded-lg flex justify-between"><span>Users</span><span class="gold-text font-bold">{{ user_count }}</span></div>
+                <div class="glass p-4 rounded-lg flex justify-between"><span>Employees</span><span class="gold-text font-bold">{{ employee_count }}</span></div>
+                <div class="glass p-4 rounded-lg flex justify-between"><span>Roles</span><span class="gold-text font-bold">{{ role_count }}</span></div>
+            </div>
+        </div>
+
+        <div class="glass-glow p-6 animate-on-scroll">
+            <h3 class="text-xl font-bold mb-4"><i class="fas fa-shield-alt mr-2 gold-text"></i>Permission Model</h3>
+            <div class="space-y-3">
+                {% for category in categories %}
+                <div class="glass p-4 rounded-lg flex justify-between items-center">
+                    <div>
+                        <p class="font-semibold">{{ category.name }}</p>
+                        <p class="text-sm text-gray-400">{{ category.description|default:'Category' }}</p>
+                    </div>
+                    <i class="fas fa-lock text-gray-300"></i>
+                </div>
+                {% empty %}
+                <p class="text-gray-400">Role and permission master entries are ready to be configured.</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-10">
+        <div class="glass-glow p-6 animate-on-scroll">
+            <h3 class="text-xl font-bold mb-4"><i class="fas fa-box-open mr-2 gold-text"></i>Quick Add Product</h3>
+            <form method="post">
+                {% csrf_token %}
+                {{ product_form.as_p }}
+                <button type="submit" name="product_submit" class="btn-gold mt-3">Save Product</button>
+            </form>
+        </div>
+
+        <div class="glass-glow p-6 animate-on-scroll">
+            <h3 class="text-xl font-bold mb-4"><i class="fas fa-user mr-2 gold-text"></i>Quick Add Customer</h3>
+            <form method="post">
+                {% csrf_token %}
+                {{ customer_form.as_p }}
+                <button type="submit" name="customer_submit" class="btn-gold mt-3">Save Customer</button>
+            </form>
+        </div>
+
+        <div class="glass-glow p-6 animate-on-scroll">
+            <h3 class="text-xl font-bold mb-4"><i class="fas fa-truck mr-2 gold-text"></i>Quick Add Supplier</h3>
+            <form method="post">
+                {% csrf_token %}
+                {{ supplier_form.as_p }}
+                <button type="submit" name="supplier_submit" class="btn-gold mt-3">Save Supplier</button>
+            </form>
+        </div>
+
+        <div class="glass-glow p-6 animate-on-scroll">
+            <h3 class="text-xl font-bold mb-4"><i class="fas fa-user-shield mr-2 gold-text"></i>Quick Add Role</h3>
+            <form method="post">
+                {% csrf_token %}
+                {{ role_form.as_p }}
+                <button type="submit" name="role_submit" class="btn-gold mt-3">Save Role</button>
+            </form>
+        </div>
+
+        <div class="glass-glow p-6 animate-on-scroll">
+            <h3 class="text-xl font-bold mb-4"><i class="fas fa-id-card mr-2 gold-text"></i>Quick Add Employee</h3>
+            <form method="post">
+                {% csrf_token %}
+                {{ employee_form.as_p }}
+                <button type="submit" name="employee_submit" class="btn-gold mt-3">Save Employee</button>
+            </form>
+        </div>
+
+        <div class="glass-glow p-6 animate-on-scroll">
+            <h3 class="text-xl font-bold mb-4"><i class="fas fa-warehouse mr-2 gold-text"></i>Quick Add Warehouse</h3>
+            <form method="post">
+                {% csrf_token %}
+                {{ warehouse_form.as_p }}
+                <button type="submit" name="warehouse_submit" class="btn-gold mt-3">Save Warehouse</button>
+            </form>
+        </div>
+
+        <div class="glass-glow p-6 animate-on-scroll lg:col-span-2">
+            <h3 class="text-xl font-bold mb-4"><i class="fas fa-receipt mr-2 gold-text"></i>Quick Add GST Slab</h3>
+            <form method="post">
+                {% csrf_token %}
+                {{ gst_form.as_p }}
+                <button type="submit" name="gst_submit" class="btn-gold mt-3">Save GST Slab</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="mt-8">
+        <a href="{% url 'dashboard' %}" class="glass px-6 py-3 rounded-lg font-semibold hover:bg-white/10 transition inline-flex items-center">
+            <i class="fas fa-arrow-left mr-2"></i>Back to Dashboard
+        </a>
+    </div>
+</div>
+{% endblock %}

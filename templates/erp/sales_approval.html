@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}Sales Approval - Goldi ERP{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pb-32">
+    <!-- Header -->
+    <div class="mb-8 animate-in">
+        <h2 class="text-4xl font-bold gradient-text mb-2">
+            <i class="fas fa-check-circle mr-3"></i>Sales Approvals
+        </h2>
+        <p class="text-gray-400">{{ approvals|length }} sales waiting for review</p>
+    </div>
+
+    <!-- Approvals Table -->
+    <div class="glass-glow p-8 mb-12 animate-on-scroll">
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead>
+                    <tr class="border-b border-white/10">
+                        <th class="text-left py-4 px-4 text-gray-400 font-semibold text-sm">Invoice No</th>
+                        <th class="text-left py-4 px-4 text-gray-400 font-semibold text-sm">Customer</th>
+                        <th class="text-right py-4 px-4 text-gray-400 font-semibold text-sm">Amount</th>
+                        <th class="text-center py-4 px-4 text-gray-400 font-semibold text-sm">Status</th>
+                        <th class="text-center py-4 px-4 text-gray-400 font-semibold text-sm">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for approval in approvals %}
+                    <tr class="border-b border-white/5 hover:bg-white/5 transition animate-on-scroll">
+                        <td class="py-4 px-4 font-medium">{{ approval.invoice.invoice_no }}</td>
+                        <td class="py-4 px-4">
+                            <div class="flex items-center gap-2">
+                                <i class="fas fa-user text-gray-400"></i>
+                                {{ approval.invoice.customer.name }}
+                            </div>
+                        </td>
+                        <td class="py-4 px-4 text-right gold-text font-semibold">₹{{ approval.invoice.total_amount|floatformat:0 }}</td>
+                        <td class="py-4 px-4 text-center">
+                            <span class="px-3 py-1 {% if approval.status == 'pending' %}bg-yellow-500/20 text-yellow-400{% elif approval.status == 'approved' %}bg-green-500/20 text-green-400{% else %}bg-red-500/20 text-red-400{% endif %} rounded-full text-xs font-semibold">
+                                {{ approval.status|upper }}
+                            </span>
+                        </td>
+                        <td class="py-4 px-4 text-center">
+                            <a href="{% url 'invoice_detail' approval.invoice.pk %}">
+                                <button type="button" class="btn-gold px-4 py-2 rounded-lg text-sm hover:shadow-lg transition">
+                                    <i class="fas fa-eye mr-1"></i>Review
+                                </button>
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="py-8 text-center text-gray-400">
+                            <i class="fas fa-check-double text-3xl mb-3 block"></i>
+                            No approvals pending. All sales are processed!
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="glass p-6 rounded-xl text-center animate-on-scroll">
+            <p class="text-3xl font-bold gold-text mb-2">{{ approvals|length }}</p>
+            <p class="text-sm text-gray-400">Pending</p>
+        </div>
+        <div class="glass p-6 rounded-xl text-center animate-on-scroll" style="animation-delay: 0.1s;">
+            <p class="text-3xl font-bold gold-text mb-2">0</p>
+            <p class="text-sm text-gray-400">Approved</p>
+        </div>
+        <div class="glass p-6 rounded-xl text-center animate-on-scroll" style="animation-delay: 0.2s;">
+            <p class="text-3xl font-bold gold-text mb-2">0</p>
+            <p class="text-sm text-gray-400">Rejected</p>
+        </div>
+        <div class="glass p-6 rounded-xl text-center animate-on-scroll" style="animation-delay: 0.3s;">
+            <p class="text-3xl font-bold gold-text mb-2">💰</p>
+            <p class="text-sm text-gray-400">Total Value</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

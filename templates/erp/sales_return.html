@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}Sales Return - Goldi ERP{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pb-32">
+    <div class="mb-8 animate-in">
+        <h2 class="text-4xl font-bold gradient-text mb-2">
+            <i class="fas fa-rotate-left mr-3"></i>Sales Return
+        </h2>
+        <p class="text-gray-400">Record refund or return requests for completed invoices</p>
+    </div>
+
+    <div class="glass-glow p-10 card-hover animate-on-scroll">
+        <form method="post" class="space-y-6">
+            {% csrf_token %}
+
+            <div class="space-y-3">
+                <label class="block text-sm font-semibold text-gray-300">
+                    <i class="fas fa-file-invoice-dollar gold-text mr-2"></i>Invoice
+                </label>
+                {{ form.invoice }}
+            </div>
+
+            <div class="space-y-3">
+                <label class="block text-sm font-semibold text-gray-300">
+                    <i class="fas fa-comment-dots gold-text mr-2"></i>Reason
+                </label>
+                {{ form.reason }}
+            </div>
+
+            <div class="space-y-3">
+                <label class="block text-sm font-semibold text-gray-300">
+                    <i class="fas fa-check-circle gold-text mr-2"></i>Status
+                </label>
+                {{ form.status }}
+            </div>
+
+            <div class="space-y-3">
+                <label class="block text-sm font-semibold text-gray-300">
+                    <i class="fas fa-note-sticky gold-text mr-2"></i>Notes
+                </label>
+                {{ form.notes }}
+            </div>
+
+            <div class="flex gap-4 pt-6">
+                <button type="submit" class="btn-gold flex-1 py-3 rounded-lg font-semibold">
+                    <i class="fas fa-save mr-2"></i>Save Return
+                </button>
+                <a href="{% url 'dashboard' %}" class="glass flex-1 py-3 rounded-lg font-semibold text-center">
+                    <i class="fas fa-arrow-left mr-2"></i>Back
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.querySelectorAll('input, select, textarea').forEach(el => {
+        el.classList.add('w-full', 'px-4', 'py-3', 'glass', 'rounded-lg', 'focus:outline-none', 'text-gray-200');
+    });
+</script>
+{% endblock %}

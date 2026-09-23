@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}Put Away Items - Goldi ERP{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pb-32">
+    <h2 class="text-4xl font-bold gradient-text mb-8">Put Away Items to Bin</h2>
+
+    <div class="glass-glow p-8 mb-8">
+        <h3 class="text-xl font-bold mb-4">{{ bin.warehouse.code }} - {{ bin.code }}</h3>
+        <p class="text-gray-400">Current Stock: {{ bin.current_stock }} units | Type: {{ bin.get_bin_type_display }}</p>
+    </div>
+
+    <div class="glass-glow p-8">
+        <form method="post" class="space-y-6">
+            {% csrf_token %}
+            <div>
+                <label for="item_id" class="block text-sm font-semibold text-gray-200">Product</label>
+                <select name="item_id" id="item_id" class="w-full mt-2 px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:border-amber-500/50 transition" required>
+                    <option value="">Select a product...</option>
+                </select>
+            </div>
+
+            <div>
+                <label for="quantity" class="block text-sm font-semibold text-gray-200">Quantity to Put Away</label>
+                <input type="number" name="quantity" id="quantity" step="0.01" min="0" class="w-full mt-2 px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white focus:outline-none focus:border-amber-500/50 transition" required>
+            </div>
+
+            <div class="flex gap-4 pt-6">
+                <button type="submit" class="btn-gold">Put Away</button>
+                <a href="javascript:history.back()" class="glass px-6 py-3 rounded-lg font-semibold hover:bg-white/10 transition">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

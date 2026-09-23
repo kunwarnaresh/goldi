@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+
+{% block title %}Gold/Silver Exchange - Goldi ERP{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pb-32">
+    <!-- Header -->
+    <div class="mb-8 animate-in">
+        <h2 class="text-4xl font-bold gradient-text mb-2">
+            <i class="fas fa-exchange-alt mr-3"></i>Gold & Silver Exchange
+        </h2>
+        <p class="text-gray-400">Convert your precious metals with real-time market rates</p>
+    </div>
+
+    <!-- Exchange Form Card -->
+    <div class="glass-glow p-10 mb-8 card-hover animate-on-scroll">
+        <form method="post" action="{% url 'exchange' %}" class="space-y-6">
+            {% csrf_token %}
+            
+            <!-- Customer Selection -->
+            <div class="space-y-3">
+                <label class="block text-sm font-semibold text-gray-300">
+                    <i class="fas fa-user gold-text mr-2"></i>Select Customer
+                </label>
+                <div class="relative">
+                    {{ form.customer }}
+                    <div class="absolute inset-y-0 right-4 flex items-center pointer-events-none">
+                        <i class="fas fa-chevron-down gold-text text-sm"></i>
+                    </div>
+                </div>
+                {% if form.customer.errors %}
+                    <p class="text-red-400 text-sm"><i class="fas fa-exclamation-circle mr-2"></i>{{ form.customer.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <!-- Metal Type -->
+            <div class="grid grid-cols-2 gap-6">
+                <div class="space-y-3">
+                    <label class="block text-sm font-semibold text-gray-300">
+                        <i class="fas fa-ring gold-text mr-2"></i>Metal Type
+                    </label>
+                    <div class="relative">
+                        {{ form.metal_type }}
+                        <div class="absolute inset-y-0 right-4 flex items-center pointer-events-none">
+                            <i class="fas fa-chevron-down gold-text text-sm"></i>
+                        </div>
+                    </div>
+                    {% if form.metal_type.errors %}
+                        <p class="text-red-400 text-sm"><i class="fas fa-exclamation-circle mr-2"></i>{{ form.metal_type.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <div class="space-y-3">
+                    <label class="block text-sm font-semibold text-gray-300">
+                        <i class="fas fa-weight gold-text mr-2"></i>Weight (grams)
+                    </label>
+                    {{ form.weight_grams }}
+                    {% if form.weight_grams.errors %}
+                        <p class="text-red-400 text-sm"><i class="fas fa-exclamation-circle mr-2"></i>{{ form.weight_grams.errors.0 }}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Old Product & Market Rate -->
+            <div class="grid grid-cols-2 gap-6">
+                <div class="space-y-3">
+                    <label class="block text-sm font-semibold text-gray-300">
+                        <i class="fas fa-box gold-text mr-2"></i>Old Product Name
+                    </label>
+                    {{ form.old_product_name }}
+                    {% if form.old_product_name.errors %}
+                        <p class="text-red-400 text-sm"><i class="fas fa-exclamation-circle mr-2"></i>{{ form.old_product_name.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <div class="space-y-3">
+                    <label class="block text-sm font-semibold text-gray-300">
+                        <i class="fas fa-chart-line gold-text mr-2"></i>Market Rate (₹/gram)
+                    </label>
+                    {{ form.market_rate_per_gram }}
+                    {% if form.market_rate_per_gram.errors %}
+                        <p class="text-red-400 text-sm"><i class="fas fa-exclamation-circle mr-2"></i>{{ form.market_rate_per_gram.errors.0 }}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Exchange Value -->
+            <div class="space-y-3">
+                <label class="block text-sm font-semibold text-gray-300">
+                    <i class="fas fa-coins gold-text mr-2"></i>Exchange Value (₹)
+                </label>
+                {{ form.exchange_value }}
+                {% if form.exchange_value.errors %}
+                    <p class="text-red-400 text-sm"><i class="fas fa-exclamation-circle mr-2"></i>{{ form.exchange_value.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <!-- Notes -->
+            <div class="space-y-3">
+                <label class="block text-sm font-semibold text-gray-300">
+                    <i class="fas fa-sticky-note gold-text mr-2"></i>Additional Notes
+                </label>
+                {{ form.notes }}
+                {% if form.notes.errors %}
+                    <p class="text-red-400 text-sm"><i class="fas fa-exclamation-circle mr-2"></i>{{ form.notes.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <!-- Info Box -->
+            <div class="glass p-4 rounded-lg border border-blue-500/30 bg-blue-500/5">
+                <p class="text-sm text-blue-300">
+                    <i class="fas fa-info-circle mr-2"></i>
+                    Your exchange request will be submitted for approval. You'll receive confirmation once it's processed.
+                </p>
+            </div>
+
+            <!-- Buttons -->
+            <div class="flex gap-4 pt-6">
+                <button type="submit" class="btn-gold flex-1 py-3 rounded-lg font-semibold hover:shadow-lg transition">
+                    <i class="fas fa-check-circle mr-2"></i>Submit Exchange Request
+                </button>
+                <a href="{% url 'dashboard' %}" class="glass flex-1 py-3 rounded-lg font-semibold text-center hover:bg-white/10 transition">
+                    <i class="fas fa-arrow-left mr-2"></i>Back
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Info Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 pb-12">
+        <div class="glass p-6 rounded-xl text-center animate-on-scroll">
+            <i class="fas fa-lightning text-2xl gold-text mb-3 block"></i>
+            <h3 class="font-semibold mb-2">Real-time Rates</h3>
+            <p class="text-sm text-gray-400">Current market prices updated live</p>
+        </div>
+
+        <div class="glass p-6 rounded-xl text-center animate-on-scroll" style="animation-delay: 0.1s;">
+            <i class="fas fa-shield-alt text-2xl gold-text mb-3 block"></i>
+            <h3 class="font-semibold mb-2">Secure Process</h3>
+            <p class="text-sm text-gray-400">All exchanges verified and approved</p>
+        </div>
+
+        <div class="glass p-6 rounded-xl text-center animate-on-scroll" style="animation-delay: 0.2s;">
+            <i class="fas fa-clock text-2xl gold-text mb-3 block"></i>
+            <h3 class="font-semibold mb-2">Fast Settlement</h3>
+            <p class="text-sm text-gray-400">Quick processing & settlement</p>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Auto-calculate exchange value
+    const rateInput = document.querySelector('input[name="market_rate_per_gram"]');
+    const weightInput = document.querySelector('input[name="weight_grams"]');
+    const valueInput = document.querySelector('input[name="exchange_value"]');
+
+    function updateExchangeValue() {
+        const rate = parseFloat(rateInput.value) || 0;
+        const weight = parseFloat(weightInput.value) || 0;
+        const value = rate * weight;
+        valueInput.value = value.toFixed(2);
+    }
+
+    if (rateInput && weightInput && valueInput) {
+        rateInput.addEventListener('change', updateExchangeValue);
+        weightInput.addEventListener('change', updateExchangeValue);
+    }
+
+    // Style form inputs with glassmorphism
+    document.querySelectorAll('input, select, textarea').forEach(el => {
+        el.classList.add('w-full', 'px-4', 'py-3', 'glass', 'rounded-lg', 'focus:outline-none', 'focus:ring-2', 'focus:ring-gold-500', 'transition', 'text-gray-200');
+    });
+</script>
+{% endblock %}

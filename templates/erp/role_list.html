@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Roles - Goldi ERP{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-32">
+    <div class="flex justify-between items-center mb-8">
+        <div>
+            <h2 class="text-4xl font-bold gradient-text mb-2">Roles</h2>
+            <p class="text-gray-400">Manage user roles and permissions.</p>
+        </div>
+        <a href="{% url 'role_create' %}" class="btn-gold"><i class="fas fa-plus mr-2"></i>New Role</a>
+    </div>
+
+    <div class="glass-glow p-6">
+        <table class="w-full">
+            <thead>
+                <tr class="border-b border-white/10">
+                    <th class="px-4 py-3 text-left text-gray-400">Name</th>
+                    <th class="px-4 py-3 text-left text-gray-400">Description</th>
+                    <th class="px-4 py-3 text-left text-gray-400">System Role</th>
+                    <th class="px-4 py-3 text-left text-gray-400">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for role in roles %}
+                <tr class="border-b border-white/5 hover:bg-white/5 transition">
+                    <td class="px-4 py-3 font-semibold">{{ role.name }}</td>
+                    <td class="px-4 py-3 text-sm">{{ role.description|default:"N/A" }}</td>
+                    <td class="px-4 py-3"><span class="text-xs px-2 py-1 rounded {% if role.is_system %}bg-blue-500/15 text-blue-300{% else %}bg-gray-500/15 text-gray-300{% endif %}">{% if role.is_system %}System{% else %}Custom{% endif %}</span></td>
+                    <td class="px-4 py-3 text-sm">
+                        <a href="{% url 'role_edit' role.pk %}" class="text-amber-400 hover:text-amber-300 mr-3">Edit</a>
+                        <a href="{% url 'role_delete' role.pk %}" class="text-red-400 hover:text-red-300">Delete</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="4" class="px-4 py-8 text-center text-gray-400">No roles.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="mt-8">
+        <a href="{% url 'dashboard' %}" class="glass px-6 py-3 rounded-lg font-semibold hover:bg-white/10 transition inline-flex items-center">
+            <i class="fas fa-arrow-left mr-2"></i>Back
+        </a>
+    </div>
+</div>
+{% endblock %}

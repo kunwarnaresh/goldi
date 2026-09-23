@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}{{ warehouse.name }} - Goldi ERP{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-32">
+    <div class="flex justify-between items-center mb-8">
+        <div>
+            <h2 class="text-4xl font-bold gradient-text mb-2">{{ warehouse.name }}</h2>
+            <p class="text-gray-400">Code: {{ warehouse.code }} | {{ warehouse.city }}</p>
+        </div>
+        <div class="space-x-3">
+            <a href="{% url 'warehouse_edit' warehouse.pk %}" class="btn-gold">Edit</a>
+            <a href="{% url 'warehouse_delete' warehouse.pk %}" class="btn-red">Delete</a>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div class="glass-glow p-6">
+            <p class="text-gray-400 mb-2">Total Bins</p>
+            <p class="text-3xl gold-text font-bold">{{ bins|length }}</p>
+        </div>
+        <div class="glass-glow p-6">
+            <p class="text-gray-400 mb-2">Movements</p>
+            <p class="text-3xl gold-text font-bold">{{ movements|length }}</p>
+        </div>
+        <div class="glass-glow p-6">
+            <p class="text-gray-400 mb-2">Status</p>
+            <p class="text-2xl">{% if warehouse.is_active %}<span class="px-3 py-1 bg-green-500/15 text-green-300 rounded-full text-xs font-semibold">Active</span>{% else %}<span class="px-3 py-1 bg-red-500/15 text-red-300 rounded-full text-xs font-semibold">Inactive</span>{% endif %}</p>
+        </div>
+    </div>
+
+    <div class="glass-glow p-6 mb-8">
+        <h3 class="text-xl font-bold mb-4">Details</h3>
+        <p class="text-gray-300 mb-2">{{ warehouse.address }}</p>
+        <p class="text-gray-400">State: {{ warehouse.state_code }}</p>
+    </div>
+
+    <div class="glass-glow p-6 mb-8">
+        <h3 class="text-xl font-bold mb-4"><i class="fas fa-th-large mr-2 gold-text"></i>Bin Locations ({{ bins|length }})</h3>
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="border-b border-white/10">
+                    <th class="px-4 py-3 text-left text-gray-400">Bin Code</th>
+                    <th class="px-4 py-3 text-left text-gray-400">Type</th>
+                    <th class="px-4 py-3 text-left text-gray-400">Stock</th>
+                    <th class="px-4 py-3 text-left text-gray-400">Capacity</th>
+                    <th class="px-4 py-3 text-left text-gray-400">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for bin in bins %}
+                <tr class="border-b border-white/5 hover:bg-white/5 transition">
+                    <td class="px-4 py-3 font-mono">{{ bin.code }}</td>
+                    <td class="px-4 py-3"><span class="px-2 py-1 bg-blue-500/15 text-blue-300 rounded text-xs">{{ bin.get_bin_type_display }}</span></td>
+                    <td class="px-4 py-3">{{ bin.current_stock }}</td>
+                    <td class="px-4 py-3">{{ bin.capacity }}</td>
+                    <td class="px-4 py-3 text-xs">
+                        <a href="{% url 'warehouse_pick' bin.pk %}" class="text-amber-400 hover:text-amber-300 mr-2">Pick</a>
+                        <a href="{% url 'warehouse_putaway' bin.pk %}" class="text-green-400 hover:text-green-300">Put</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5" class="px-4 py-8 text-center text-gray-400">No bins configured.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="glass-glow p-6">
+        <h3 class="text-xl font-bold mb-4"><i class="fas fa-history mr-2 gold-text"></i>Recent Movements</h3>
+        <div class="space-y-3">
+            {% for movement in movements %}
+            <div class="glass p-4 rounded-lg flex justify-between items-center">
+                <div>
+                    <p class="font-semibold">{{ movement.item.name }}</p>
+                    <p class="text-sm text-gray-400">{{ movement.get_movement_type_display }} | {{ movement.quantity }} units</p>
+                </div>
+                <span class="text-xs text-gray-400">{{ movement.created_at|date:"M d, h:i A" }}</span>
+            </div>
+            {% empty %}
+            <p class="text-gray-400">No movements.</p>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="mt-8">
+        <a href="{% url 'warehouse_management' %}" class="glass px-6 py-3 rounded-lg font-semibold hover:bg-white/10 transition inline-flex items-center">
+            <i class="fas fa-arrow-left mr-2"></i>Back
+        </a>
+    </div>
+</div>
+{% endblock %}

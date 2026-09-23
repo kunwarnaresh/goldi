@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}POS Login | Goldi ERP{% endblock %}
+
+{% block extra_css %}
+<style>
+    .pos-login-page { min-height: calc(100vh - 4rem); display: grid; place-items: center; padding: 2rem 1rem; background: #071522; background-image: linear-gradient(rgba(101,230,224,.055) 1px, transparent 1px), linear-gradient(90deg, rgba(101,230,224,.055) 1px, transparent 1px), radial-gradient(circle at 18% 18%, rgba(101,230,224,.18), transparent 30%), radial-gradient(circle at 85% 80%, rgba(243,138,191,.13), transparent 28%); background-size: 28px 28px, 28px 28px, auto, auto; }
+    .pos-login-card { width: min(430px, 100%); padding: 2rem; border: 1px solid rgba(101,230,224,.25); border-radius: 12px; background: rgba(13,34,50,.9); box-shadow: 0 22px 70px rgba(0,0,0,.35), 0 0 0 1px rgba(200,241,105,.05); }
+    .pos-login-card h1 { margin: .5rem 0 .25rem; color: #efffff; font: 700 1.7rem 'Space Grotesk', sans-serif; }
+    .pos-login-card p { color: #a9c4ca; font-size: .82rem; }
+    .pos-login-terminal { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; margin: 1.4rem 0; }
+    .pos-login-terminal div { padding: .7rem; border: 1px solid rgba(101,230,224,.2); background: rgba(7,21,34,.42); }
+    .pos-login-terminal span { display: block; color: #7fa8b0; font-size: .62rem; letter-spacing: .1em; text-transform: uppercase; }
+    .pos-login-terminal strong { display: block; margin-top: .25rem; color: #efffff; }
+    .pos-login-field { display: block; margin: 1rem 0; color: #9dc0c5; font-size: .7rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    .pos-login-field input { margin-top: .35rem; min-height: 48px; border-color: rgba(101,230,224,.22); background: rgba(255,255,255,.96); color: #102033; }
+    .pos-login-submit { width: 100%; min-height: 50px; margin-top: .7rem; border: 0; border-radius: 6px; background: linear-gradient(100deg, #087f8c, #2caaa6); color: #fff; cursor: pointer; font-weight: 800; box-shadow: 0 8px 24px rgba(8,127,140,.24); }
+    .pos-login-lock { color: #65e6e0; font-size: 1.5rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="pos-login-page">
+    <form method="post" action="{% url 'pos_login' %}" class="pos-login-card">
+        {% csrf_token %}
+        <div class="pos-login-lock"><i class="fas fa-lock"></i></div>
+        <h1>POS staff login</h1>
+        <p>Authenticate before opening the billing terminal.</p>
+        <div class="pos-login-terminal">
+            <div><span>Store</span><strong>{{ terminal.store.code|default:'Not configured' }}</strong></div>
+            <div><span>POS terminal</span><strong>{{ terminal.code|default:'Not configured' }}</strong></div>
+        </div>
+        <label class="pos-login-field">Staff ID / employee code<input name="staff_id" autocomplete="username" required autofocus placeholder="EMP1024"></label>
+        <label class="pos-login-field">PIN / password<input name="pin" type="password" inputmode="numeric" autocomplete="current-password" required placeholder="Enter your PIN"></label>
+        <button class="pos-login-submit" type="submit"><i class="fas fa-arrow-right-to-bracket"></i> Open POS</button>
+        <p style="margin-top:1rem; text-align:center">Access is limited to active staff assigned to this terminal.</p>
+    </form>
+</div>
+{% endblock %}

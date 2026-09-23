@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Goldi Login - Premium Jewelry ERP</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --gold-500: #d4af37;
+            --gold-600: #c49a26;
+        }
+
+        body {
+            background: linear-gradient(135deg, #0f0e11 0%, #1a1723 50%, #0f0e11 100%);
+            background-attachment: fixed;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
+        }
+
+        .glass {
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 16px;
+        }
+
+        .gold-text {
+            color: var(--gold-500);
+            text-shadow: 0 0 20px rgba(212, 175, 55, 0.3);
+        }
+
+        .gradient-text {
+            background: linear-gradient(135deg, #d4af37 0%, #f0e68c 50%, #d4af37 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .btn-gold {
+            background: linear-gradient(135deg, var(--gold-500) 0%, var(--gold-600) 100%);
+            color: #000;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(212, 175, 55, 0.3);
+        }
+
+        .btn-gold:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px rgba(212, 175, 55, 0.5);
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .animate-in {
+            animation: fadeInUp 0.8s ease-out;
+        }
+
+        input::placeholder {
+            color: rgba(255, 255, 255, 0.5) !important;
+        }
+
+        input {
+            background: rgba(255, 255, 255, 0.05) !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            color: #e0e0e0 !important;
+            transition: all 0.3s ease !important;
+        }
+
+        input:focus {
+            background: rgba(255, 255, 255, 0.08) !important;
+            border-color: var(--gold-500) !important;
+            box-shadow: 0 0 15px rgba(212, 175, 55, 0.2) !important;
+        }
+
+        .error-message {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #fca5a5;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 0.875rem;
+        }
+
+        .glow-effect {
+            position: absolute;
+            width: 300px;
+            height: 300px;
+            background: radial-gradient(circle, rgba(212, 175, 55, 0.1) 0%, transparent 70%);
+            border-radius: 50%;
+            filter: blur(40px);
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen px-4">
+    <div class="absolute inset-0 overflow-hidden pointer-events-none">
+        <div class="glow-effect top-1/3 left-1/4"></div>
+        <div class="glow-effect bottom-1/4 right-1/4"></div>
+    </div>
+
+    <div class="w-full max-w-md">
+        <div class="glass p-10 animate-in z-10 relative">
+            <!-- Logo & Title -->
+            <div class="text-center mb-10">
+                <div class="inline-block mb-4">
+                    <i class="fas fa-gem gold-text text-5xl"></i>
+                </div>
+                <h1 class="gradient-text text-4xl font-bold mb-2">Goldi ERP</h1>
+                <p class="text-gray-400 text-sm">Premium Jewelry Management System</p>
+            </div>
+
+            <!-- Form -->
+            <form method="post" class="space-y-4">
+                {% csrf_token %}
+                
+                <!-- Username Input -->
+                <div class="space-y-2">
+                    <label class="text-sm font-semibold text-gray-300">
+                        <i class="fas fa-user gold-text mr-2"></i>Username
+                    </label>
+                    <input
+                        type="text"
+                        name="username"
+                        placeholder="Enter your username"
+                        required
+                        class="w-full px-4 py-3 rounded-lg focus:outline-none transition"
+                    >
+                </div>
+
+                <!-- Password Input -->
+                <div class="space-y-2">
+                    <label class="text-sm font-semibold text-gray-300">
+                        <i class="fas fa-lock gold-text mr-2"></i>Password
+                    </label>
+                    <input
+                        type="password"
+                        name="password"
+                        placeholder="Enter your password"
+                        required
+                        class="w-full px-4 py-3 rounded-lg focus:outline-none transition"
+                    >
+                </div>
+
+                <!-- Error Messages -->
+                {% if messages %}
+                    <div class="space-y-2">
+                        {% for message in messages %}
+                            <div class="error-message">
+                                <i class="fas fa-exclamation-circle mr-2"></i>{{ message }}
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+                <!-- Login Button -->
+                <button type="submit" class="btn-gold w-full py-3 rounded-lg font-semibold mt-6 hover:shadow-lg transition">
+                    <i class="fas fa-sign-in-alt mr-2"></i>Login to Dashboard
+                </button>
+            </form>
+
+            <!-- Footer Info -->
+            <div class="mt-8 pt-6 border-t border-white/10 text-center">
+                <p class="text-xs text-gray-500">
+                    <i class="fas fa-lock mr-1"></i>Secure authentication required
+                </p>
+            </div>
+        </div>
+
+        <!-- Demo Credentials Info -->
+        <div class="glass p-4 mt-6 text-center text-xs text-gray-400 z-10 relative">
+            <p><strong>Demo Login:</strong> admin / admin123</p>
+        </div>
+    </div>
+
+    <script>
+        const inputs = document.querySelectorAll('input');
+        inputs.forEach((input, index) => {
+            input.style.animationDelay = `${0.1 + index * 0.1}s`;
+            input.style.animation = 'fadeInUp 0.6s ease-out forwards';
+            input.style.opacity = '0';
+        });
+
+        inputs.forEach(input => {
+            input.addEventListener('focus', function() {
+                this.parentElement.parentElement.style.transform = 'scale(1.02)';
+            });
+            input.addEventListener('blur', function() {
+                this.parentElement.parentElement.style.transform = 'scale(1)';
+            });
+        });
+    </script>
+</body>
+</html>

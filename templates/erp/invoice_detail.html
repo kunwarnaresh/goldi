@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}Invoice {{ invoice.invoice_no }} - Goldi ERP{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pb-32">
+    <div class="mb-8 animate-in flex justify-between items-center">
+        <div>
+            <h2 class="text-4xl font-bold gradient-text mb-2">
+                <i class="fas fa-file-invoice-dollar mr-3"></i>{{ invoice.invoice_no }}
+            </h2>
+            <p class="text-gray-400">Professional GST Invoice & Sale Details</p>
+        </div>
+    </div>
+
+    <div class="glass-glow p-8 mb-8 animate-on-scroll">
+        <div class="grid lg:grid-cols-2 gap-8 pb-8 border-b border-white/10">
+            <div>
+                <p class="text-sm text-gray-400 mb-2">Bill To</p>
+                <p class="text-2xl font-semibold">{{ invoice.customer.name }}</p>
+                <p class="text-gray-400 mt-2">Phone: {{ invoice.customer.phone|default:'N/A' }}</p>
+                <p class="text-gray-400">GSTIN: {{ invoice.customer.gstin|default:'N/A' }}</p>
+            </div>
+            <div class="text-left lg:text-right">
+                <p class="text-sm text-gray-400 mb-2">Invoice Status</p>
+                <span class="px-4 py-2 bg-green-500/20 text-green-400 rounded-lg font-semibold inline-block">
+                    {{ invoice.get_status_display|upper }}
+                </span>
+                <p class="text-gray-400 mt-4">Date: {{ invoice.sales_date|date:'d-m-Y' }}</p>
+                <p class="text-gray-400">Cashier: {{ invoice.cashier_name_snapshot|default:'N/A' }}</p>
+                <p class="text-gray-400">Sales Staff: {{ invoice.sales_staff_name_snapshot|default:'N/A' }}</p>
+                <p class="text-gray-400">POS Terminal: {{ invoice.terminal_code_snapshot|default:'N/A' }}</p>
+                <p class="text-gray-400">Place of Supply: {{ invoice.place_of_supply|default:'N/A' }}</p>
+            </div>
+        </div>
+
+        <div class="mb-10 mt-8">
+            <p class="text-sm font-semibold text-gray-400 mb-4">Item Details</p>
+            <table class="w-full">
+                <thead>
+                    <tr class="border-b border-white/10">
+                        <th class="text-left py-3 px-4 text-gray-400 font-semibold">Product</th>
+                        <th class="text-center py-3 px-4 text-gray-400 font-semibold">Batch</th>
+                        <th class="text-center py-3 px-4 text-gray-400 font-semibold">Serial</th>
+                        <th class="text-center py-3 px-4 text-gray-400 font-semibold">Qty</th>
+                        <th class="text-right py-3 px-4 text-gray-400 font-semibold">Rate</th>
+                        <th class="text-right py-3 px-4 text-gray-400 font-semibold">Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in items %}
+                    <tr class="border-b border-white/5 hover:bg-white/5 transition">
+                        <td class="py-3 px-4">
+                            <div class="font-medium">{{ item.product.name }}</div>
+                            {% if item.stone_name %}<div class="text-xs text-gray-400">Stone: {{ item.stone_name }}</div>{% endif %}
+                            {% if item.making_charge %}<div class="text-xs text-gray-400">Making: ₹{{ item.making_charge|floatformat:0 }}</div>{% endif %}
+                        </td>
+                        <td class="py-3 px-4 text-center text-gray-300">{{ item.batch_no|default:'-' }}</td>
+                        <td class="py-3 px-4 text-center text-gray-300">{{ item.serial_no|default:'-' }}</td>
+                        <td class="py-3 px-4 text-center text-gray-300">{{ item.quantity }}</td>
+                        <td class="py-3 px-4 text-right text-gray-300">₹{{ item.unit_price|floatformat:0 }}</td>
+                        <td class="py-3 px-4 text-right gold-text font-semibold">₹{{ item.line_total|floatformat:0 }}</td>
+                    </tr>
+                    {% if item.gross_weight %}
+                    <tr class="border-b border-white/5">
+                        <td colspan="6" class="py-2 px-4 text-xs text-gray-400">
+                            Jewellery: {{ item.gross_weight }}g gross · {{ item.net_metal_weight }}g net · Metal ₹{{ item.metal_value|floatformat:0 }} · Wastage ₹{{ item.wastage_value|floatformat:0 }} · Making ₹{{ item.making_charge|floatformat:0 }} · Stones ₹{{ item.stone_value|floatformat:0 }}
+                        </td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="grid lg:grid-cols-2 gap-8 mb-8">
+            <div class="bg-white/5 border border-white/10 rounded-lg p-6">
+                <p class="text-sm font-semibold text-gray-400 mb-4">GST Breakup</p>
+                <div class="space-y-3">
+                    <div class="flex justify-between items-center"><span class="text-gray-400">Taxable Value</span><span>₹{{ invoice.taxable_amount|floatformat:0 }}</span></div>
+                    <div class="flex justify-between items-center"><span class="text-gray-400">CGST</span><span>₹{{ invoice.cgst_amount|floatformat:0 }}</span></div>
+                    <div class="flex justify-between items-center"><span class="text-gray-400">SGST</span><span>₹{{ invoice.sgst_amount|floatformat:0 }}</span></div>
+                    <div class="flex justify-between items-center pt-3 border-t border-white/10"><span class="text-gray-400">Total GST</span><span>₹{{ invoice.gst_amount|floatformat:0 }}</span></div>
+                </div>
+            </div>
+
+            <div class="bg-white/5 border border-white/10 rounded-lg p-6">
+                <p class="text-sm font-semibold text-gray-400 mb-4">Pricing Summary</p>
+                <div class="space-y-3">
+                    <div class="flex justify-between items-center"><span class="text-gray-400">Subtotal</span><span>₹{{ invoice.subtotal|floatformat:0 }}</span></div>
+                    <div class="flex justify-between items-center"><span class="text-gray-400">Discount</span><span>-₹{{ invoice.discount_amount|floatformat:0 }}</span></div>
+                    <div class="flex justify-between items-center"><span class="text-gray-400">GST</span><span>₹{{ invoice.gst_amount|floatformat:0 }}</span></div>
+                    <div class="flex justify-between items-center pt-3 border-t border-white/10"><span class="text-lg font-bold">Total Amount</span><span class="text-2xl gold-text font-bold">₹{{ invoice.total_amount|floatformat:0 }}</span></div>
+                </div>
+            </div>
+        </div>
+
+        {% if invoice.terms_conditions %}
+        <div class="bg-white/5 border border-white/10 rounded-lg p-6 mb-8">
+            <p class="text-sm font-semibold text-gray-400 mb-3">Terms & Conditions</p>
+            <div class="text-gray-300 whitespace-pre-line">{{ invoice.terms_conditions }}</div>
+        </div>
+        {% endif %}
+
+        <div class="flex gap-4 pt-4">
+            <a href="{% url 'invoice_pdf' invoice.pk %}" class="btn-gold flex-1 py-3 rounded-lg font-semibold text-center hover:shadow-lg transition">
+                <i class="fas fa-file-pdf mr-2"></i>Download PDF
+            </a>
+            <a href="{% url 'dashboard' %}" class="glass flex-1 py-3 rounded-lg font-semibold text-center hover:bg-white/10 transition">
+                <i class="fas fa-arrow-left mr-2"></i>Back
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

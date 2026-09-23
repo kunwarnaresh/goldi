@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Goldi ERP{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Hero Section -->
+    <div class="mb-12 animate-in">
+        <h2 class="text-4xl md:text-5xl font-bold mb-4">
+            <span class="gradient-text">Welcome to Goldi</span>
+        </h2>
+        <p class="text-xl text-gray-400">Jewelry & Gold Management Excellence</p>
+    </div>
+
+    <!-- Quick Stats Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+        <!-- Total Sales Card -->
+        <div class="glass-glow p-8 card-hover animate-on-scroll transform hover:scale-105">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <p class="text-gray-400 text-sm mb-2">Total Sales</p>
+                    <p class="counter text-3xl">₹</p>
+                    <p id="total-sales" class="counter">{{ total_sales|floatformat:0 }}</p>
+                </div>
+                <div class="w-16 h-16 glass rounded-full flex items-center justify-center gold-border">
+                    <i class="fas fa-chart-line gold-text text-2xl"></i>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 text-sm text-green-400">
+                <i class="fas fa-arrow-up"></i>
+                <span>+12.5% this month</span>
+            </div>
+        </div>
+
+        <!-- Exchange Value Card -->
+        <div class="glass-glow p-8 card-hover animate-on-scroll transform hover:scale-105" style="animation-delay: 0.1s;">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <p class="text-gray-400 text-sm mb-2">Exchange Value</p>
+                    <p class="counter text-3xl">₹</p>
+                    <p id="exchange-value" class="counter">{{ total_exchanges|floatformat:0 }}</p>
+                </div>
+                <div class="w-16 h-16 glass rounded-full flex items-center justify-center gold-border">
+                    <i class="fas fa-exchange-alt gold-text text-2xl"></i>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 text-sm text-blue-400">
+                <i class="fas fa-coins"></i>
+                <span>Metal conversion active</span>
+            </div>
+        </div>
+
+        <!-- Pending Approvals Card -->
+        <div class="glass-glow p-8 card-hover animate-on-scroll transform hover:scale-105" style="animation-delay: 0.2s;">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <p class="text-gray-400 text-sm mb-2">Pending Approvals</p>
+                    <p class="counter text-3xl">{{ pending_approvals }}</p>
+                </div>
+                <div class="w-16 h-16 glass rounded-full flex items-center justify-center gold-border">
+                    <i class="fas fa-clock gold-text text-2xl"></i>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 text-sm text-yellow-400">
+                <i class="fas fa-exclamation-circle"></i>
+                <span>Needs attention</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Action Buttons Grid -->
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-12">
+        <a href="{% url 'master_management' %}" class="glass-glow p-6 text-center rounded-2xl card-hover group animate-on-scroll">
+            <div class="w-12 h-12 bg-gradient-to-br from-violet-500 to-violet-700 rounded-lg flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition">
+                <i class="fas fa-database text-white text-xl"></i>
+            </div>
+            <p class="font-semibold text-sm">Masters</p>
+            <p class="text-xs text-gray-400 mt-2">Items & Roles</p>
+        </a>
+
+        <a href="{% url 'warehouse_management' %}" class="glass-glow p-6 text-center rounded-2xl card-hover group animate-on-scroll" style="animation-delay: 0.05s;">
+            <div class="w-12 h-12 bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-lg flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition">
+                <i class="fas fa-warehouse text-white text-xl"></i>
+            </div>
+            <p class="font-semibold text-sm">Warehouse</p>
+            <p class="text-xs text-gray-400 mt-2">Bins & Pick</p>
+        </a>
+
+        <a href="{% url 'gst_management' %}" class="glass-glow p-6 text-center rounded-2xl card-hover group animate-on-scroll" style="animation-delay: 0.1s;">
+            <div class="w-12 h-12 bg-gradient-to-br from-cyan-500 to-cyan-700 rounded-lg flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition">
+                <i class="fas fa-receipt text-white text-xl"></i>
+            </div>
+            <p class="font-semibold text-sm">GST</p>
+            <p class="text-xs text-gray-400 mt-2">Tax Setup</p>
+        </a>
+
+        <a href="{% url 'pos' %}" class="glass-glow p-6 text-center rounded-2xl card-hover group animate-on-scroll" style="animation-delay: 0.15s;">
+            <div class="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-700 rounded-lg flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition">
+                <i class="fas fa-shopping-cart text-white text-xl"></i>
+            </div>
+            <p class="font-semibold text-sm">POS</p>
+            <p class="text-xs text-gray-400 mt-2">New Sale</p>
+        </a>
+
+        <a href="{% url 'sales_approval' %}" class="glass-glow p-6 text-center rounded-2xl card-hover group animate-on-scroll" style="animation-delay: 0.2s;">
+            <div class="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-700 rounded-lg flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition">
+                <i class="fas fa-check-circle text-white text-xl"></i>
+            </div>
+            <p class="font-semibold text-sm">Approvals</p>
+            <p class="text-xs text-gray-400 mt-2">{{ pending_approvals }} Pending</p>
+        </a>
+
+        <a href="{% url 'exchange' %}" class="glass-glow p-6 text-center rounded-2xl card-hover group animate-on-scroll" style="animation-delay: 0.25s;">
+            <div class="w-12 h-12 bg-gradient-to-br from-amber-500 to-amber-700 rounded-lg flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition">
+                <i class="fas fa-exchange-alt text-white text-xl"></i>
+            </div>
+            <p class="font-semibold text-sm">Exchange</p>
+            <p class="text-xs text-gray-400 mt-2">Gold/Silver</p>
+        </a>
+    </div>
+
+    <!-- Top Products Section -->
+    <div class="glass-glow p-8 mb-12 animate-on-scroll">
+        <div class="flex items-center justify-between mb-6">
+            <h3 class="text-2xl font-bold">
+                <i class="fas fa-sparkles gold-text mr-3"></i>
+                <span class="gradient-text">Top Products</span>
+            </h3>
+            <a href="{% url 'customer_list' %}" class="text-sm gold-text hover:text-yellow-300 transition">
+                View All <i class="fas fa-arrow-right ml-2"></i>
+            </a>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead>
+                    <tr class="border-b border-white/10">
+                        <th class="text-left py-4 px-4 text-gray-400 font-semibold text-sm">Product</th>
+                        <th class="text-left py-4 px-4 text-gray-400 font-semibold text-sm">Metal</th>
+                        <th class="text-left py-4 px-4 text-gray-400 font-semibold text-sm">Purity</th>
+                        <th class="text-right py-4 px-4 text-gray-400 font-semibold text-sm">Price</th>
+                        <th class="text-center py-4 px-4 text-gray-400 font-semibold text-sm">Stock</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for product in products %}
+                    <tr class="border-b border-white/5 hover:bg-white/5 transition animate-on-scroll">
+                        <td class="py-4 px-4">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 glass rounded-lg flex items-center justify-center">
+                                    <i class="fas fa-ring gold-text"></i>
+                                </div>
+                                <span class="font-medium">{{ product.name }}</span>
+                            </div>
+                        </td>
+                        <td class="py-4 px-4">
+                            <span class="px-3 py-1 glass rounded-full text-sm gold-text">{{ product.metal_type|title }}</span>
+                        </td>
+                        <td class="py-4 px-4 text-gray-400">{{ product.purity }}</td>
+                        <td class="py-4 px-4 text-right gold-text font-semibold">₹{{ product.sale_price|floatformat:0 }}</td>
+                        <td class="py-4 px-4 text-center">
+                            <span class="px-3 py-1 bg-green-500/20 text-green-400 rounded-full text-xs font-semibold">
+                                {{ product.stock_quantity }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="py-8 text-center text-gray-400">
+                            No products available. Add products to get started.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Footer Stats -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 pb-32">
+        <div class="glass p-6 text-center rounded-xl animate-on-scroll">
+            <p class="text-3xl font-bold gold-text mb-2">{{ products|length }}</p>
+            <p class="text-sm text-gray-400">Products</p>
+        </div>
+        <div class="glass p-6 text-center rounded-xl animate-on-scroll" style="animation-delay: 0.1s;">
+            <p class="text-3xl font-bold gold-text mb-2">₹0</p>
+            <p class="text-sm text-gray-400">Monthly Revenue</p>
+        </div>
+        <div class="glass p-6 text-center rounded-xl animate-on-scroll" style="animation-delay: 0.2s;">
+            <p class="text-3xl font-bold gold-text mb-2">{{ pending_approvals }}</p>
+            <p class="text-sm text-gray-400">Approvals</p>
+        </div>
+        <div class="glass p-6 text-center rounded-xl animate-on-scroll" style="animation-delay: 0.3s;">
+            <p class="text-3xl font-bold gold-text mb-2">📊</p>
+            <p class="text-sm text-gray-400">Live Analytics</p>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Animate counters when page loads
+    window.addEventListener('load', () => {
+        const totalSalesEl = document.getElementById('total-sales');
+        const exchangeValueEl = document.getElementById('exchange-value');
+        
+        if (totalSalesEl) {
+            animateCounter(totalSalesEl, {{ total_sales|floatformat:0 }});
+        }
+        if (exchangeValueEl) {
+            animateCounter(exchangeValueEl, {{ total_exchanges|floatformat:0 }});
+        }
+    });
+
+    // Parallax effect on scroll
+    window.addEventListener('scroll', () => {
+        const scrolled = window.pageYOffset;
+        const cards = document.querySelectorAll('.card-hover');
+        cards.forEach((card, index) => {
+            card.style.transform = `translateY(${scrolled * 0.05 * (index % 2 ? 1 : -1)}px) translateY(-8px)`;
+        });
+    });
+</script>
+{% endblock %}

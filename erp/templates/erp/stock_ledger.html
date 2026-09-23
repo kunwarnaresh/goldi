@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}Stock Ledger - Goldi ERP{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-32">
+    <!-- Header -->
+    <div class="mb-8 animate-in">
+        <h2 class="text-4xl font-bold gradient-text mb-2">
+            <i class="fas fa-boxes mr-3"></i>Stock Ledger
+        </h2>
+        <p class="text-gray-400">Track all inventory movements and balances</p>
+    </div>
+
+    <!-- Stock Movement Table -->
+    <div class="glass-glow overflow-x-auto animate-on-scroll">
+        <table class="w-full">
+            <thead>
+                <tr class="border-b border-white/10">
+                    <th class="px-6 py-4 text-left text-sm font-semibold text-gray-400">
+                        <i class="fas fa-box mr-2"></i>Product
+                    </th>
+                    <th class="px-6 py-4 text-left text-sm font-semibold text-gray-400">
+                        <i class="fas fa-exchange-alt mr-2"></i>Movement
+                    </th>
+                    <th class="px-6 py-4 text-center text-sm font-semibold text-gray-400">
+                        <i class="fas fa-plus-circle mr-2"></i>Quantity
+                    </th>
+                    <th class="px-6 py-4 text-right text-sm font-semibold text-gray-400">
+                        <i class="fas fa-tag mr-2"></i>Rate
+                    </th>
+                    <th class="px-6 py-4 text-center text-sm font-semibold text-gray-400">
+                        <i class="fas fa-calculator mr-2"></i>Balance
+                    </th>
+                    <th class="px-6 py-4 text-left text-sm font-semibold text-gray-400">
+                        <i class="fas fa-link mr-2"></i>Reference
+                    </th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in ledger %}
+                <tr class="border-b border-white/5 hover:bg-white/5 transition">
+                    <td class="px-6 py-4 font-semibold">{{ row.product.name }}</td>
+                    <td class="px-6 py-4">
+                        {% if row.movement_type == 'IN' %}
+                        <span class="px-3 py-1 bg-green-500/20 text-green-400 rounded-lg text-sm font-semibold">
+                            <i class="fas fa-arrow-down mr-1"></i>{{ row.movement_type }}
+                        </span>
+                        {% elif row.movement_type == 'OUT' %}
+                        <span class="px-3 py-1 bg-red-500/20 text-red-400 rounded-lg text-sm font-semibold">
+                            <i class="fas fa-arrow-up mr-1"></i>{{ row.movement_type }}
+                        </span>
+                        {% else %}
+                        <span class="px-3 py-1 bg-blue-500/20 text-blue-400 rounded-lg text-sm font-semibold">
+                            {{ row.movement_type }}
+                        </span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 text-center font-semibold">{{ row.quantity }}</td>
+                    <td class="px-6 py-4 text-right gold-text font-semibold">₹{{ row.rate|floatformat:2 }}</td>
+                    <td class="px-6 py-4 text-center font-semibold">{{ row.balance }}</td>
+                    <td class="px-6 py-4 text-gray-400 text-sm">{{ row.reference|default:"N/A" }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="px-6 py-12 text-center">
+                        <i class="fas fa-inbox text-gray-500 text-3xl mb-3 block"></i>
+                        <p class="text-gray-400">No stock movements recorded yet.</p>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Summary Stats -->
+    <div class="grid grid-cols-4 gap-6 mt-8">
+        <div class="glass-glow p-6 text-center animate-on-scroll" style="animation-delay: 0.1s;">
+            <p class="text-gray-400 mb-2">Total Products</p>
+            <p class="text-3xl font-bold gold-text">{{ ledger|length }}</p>
+        </div>
+        <div class="glass-glow p-6 text-center animate-on-scroll" style="animation-delay: 0.2s;">
+            <i class="fas fa-arrow-down text-green-400 text-2xl mb-2 block"></i>
+            <p class="text-gray-400 mb-2">Inbound</p>
+            <p class="text-2xl font-bold text-green-400">-</p>
+        </div>
+        <div class="glass-glow p-6 text-center animate-on-scroll" style="animation-delay: 0.3s;">
+            <i class="fas fa-arrow-up text-red-400 text-2xl mb-2 block"></i>
+            <p class="text-gray-400 mb-2">Outbound</p>
+            <p class="text-2xl font-bold text-red-400">-</p>
+        </div>
+        <div class="glass-glow p-6 text-center animate-on-scroll" style="animation-delay: 0.4s;">
+            <i class="fas fa-hourglass-half text-amber-400 text-2xl mb-2 block"></i>
+            <p class="text-gray-400 mb-2">Movements</p>
+            <p class="text-2xl font-bold text-amber-400">{{ ledger|length }}</p>
+        </div>
+    </div>
+
+    <!-- Back Button -->
+    <div class="mt-8">
+        <a href="{% url 'dashboard' %}" class="glass px-6 py-3 rounded-lg font-semibold hover:bg-white/10 transition inline-flex items-center">
+            <i class="fas fa-arrow-left mr-2"></i>Back to Dashboard
+        </a>
+    </div>
+</div>
+{% endblock %}

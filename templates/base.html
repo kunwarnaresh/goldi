@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Goldi Jewelry ERP{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <style>
+        :root {
+            --sapphire-300: #b8d8ff;
+            --sapphire-400: #73b5f5;
+            --sapphire-500: #3b82d0;
+            --sapphire-600: #2463a6;
+            --sapphire-700: #174a82;
+            --sapphire-900: #10243d;
+            --dark-bg: #111c2c;
+            --dark-bg-2: #172942;
+            --card-bg: #1a2a40;
+            --card-border: rgba(168, 193, 221, 0.17);
+            --text-soft: #e6edf7;
+            --text-muted: #aabbd0;
+            --shadow-glow: rgba(31, 91, 153, 0.24);
+            --ai-ink: #071522;
+            --ai-surface: #0d2232;
+            --ai-cyan: #65e6e0;
+            --ai-lime: #c8f169;
+            --ai-pink: #f38abf;
+            --ai-blue: #8ba9ff;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            position: relative;
+            overflow-x: hidden;
+            background: #eef2f7;
+            color: var(--text-soft);
+            font-family: 'DM Sans', 'Segoe UI', sans-serif;
+            min-height: 100vh;
+        }
+
+        body::before,
+        body::after {
+            display: none;
+        }
+
+        .glass {
+            background: #ffffff;
+            border: 1px solid var(--card-border);
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(32, 52, 76, 0.08);
+        }
+
+        .glass-glow {
+            background: var(--dark-bg);
+            border: 0;
+            border-radius: 0;
+            box-shadow: 0 2px 8px rgba(10, 25, 45, 0.2);
+        }
+
+        .gold-text {
+            color: var(--sapphire-400);
+            text-shadow: none;
+        }
+
+        .gold-border {
+            border-color: var(--sapphire-500);
+            box-shadow: 0 0 0 1px rgba(59, 130, 208, 0.12);
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(18px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes slideInRight {
+            from {
+                opacity: 0;
+                transform: translateX(-25px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        @keyframes glowPulse {
+            0%, 100% {
+                box-shadow: 0 0 18px rgba(56, 189, 248, 0.14);
+            }
+            50% {
+                box-shadow: 0 0 30px rgba(56, 189, 248, 0.36);
+            }
+        }
+
+        @keyframes shimmer {
+            0% { background-position: -1000px 0; }
+            100% { background-position: 1000px 0; }
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .animate-in {
+            animation: fadeInUp 0.6s ease-out;
+        }
+
+        .animate-slide {
+            animation: slideInRight 0.6s ease-out;
+        }
+
+        .animate-glow {
+            animation: glowPulse 3s ease-in-out infinite;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 0.65rem;
+            color: #b8c8dc;
+            padding: 0.65rem 0.8rem;
+            border-left: 3px solid transparent;
+            transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+        }
+
+        .nav-item:hover {
+            color: #ffffff;
+            background: rgba(115, 181, 245, 0.12);
+            border-left-color: var(--sapphire-400);
+        }
+
+        .btn-gold {
+            background: var(--sapphire-600);
+            color: #ffffff;
+            font-weight: 700;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 5px rgba(23, 74, 130, 0.22);
+            border: 1px solid var(--sapphire-700);
+        }
+
+        .btn-gold:hover {
+            background: var(--sapphire-700);
+            box-shadow: 0 3px 8px rgba(23, 74, 130, 0.28);
+        }
+
+        .btn-gold:active {
+            transform: translateY(0);
+        }
+
+        .card-hover {
+            transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .card-hover:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 14px rgba(32, 52, 76, 0.14);
+            border-color: var(--sapphire-500);
+        }
+
+        .loader {
+            width: 52px;
+            height: 52px;
+            border: 4px solid rgba(56, 189, 248, 0.2);
+            border-top-color: var(--sapphire-500);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            box-shadow: 0 0 15px rgba(56, 189, 248, 0.25);
+        }
+
+        .counter {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--sapphire-600);
+            text-shadow: none;
+        }
+
+        .gradient-text {
+            background: linear-gradient(135deg, #d5e8ff 0%, #8fc4f5 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: none;
+        }
+
+        h1, h2, h3, h4, .nav-item { font-family: 'Space Grotesk', 'DM Sans', sans-serif; }
+        body::selection { background: var(--ai-cyan); color: var(--ai-ink); }
+        .ai-signal { color: var(--ai-cyan); }
+        .ai-surface { background: linear-gradient(135deg, var(--ai-ink), var(--ai-surface)); }
+        .ai-grid-bg { background-image: linear-gradient(rgba(101,230,224,.055) 1px, transparent 1px), linear-gradient(90deg, rgba(101,230,224,.055) 1px, transparent 1px); background-size: 28px 28px; }
+
+        .nav-active {
+            color: #ffffff;
+            background: rgba(115, 181, 245, 0.16);
+            border-left-color: #ffffff;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            border: 1px solid rgba(139, 211, 255, 0.18);
+            border-radius: 4px;
+            background: #ffffff;
+            color: #172033;
+            padding: 0.65rem 0.75rem;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--sapphire-500);
+            box-shadow: 0 0 0 3px rgba(59, 130, 208, 0.12);
+        }
+
+        .glass .text-white, .glass-glow .text-white { color: #172033 !important; }
+        .glass .text-slate-400 { color: #5f7188 !important; }
+        .glass .text-slate-500 { color: #718198 !important; }
+        .glass .border-white\/5, .glass .border-white\/10 { border-color: #e5eaf0 !important; }
+        .workspace-main { margin-left: 15rem; }
+        .workspace-nav { width: 15rem; }
+        .workspace-footer { margin-left: 15rem; left: 15rem; }
+        .workspace-main .text-white { color: #172033 !important; }
+        .workspace-main .text-slate-400 { color: #5f7188 !important; }
+        .workspace-main .text-slate-500 { color: #718198 !important; }
+        @media (max-width: 767px) {
+            .workspace-main, .workspace-footer { margin-left: 0; left: 0; }
+            .workspace-nav { width: 100%; height: auto; }
+            .workspace-links { display: none; }
+            .workspace-nav.open .workspace-links { display: grid; grid-template-columns: 1fr 1fr; }
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <form id="csrf-holder" class="hidden">{% csrf_token %}</form>
+    <!-- Navigation Bar -->
+    <nav class="glass-glow workspace-nav fixed left-0 top-0 bottom-0 z-50 px-4 py-5">
+        <div class="flex flex-col h-full animate-in">
+            <div class="flex items-center gap-3 px-2 pb-6 border-b border-white/10">
+                <i class="fas fa-gem gold-text text-3xl"></i>
+                <div><h1 class="gradient-text text-xl font-bold">Goldi ERP</h1><p class="text-[10px] uppercase tracking-widest text-slate-400">Business workspace</p></div>
+            </div>
+            <button type="button" class="md:hidden text-left text-slate-300 py-4" onclick="document.querySelector('.workspace-nav').classList.toggle('open')"><i class="fas fa-bars mr-2"></i>Menu</button>
+            <div class="workspace-links flex flex-col gap-1 mt-6 overflow-y-auto">
+                <p class="text-[10px] uppercase tracking-widest text-slate-500 px-3 mb-2">Workspace</p>
+                <a href="{% url 'dashboard' %}" class="nav-item">Dashboard</a>
+                <a href="{% url 'master_catalog' %}" class="nav-item">Masters</a>
+                <a href="{% url 'import_center' %}" class="nav-item">Imports</a>
+                <p class="text-[10px] uppercase tracking-widest text-slate-500 px-3 mt-5 mb-2">Operations</p>
+                <a href="{% url 'finance_management' %}" class="nav-item">Finance</a>
+                <a href="{% url 'sales_receivables' %}" class="nav-item">Sales & Receivables</a>
+                <a href="{% url 'purchase_payables' %}" class="nav-item">Purchase & Payables</a>
+                <a href="{% url 'wms_hub' %}" class="nav-item">AWMS</a>
+                <a href="{% url 'wms_reports' %}" class="nav-item">Reports</a>
+                <a href="{% url 'gst_control_center' %}" class="nav-item">GST</a>
+                <a href="{% url 'pos' %}" class="nav-item">POS</a>
+                <a href="{% url 'sales_approval' %}" class="nav-item">Approvals</a>
+                <a href="{% url 'exchange' %}" class="nav-item">Exchange</a>
+                <a href="{% url 'customer_list' %}" class="nav-item">Customers</a>
+                <a href="{% url 'stock_ledger' %}" class="nav-item">Stock</a>
+            </div>
+            <div class="mt-auto pt-5 border-t border-white/10 flex items-center justify-between">
+                <a href="/admin/" class="hover:gold-text transition">
+                    <i class="fas fa-cog"></i>
+                </a>
+                <a href="{% url 'logout' %}" class="btn-gold px-4 py-2 rounded-lg text-sm">
+                    Logout
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="workspace-main min-h-screen pt-8 pb-16">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="workspace-footer glass fixed bottom-0 right-0 text-center py-3 text-sm text-gray-400 border-t border-white/10">
+        <p>© 2024 Goldi Jewelry ERP. Premium Management System. Built with ✨ for Excellence.</p>
+    </footer>
+
+    <script>
+        // Smooth animations on scroll
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -100px 0px'
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.opacity = '1';
+                    entry.target.style.transform = 'translateY(0)';
+                }
+            });
+        }, observerOptions);
+
+        document.querySelectorAll('.animate-on-scroll').forEach(el => {
+            el.style.opacity = '0';
+            el.style.transform = 'translateY(20px)';
+            el.style.transition = 'all 0.6s ease-out';
+            observer.observe(el);
+        });
+
+        // Counter animation
+        function animateCounter(element, target, duration = 2000) {
+            let current = 0;
+            const increment = target / (duration / 16);
+            const timer = setInterval(() => {
+                current += increment;
+                if (current >= target) {
+                    element.textContent = target.toFixed(0);
+                    clearInterval(timer);
+                } else {
+                    element.textContent = current.toFixed(0);
+                }
+            }, 16);
+        }
+
+        // Activate nav based on current page
+        document.querySelectorAll('.nav-item').forEach(item => {
+            if (item.href === window.location.href || 
+                (window.location.pathname.includes(item.getAttribute('href').replace('https://{{ request.get_host }}', '')))) {
+                item.classList.add('nav-active');
+            }
+        });
+
+        const templateLink = (slug, label = 'Download template') => {
+            const link = document.createElement('a');
+            link.href = `/imports/template/${slug}/`;
+            link.className = 'glass px-3 py-2 text-emerald-300 text-xs';
+            link.innerHTML = '<i class="fas fa-download mr-2"></i>' + label;
+            return link;
+        };
+
+        if (window.location.pathname === '/imports/') {
+            document.querySelectorAll('a').forEach(link => {
+                if (link.textContent.trim() === 'Upload') {
+                    const slug = new URL(link.href).pathname.split('/').filter(Boolean).pop();
+                    const picker = document.createElement('input');
+                    picker.type = 'file';
+                    picker.accept = '.xlsx,.xlsm';
+                    picker.hidden = true;
+                    picker.addEventListener('change', () => {
+                        if (!picker.files.length) return;
+                        const form = document.createElement('form');
+                        form.method = 'post';
+                        form.enctype = 'multipart/form-data';
+                        form.action = `/imports/upload/${slug}/`;
+                        const csrf = document.querySelector('[name=csrfmiddlewaretoken]');
+                        if (csrf) form.appendChild(csrf.cloneNode(true));
+                        form.appendChild(picker);
+                        document.body.appendChild(form);
+                        form.submit();
+                    });
+                    link.href = '#';
+                    link.addEventListener('click', event => {
+                        event.preventDefault();
+                        picker.click();
+                    });
+                    link.parentElement.appendChild(picker);
+                }
+                if (link.textContent.trim() === 'Template') {
+                    const slug = new URL(link.href).pathname.split('/').filter(Boolean).pop();
+                    link.href = `/imports/template/${slug}/`;
+                    link.innerHTML = '<i class="fas fa-download mr-1"></i>Download template';
+                    link.classList.remove('text-slate-300');
+                    link.classList.add('text-emerald-300');
+                }
+            });
+        }
+
+        const masterMatch = window.location.pathname.match(/^\/master\/([^/]+)/);
+        if (masterMatch && !window.location.pathname.endsWith('/new/')) {
+            const toolbar = document.querySelector('main .glass');
+            if (toolbar && !toolbar.querySelector('[data-template-download]')) {
+                const link = templateLink(masterMatch[1]);
+                link.dataset.templateDownload = 'true';
+                toolbar.appendChild(link);
+            }
+        }
+    </script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

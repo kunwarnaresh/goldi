@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}Warehouse Management - Goldi ERP{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-32">
+    <div class="mb-8 animate-in">
+        <h2 class="text-4xl font-bold gradient-text mb-2">
+            <i class="fas fa-warehouse mr-3"></i>Warehouse Management
+        </h2>
+        <p class="text-gray-400">Warehouses, bins, pick, put away and transfer operations.</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+        <div class="glass-glow p-6 animate-on-scroll">
+            <h3 class="text-xl font-bold mb-4"><i class="fas fa-warehouse mr-2 gold-text"></i>Warehouses</h3>
+            {% for warehouse in warehouses %}
+            <div class="glass p-4 rounded-lg mb-3">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <p class="font-semibold">{{ warehouse.name }}</p>
+                        <p class="text-sm text-gray-400">Code: {{ warehouse.code }} | City: {{ warehouse.city }}</p>
+                    </div>
+                    <span class="px-3 py-1 bg-green-500/15 text-green-300 rounded-full text-xs">Active</span>
+                </div>
+            </div>
+            {% empty %}
+            <p class="text-gray-400">No warehouses configured.</p>
+            {% endfor %}
+        </div>
+
+        <div class="glass-glow p-6 animate-on-scroll">
+            <h3 class="text-xl font-bold mb-4"><i class="fas fa-box-open mr-2 gold-text"></i>Bin Layout</h3>
+            {% for bin in bins %}
+            <div class="glass p-4 rounded-lg mb-3 flex justify-between items-center">
+                <div>
+                    <p class="font-semibold">{{ bin.warehouse.name }}</p>
+                    <p class="text-sm text-gray-400">Bin {{ bin.code }} | {{ bin.bin_type|title }}</p>
+                </div>
+                <span class="text-sm gold-text">{{ bin.current_stock }} / {{ bin.capacity }}</span>
+            </div>
+            {% empty %}
+            <p class="text-gray-400">No bins configured.</p>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="glass-glow p-6 animate-on-scroll">
+        <h3 class="text-xl font-bold mb-4"><i class="fas fa-random mr-2 gold-text"></i>Warehouse Movements</h3>
+        <div class="space-y-3">
+            {% for movement in movements %}
+            <div class="glass p-4 rounded-lg flex justify-between items-center">
+                <div>
+                    <p class="font-semibold">{{ movement.item.name }}</p>
+                    <p class="text-sm text-gray-400">{{ movement.movement_type|upper }} | Ref: {{ movement.reference|default:'N/A' }}</p>
+                </div>
+                <span class="px-3 py-1 bg-amber-500/15 text-amber-300 rounded-full text-xs font-semibold">{{ movement.quantity }}</span>
+            </div>
+            {% empty %}
+            <p class="text-gray-400">No warehouse movements recorded.</p>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="mt-8">
+        <a href="{% url 'dashboard' %}" class="glass px-6 py-3 rounded-lg font-semibold hover:bg-white/10 transition inline-flex items-center">
+            <i class="fas fa-arrow-left mr-2"></i>Back to Dashboard
+        </a>
+    </div>
+</div>
+{% endblock %}
