@@ -26,7 +26,10 @@
                 <span class="px-4 py-2 bg-green-500/20 text-green-400 rounded-lg font-semibold inline-block">
                     {{ invoice.get_status_display|upper }}
                 </span>
+                <p class="mt-2"><span class="px-3 py-1 bg-sky-500/20 text-sky-300 rounded-lg text-sm font-semibold inline-block">{{ invoice.get_payment_status_display|upper }}</span></p>
                 <p class="text-gray-400 mt-4">Date: {{ invoice.sales_date|date:'d-m-Y' }}</p>
+                <p class="text-gray-400">Paid: ₹{{ invoice.paid_amount|floatformat:2 }} · Balance: ₹{{ invoice.balance_amount|floatformat:2 }}</p>
+                {% if invoice.sales_order %}<p class="text-gray-400">Sales Order: <a href="{% url 'sales_order_detail' invoice.sales_order.pk %}" class="text-cyan-300 hover:text-cyan-200">{{ invoice.sales_order.order_no }}</a></p>{% endif %}
                 <p class="text-gray-400">Cashier: {{ invoice.cashier_name_snapshot|default:'N/A' }}</p>
                 <p class="text-gray-400">Sales Staff: {{ invoice.sales_staff_name_snapshot|default:'N/A' }}</p>
                 <p class="text-gray-400">POS Terminal: {{ invoice.terminal_code_snapshot|default:'N/A' }}</p>
@@ -106,10 +109,25 @@
             <a href="{% url 'invoice_pdf' invoice.pk %}" class="btn-gold flex-1 py-3 rounded-lg font-semibold text-center hover:shadow-lg transition">
                 <i class="fas fa-file-pdf mr-2"></i>Download PDF
             </a>
-            <a href="{% url 'dashboard' %}" class="glass flex-1 py-3 rounded-lg font-semibold text-center hover:bg-white/10 transition">
+            {% if invoice.status == 'approved' or invoice.status == 'completed' %}
+            <form method="post" action="{% url 'invoice_post' invoice.pk %}" class="flex-1">{% csrf_token %}
+                <button type="submit" class="glass w-full py-3 rounded-lg font-semibold text-center text-lime-300 hover:bg-white/10 transition"><i class="fas fa-lock mr-2"></i>Post invoice</button>
+            </form>
+            {% endif %}
+            {% if invoice.balance_amount > 0 %}
+            <a href="{% url 'payment_receipt_create' %}?customer={{ invoice.customer_id }}" class="glass flex-1 py-3 rounded-lg font-semibold text-center hover:bg-white/10 transition">
+                <i class="fas fa-money-bill-transfer mr-2"></i>Record payment
+            </a>
+            {% endif %}
+            <a href="{% url 'invoice_list' %}" class="glass flex-1 py-3 rounded-lg font-semibold text-center hover:bg-white/10 transition">
                 <i class="fas fa-arrow-left mr-2"></i>Back
             </a>
         </div>
+    </div>
+
+    <div class="space-y-6">
+        {% include 'erp/_related_documents.html' %}
+        {% include 'erp/_status_timeline.html' %}
     </div>
 </div>
 {% endblock %}

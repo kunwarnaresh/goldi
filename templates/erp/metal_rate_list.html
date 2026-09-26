@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+{% block title %}Metal Rates | Goldi ERP{% endblock %}
+{% block content %}
+<div class="max-w-7xl mx-auto px-6 space-y-7 animate-in pb-32">
+    <div class="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
+        <div>
+            <p class="text-sm uppercase tracking-[0.25em] text-sky-300"><i class="fas fa-coins mr-2"></i>Jewellery pricing engine</p>
+            <h2 class="text-4xl font-bold text-white mt-2">Gold &amp; Silver Rates</h2>
+            <p class="text-slate-400 mt-2">Update today's metal rate manually, or fetch live spot rates and convert to INR/gram automatically.</p>
+        </div>
+        <form method="post" action="{% url 'metal_rate_fetch_live' %}">{% csrf_token %}
+            <button type="submit" class="btn-gold px-4 py-3 rounded-xl"><i class="fas fa-cloud-arrow-down mr-2"></i>Fetch live rates now</button>
+        </form>
+    </div>
+
+    <p class="text-xs text-slate-500 -mt-4">Live rates use two free public feeds: <span class="text-slate-400">gold-api.com</span> for XAU/XAG spot prices and <span class="text-slate-400">open.er-api.com</span> for the USD&rarr;INR rate, converted from troy ounce to INR/gram per purity and applied to every active store.</p>
+
+    <section class="glass overflow-hidden">
+        <div class="px-6 py-5 border-b border-white/10"><h3 class="text-xl text-white font-semibold"><i class="fas fa-chart-line mr-2 text-amber-300"></i>Current effective rates</h3></div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left min-w-[900px]">
+                <thead class="text-xs uppercase text-slate-500 border-b border-white/10 bg-white/5"><tr><th class="px-6 py-4">Metal</th><th>Purity</th><th>Store</th><th>Type</th><th class="text-right">Rate / gram</th><th>Source</th><th class="px-6">Effective from</th></tr></thead>
+                <tbody>
+                {% for rate in latest_rates %}
+                <tr class="border-b border-white/5 text-sm">
+                    <td class="px-6 py-3 text-white capitalize">{{ rate.metal_type }}</td>
+                    <td class="text-slate-300">{{ rate.purity }}</td>
+                    <td class="text-slate-300">{{ rate.store.name|default:'All stores' }}</td>
+                    <td class="text-slate-400 capitalize">{{ rate.rate_type }}</td>
+                    <td class="text-right font-semibold text-emerald-300">₹{{ rate.rate_per_gram|floatformat:2 }}</td>
+                    <td><span class="px-2 py-1 rounded text-xs font-semibold {% if rate.source == 'api' %}bg-cyan-500/15 text-cyan-300{% else %}bg-sky-500/15 text-sky-300{% endif %}">{{ rate.get_source_display }}</span></td>
+                    <td class="px-6 text-slate-400">{{ rate.effective_from|date:'d M Y H:i' }}</td>
+                </tr>
+                {% empty %}<tr><td colspan="7" class="px-6 py-16 text-center text-slate-400"><i class="fas fa-folder-open text-3xl mb-3 block"></i>No metal rates configured yet.</td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="glass p-6">
+        <h3 class="text-xl text-white font-semibold mb-5"><i class="fas fa-pen mr-2 text-amber-300"></i>Enter rate manually</h3>
+        <form method="post" action="{% url 'metal_rate_create' %}" class="grid md:grid-cols-5 gap-4 items-end">
+            {% csrf_token %}
+            <div><label class="block text-xs uppercase tracking-wider text-slate-400 mb-2">Metal</label>{{ form.metal_type }}</div>
+            <div><label class="block text-xs uppercase tracking-wider text-slate-400 mb-2">Purity</label>{{ form.purity }}</div>
+            <div><label class="block text-xs uppercase tracking-wider text-slate-400 mb-2">Rate / gram (₹)</label>{{ form.rate_per_gram }}</div>
+            <div><label class="block text-xs uppercase tracking-wider text-slate-400 mb-2">Rate type</label>{{ form.rate_type }}</div>
+            <div><label class="block text-xs uppercase tracking-wider text-slate-400 mb-2">Store</label>{{ form.store }}<p class="text-xs text-slate-500 mt-1">{{ form.store.help_text }}</p></div>
+            <div class="md:col-span-5">
+                {% if form.non_field_errors or form.errors %}
+                <div class="bg-red-500/15 border border-red-500/30 text-red-300 px-4 py-3 rounded-lg mb-3">{{ form.errors }}</div>
+                {% endif %}
+                <button type="submit" class="btn-gold px-5 py-3 rounded-lg"><i class="fas fa-check mr-2"></i>Update rate</button>
+            </div>
+        </form>
+    </section>
+
+    <section class="glass overflow-hidden">
+        <div class="px-6 py-5 border-b border-white/10"><h3 class="text-xl text-white font-semibold"><i class="fas fa-clock-rotate-left mr-2 text-cyan-300"></i>Recent history</h3></div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left min-w-[900px]">
+                <thead class="text-xs uppercase text-slate-500 border-b border-white/10 bg-white/5"><tr><th class="px-6 py-4">Metal</th><th>Purity</th><th>Store</th><th class="text-right">Rate / gram</th><th>Source</th><th>Effective from</th><th class="px-6">Effective to</th></tr></thead>
+                <tbody>
+                {% for rate in history %}
+                <tr class="border-b border-white/5 text-sm {% if rate.effective_to %}opacity-50{% endif %}">
+                    <td class="px-6 py-3 text-white capitalize">{{ rate.metal_type }}</td>
+                    <td class="text-slate-300">{{ rate.purity }}</td>
+                    <td class="text-slate-300">{{ rate.store.name|default:'All stores' }}</td>
+                    <td class="text-right text-slate-300">₹{{ rate.rate_per_gram|floatformat:2 }}</td>
+                    <td class="text-slate-400">{{ rate.get_source_display }}</td>
+                    <td class="text-slate-400">{{ rate.effective_from|date:'d M Y H:i' }}</td>
+                    <td class="px-6 text-slate-500">{{ rate.effective_to|date:'d M Y H:i'|default:'-' }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+{% endblock %}

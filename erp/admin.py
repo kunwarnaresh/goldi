@@ -17,6 +17,9 @@ from .models import (
     InvoicePrintLayout, StoreInvoicePrintSetup, POSTerminalPrintSetup, InvoicePrintLog,
     Karigar, RepairService, RepairOrder, CustomerOrnament, RepairCustodyEvent,
     RepairKarigarAssignment, RepairQC, RepairInvoice,
+    Quotation, QuotationLine, SalesOrder, SalesOrderLine, PaymentReceipt, PaymentAllocation,
+    PurchaseOrderLine, GoodsReceipt, GoodsReceiptLine, SupplierInvoiceLine,
+    VendorPayment, VendorPaymentAllocation, FinancePostingSetup,
 )
 
 admin.site.register(Business)
@@ -102,3 +105,16 @@ admin.site.register(PurchaseOrder)
 admin.site.register(StockLedger)
 admin.site.register(Expense)
 admin.site.register(LedgerEntry)
+admin.site.register(Quotation)
+admin.site.register(QuotationLine)
+admin.site.register(SalesOrder)
+admin.site.register(SalesOrderLine)
+admin.site.register(PaymentReceipt)
+admin.site.register(PaymentAllocation)
+admin.site.register(PurchaseOrderLine)
+admin.site.register(GoodsReceipt)
+admin.site.register(GoodsReceiptLine)
+admin.site.register(SupplierInvoiceLine)
+admin.site.register(VendorPayment)
+admin.site.register(VendorPaymentAllocation)
+admin.site.register(FinancePostingSetup)

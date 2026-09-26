@@ -20,9 +20,12 @@ from reportlab.lib.styles import getSampleStyleSheet
 from .compliance import calculate_gst, estimate_income_tax, round_money
 from .excel_templates import build_template
 from .forms import (
-    CustomerForm, EmployeeForm, ExchangeTransactionForm, GSTSlabForm,
-    InvoiceSettingForm, POSSaleForm, ProductForm, RoleForm,
-    SalesApprovalForm, SalesReturnForm, SupplierForm, WarehouseForm, RepairOrderForm, CustomerOrnamentForm,
+    ConvertQuantityForm, CustomerForm, EmployeeForm, ExchangeTransactionForm, GSTSlabForm,
+    InvoiceSettingForm, MetalRateForm, PaymentReceiptForm, POSSaleForm, ProductForm, PurchaseInvoiceFromReceiptForm,
+    PurchaseOrderForm, PurchaseOrderLineFormSet, QuotationForm,
+    QuotationLineFormSet, RoleForm,
+    SalesApprovalForm, SalesReturnForm, SupplierForm, VendorPaymentForm, WarehouseForm,
+    RepairOrderForm, CustomerOrnamentForm,
 )
 from .models import (
     BankAccount, BinLocation, Brand, Branch, BusinessUnit, Channel, Company, CostCenter,
@@ -41,10 +44,17 @@ from .models import (
     CustomerJewelleryPreference, CustomerKYC, CustomerMarketingProfile,
     InvoicePrintLayout, StoreInvoicePrintSetup, POSTerminalPrintSetup, InvoicePrintLog,
     Karigar, RepairOrder, CustomerOrnament, RepairCustodyEvent, RepairKarigarAssignment, RepairQC,
+    PaymentReceipt, Quotation, QuotationLine, SalesOrder, SalesOrderLine,
+    GoodsReceipt, PurchaseOrder, VendorPayment, FinancePostingSetup, FinanceVoucher,
+    GeneralLedger, GLAccount, JournalEntry,
 )
 from .services import (
-    build_invoice_dataset, calculate_jewellery_price, get_next_customer_number,
-    get_next_number, get_next_repair_number, move_customer_ornament, render_invoice_pdf, render_thermal_receipt,
+    apply_live_metal_rates, apply_metal_rate, approve_purchase_order, approve_quotation, approve_sales_order,
+    build_invoice_dataset, calculate_jewellery_price, convert_quotation_to_sales_order,
+    convert_receipt_to_purchase_invoice, convert_sales_order_to_invoice, create_payment_receipt,
+    create_purchase_order, create_quotation, create_vendor_payment, get_next_customer_number, get_next_number,
+    get_next_repair_number, get_related_documents, move_customer_ornament, post_payment_receipt,
+    post_purchase_invoice, post_sales_invoice, post_vendor_payment, receive_goods, submit_for_approval,
 )
 
 
@@ -173,6 +183,7 @@ MASTER_SPECS = {
     'vendor-posting-groups': (VendorPostingGroup, ['code', 'name', 'company', 'payable_account', 'advance_account', 'is_active']),
     'customer-finance-profiles': (CustomerFinanceProfile, ['customer', 'payment_term', 'payment_method', 'posting_group', 'credit_limit', 'credit_hold']),
     'vendor-finance-profiles': (VendorFinanceProfile, ['vendor', 'payment_term', 'payment_method', 'posting_group', 'payment_hold']),
+    'finance-posting-setup': (FinancePostingSetup, ['company', 'sales_revenue_account', 'gst_output_account', 'purchase_expense_account', 'gst_input_account', 'default_cash_account', 'rounding_account']),
     'document-relationships': (DocumentRelationship, ['source_type', 'source_id', 'target_type', 'target_id', 'relationship_type', 'created_at']),
     'document-status-history': (DocumentStatusHistory, ['document_type', 'document_id', 'from_status', 'to_status', 'changed_by', 'changed_at']),
     'suppliers': (Supplier, ['name', 'phone', 'gstin', 'is_active']),
@@ -224,6 +235,31 @@ def finance_operations(request):
 
 @login_required(login_url='login')
 def sales_receivables(request):
+    """Sales & Receivables hub — links to the 8 document sub-sections in spec order."""
+    return render(request, 'erp/sales_receivables.html', {
+        'customers': Customer.objects.filter(is_active=True).count(),
+        'open_quotations': Quotation.objects.exclude(status__in=['converted', 'expired', 'rejected', 'cancelled']).count(),
+        'open_sales_orders': SalesOrder.objects.exclude(status__in=['completed', 'cancelled', 'rejected']).count(),
+        'sales_invoices': SalesInvoice.objects.count(),
+        'sales_value': SalesInvoice.objects.aggregate(total=Sum('total_amount'))['total'] or Decimal('0'),
+        'open_receipts': PaymentReceipt.objects.filter(status='draft').count(),
+    })
+
+
+@login_required(login_url='login')
+def sales_receivables_placeholder(request, section):
+    labels = {
+        'proforma': 'Proforma Invoices',
+        'delivery_challans': 'Delivery Challans',
+        'credit_notes': 'Credit Notes',
+    }
+    return render(request, 'erp/sales_receivables_placeholder.html', {
+        'section_label': labels.get(section, section.replace('_', ' ').title()),
+    })
+
+
+@login_required(login_url='login')
+def invoice_list(request):
     query = request.GET.get('q', '').strip()
     status = request.GET.get('status', '').strip()
     invoices = SalesInvoice.objects.select_related('customer').order_by('-sales_date')
@@ -231,16 +267,309 @@ def sales_receivables(request):
         invoices = invoices.filter(Q(invoice_no__icontains=query) | Q(customer__name__icontains=query) | Q(customer__phone__icontains=query))
     if status:
         invoices = invoices.filter(status=status)
-    return render(request, 'erp/sales_receivables.html', {
+    open_invoices = SalesInvoice.objects.exclude(status='cancelled')
+    receivables_balance = sum((inv.balance_amount for inv in open_invoices), Decimal('0'))
+    return render(request, 'erp/invoice_list.html', {
         'customers': Customer.objects.filter(is_active=True).count(),
         'sales_invoices': SalesInvoice.objects.count(),
         'sales_value': SalesInvoice.objects.aggregate(total=Sum('total_amount'))['total'] or Decimal('0'),
-        'receivables': Customer.objects.filter(is_active=True).count(),
+        'receivables_balance': receivables_balance,
         'recent_invoices': invoices,
         'query': query,
         'status_filter': status,
         'status_choices': SalesInvoice.STATUS_CHOICES,
     })
+
+
+@login_required(login_url='login')
+def invoice_post(request, pk):
+    invoice = get_object_or_404(SalesInvoice, pk=pk)
+    if request.method == 'POST':
+        try:
+            post_sales_invoice(invoice, request.user)
+            messages.success(request, f'Invoice {invoice.invoice_no} posted.')
+        except ValueError as exc:
+            messages.error(request, str(exc))
+    return redirect('invoice_detail', pk=pk)
+
+
+@login_required(login_url='login')
+def quotation_list(request):
+    query = request.GET.get('q', '').strip()
+    status = request.GET.get('status', '').strip()
+    tab = request.GET.get('tab', 'open')
+    closed_statuses = ['converted', 'expired', 'rejected', 'cancelled']
+    quotations = Quotation.objects.select_related('customer', 'store').order_by('-quotation_date')
+    if query:
+        quotations = quotations.filter(Q(quotation_no__icontains=query) | Q(customer__name__icontains=query) | Q(customer__phone__icontains=query))
+    if status:
+        quotations = quotations.filter(status=status)
+    elif tab == 'history':
+        quotations = quotations.filter(status__in=closed_statuses)
+    else:
+        quotations = quotations.exclude(status__in=closed_statuses)
+    return render(request, 'erp/quotation_list.html', {
+        'quotations': quotations, 'query': query, 'status_filter': status, 'tab': tab,
+        'status_choices': Quotation.STATUS_CHOICES,
+    })
+
+
+@login_required(login_url='login')
+def quotation_create(request):
+    store = None
+    session = POSSession.objects.filter(id=request.session.get('pos_session_id'), status='active').select_related('terminal__store').first()
+    if session:
+        store = session.terminal.store
+    else:
+        store = Store.objects.filter(is_active=True).first()
+
+    if request.method == 'POST':
+        form = QuotationForm(request.POST)
+        formset = QuotationLineFormSet(request.POST)
+        if form.is_valid() and formset.is_valid():
+            lines_data = []
+            for line_form in formset:
+                cleaned = line_form.cleaned_data
+                if not cleaned or cleaned.get('DELETE') or not cleaned.get('product'):
+                    continue
+                barcode = cleaned.get('jewellery_barcode')
+                jewellery_unit = JewelleryItemUnit.objects.filter(barcode=barcode, current_status='available').first() if barcode else None
+                lines_data.append({
+                    'product': cleaned['product'], 'quantity': cleaned['quantity'],
+                    'discount_amount': cleaned.get('discount_amount') or Decimal('0'),
+                    'jewellery_unit': jewellery_unit,
+                })
+            if not lines_data:
+                messages.error(request, 'Add at least one line to the quotation.')
+            else:
+                try:
+                    quotation = create_quotation(
+                        customer=form.cleaned_data['customer'], store=form.cleaned_data.get('store') or store,
+                        salesperson=form.cleaned_data.get('salesperson'), lines_data=lines_data,
+                        valid_until=form.cleaned_data.get('valid_until'), payment_terms=form.cleaned_data.get('payment_terms'),
+                        delivery_terms=form.cleaned_data.get('delivery_terms', ''), remarks=form.cleaned_data.get('remarks', ''),
+                        user=request.user,
+                    )
+                    messages.success(request, f'Quotation {quotation.quotation_no} created.')
+                    return redirect('quotation_detail', pk=quotation.pk)
+                except ValueError as exc:
+                    messages.error(request, str(exc))
+    else:
+        form = QuotationForm(initial={'store': store})
+        formset = QuotationLineFormSet()
+    return render(request, 'erp/quotation_form.html', {'form': form, 'formset': formset})
+
+
+@login_required(login_url='login')
+def quotation_detail(request, pk):
+    quotation = get_object_or_404(Quotation.objects.select_related('customer', 'store', 'salesperson'), pk=pk)
+    return render(request, 'erp/quotation_detail.html', {
+        'quotation': quotation,
+        'lines': quotation.lines.select_related('product', 'jewellery_unit').all(),
+        'related': get_related_documents(quotation, 'quotation'),
+        'history': DocumentStatusHistory.objects.filter(document_type='quotation', document_id=quotation.pk).order_by('changed_at'),
+    })
+
+
+@login_required(login_url='login')
+def quotation_submit(request, pk):
+    quotation = get_object_or_404(Quotation, pk=pk)
+    if request.method == 'POST':
+        try:
+            submit_for_approval(quotation, 'quotation', request.user)
+            messages.success(request, f'Quotation {quotation.quotation_no} submitted for approval.')
+        except ValueError as exc:
+            messages.error(request, str(exc))
+    return redirect('quotation_detail', pk=pk)
+
+
+@login_required(login_url='login')
+def quotation_approve(request, pk):
+    quotation = get_object_or_404(Quotation, pk=pk)
+    if request.method == 'POST':
+        approved = request.POST.get('decision') == 'approve'
+        try:
+            approve_quotation(quotation, request.user, approved=approved, notes=request.POST.get('notes', ''))
+            messages.success(request, f'Quotation {quotation.quotation_no} {"approved" if approved else "rejected"}.')
+        except ValueError as exc:
+            messages.error(request, str(exc))
+    return redirect('quotation_detail', pk=pk)
+
+
+@login_required(login_url='login')
+def quotation_convert(request, pk):
+    quotation = get_object_or_404(Quotation, pk=pk)
+    lines = [line for line in quotation.lines.select_related('product').all() if line.remaining_quantity > 0]
+    if request.method == 'POST':
+        form = ConvertQuantityForm(request.POST, source_lines=lines)
+        if form.is_valid():
+            line_quantities = {key.split('_', 1)[1]: value for key, value in form.cleaned_data.items() if value}
+            try:
+                sales_order = convert_quotation_to_sales_order(quotation, request.user, line_quantities)
+                messages.success(request, f'Sales Order {sales_order.order_no} created from {quotation.quotation_no}.')
+                return redirect('sales_order_detail', pk=sales_order.pk)
+            except ValueError as exc:
+                messages.error(request, str(exc))
+    else:
+        form = ConvertQuantityForm(source_lines=lines)
+    return render(request, 'erp/quotation_convert.html', {'quotation': quotation, 'form': form, 'lines': lines})
+
+
+@login_required(login_url='login')
+def sales_order_list(request):
+    query = request.GET.get('q', '').strip()
+    status = request.GET.get('status', '').strip()
+    tab = request.GET.get('tab', 'open')
+    closed_statuses = ['completed', 'cancelled', 'rejected']
+    orders = SalesOrder.objects.select_related('customer', 'store').order_by('-order_date')
+    if query:
+        orders = orders.filter(Q(order_no__icontains=query) | Q(customer__name__icontains=query) | Q(customer__phone__icontains=query))
+    if status:
+        orders = orders.filter(status=status)
+    elif tab == 'history':
+        orders = orders.filter(status__in=closed_statuses)
+    else:
+        orders = orders.exclude(status__in=closed_statuses)
+    return render(request, 'erp/sales_order_list.html', {
+        'orders': orders, 'query': query, 'status_filter': status, 'tab': tab,
+        'status_choices': SalesOrder.STATUS_CHOICES,
+    })
+
+
+@login_required(login_url='login')
+def sales_order_detail(request, pk):
+    order = get_object_or_404(SalesOrder.objects.select_related('customer', 'store', 'salesperson', 'quotation'), pk=pk)
+    return render(request, 'erp/sales_order_detail.html', {
+        'order': order,
+        'lines': order.lines.select_related('product', 'jewellery_unit').all(),
+        'related': get_related_documents(order, 'sales_order'),
+        'history': DocumentStatusHistory.objects.filter(document_type='sales_order', document_id=order.pk).order_by('changed_at'),
+    })
+
+
+@login_required(login_url='login')
+def sales_order_submit(request, pk):
+    order = get_object_or_404(SalesOrder, pk=pk)
+    if request.method == 'POST':
+        try:
+            submit_for_approval(order, 'sales_order', request.user)
+            messages.success(request, f'Sales Order {order.order_no} submitted for approval.')
+        except ValueError as exc:
+            messages.error(request, str(exc))
+    return redirect('sales_order_detail', pk=pk)
+
+
+@login_required(login_url='login')
+def sales_order_approve(request, pk):
+    order = get_object_or_404(SalesOrder, pk=pk)
+    if request.method == 'POST':
+        approved = request.POST.get('decision') == 'approve'
+        try:
+            order, warning = approve_sales_order(order, request.user, approved=approved, notes=request.POST.get('notes', ''))
+            if warning:
+                messages.warning(request, warning)
+            messages.success(request, f'Sales Order {order.order_no} {"approved" if approved else "rejected"}.')
+        except ValueError as exc:
+            messages.error(request, str(exc))
+    return redirect('sales_order_detail', pk=pk)
+
+
+@login_required(login_url='login')
+def sales_order_convert(request, pk):
+    order = get_object_or_404(SalesOrder, pk=pk)
+    lines = [line for line in order.lines.select_related('product').all() if line.remaining_quantity > 0]
+    if request.method == 'POST':
+        form = ConvertQuantityForm(request.POST, source_lines=lines)
+        if form.is_valid():
+            line_quantities = {key.split('_', 1)[1]: value for key, value in form.cleaned_data.items() if value}
+            try:
+                invoice = convert_sales_order_to_invoice(order, request.user, line_quantities)
+                messages.success(request, f'Invoice {invoice.invoice_no} created from {order.order_no}.')
+                return redirect('invoice_detail', pk=invoice.pk)
+            except ValueError as exc:
+                messages.error(request, str(exc))
+    else:
+        form = ConvertQuantityForm(source_lines=lines)
+    return render(request, 'erp/sales_order_convert.html', {'order': order, 'form': form, 'lines': lines})
+
+
+@login_required(login_url='login')
+def payment_receipt_list(request):
+    query = request.GET.get('q', '').strip()
+    status = request.GET.get('status', '').strip()
+    receipts = PaymentReceipt.objects.select_related('customer').order_by('-receipt_date')
+    if query:
+        receipts = receipts.filter(Q(receipt_no__icontains=query) | Q(customer__name__icontains=query))
+    if status:
+        receipts = receipts.filter(status=status)
+    return render(request, 'erp/payment_receipt_list.html', {
+        'receipts': receipts, 'query': query, 'status_filter': status, 'status_choices': PaymentReceipt.STATUS_CHOICES,
+    })
+
+
+@login_required(login_url='login')
+def payment_receipt_detail(request, pk):
+    receipt = get_object_or_404(PaymentReceipt.objects.select_related('customer', 'store', 'payment_method', 'bank_account'), pk=pk)
+    return render(request, 'erp/payment_receipt_detail.html', {
+        'receipt': receipt,
+        'allocations': receipt.allocations.select_related('invoice').all(),
+        'related': get_related_documents(receipt, 'payment_receipt'),
+        'history': DocumentStatusHistory.objects.filter(document_type='payment_receipt', document_id=receipt.pk).order_by('changed_at'),
+    })
+
+
+@login_required(login_url='login')
+def payment_receipt_create(request):
+    customer_id = request.GET.get('customer') or request.POST.get('customer')
+    outstanding_invoices = []
+    if customer_id:
+        outstanding_invoices = list(
+            SalesInvoice.objects.filter(customer_id=customer_id).exclude(payment_status='paid').exclude(status='cancelled').order_by('sales_date')
+        )
+    if request.method == 'POST':
+        form = PaymentReceiptForm(request.POST)
+        if form.is_valid():
+            allocations = {}
+            for invoice in outstanding_invoices:
+                raw = request.POST.get(f'allocate_{invoice.pk}')
+                if raw:
+                    try:
+                        value = Decimal(raw)
+                    except Exception:
+                        value = Decimal('0')
+                    if value > 0:
+                        allocations[invoice.pk] = value
+            try:
+                receipt = create_payment_receipt(
+                    customer=form.cleaned_data['customer'], store=form.cleaned_data.get('store'),
+                    payment_method=form.cleaned_data['payment_method'], amount=form.cleaned_data['amount'],
+                    allocations=allocations, user=request.user, bank_account=form.cleaned_data.get('bank_account'),
+                    reference_no=form.cleaned_data.get('reference_no', ''), transaction_id=form.cleaned_data.get('transaction_id', ''),
+                    remarks=form.cleaned_data.get('remarks', ''),
+                )
+                messages.success(request, f'Payment Receipt {receipt.receipt_no} created.')
+                return redirect('payment_receipt_detail', pk=receipt.pk)
+            except ValueError as exc:
+                messages.error(request, str(exc))
+    else:
+        form = PaymentReceiptForm(initial={'customer': customer_id} if customer_id else None)
+    return render(request, 'erp/payment_receipt_form.html', {
+        'form': form, 'outstanding_invoices': outstanding_invoices,
+        'customers': Customer.objects.filter(is_active=True).order_by('name'),
+        'selected_customer_id': int(customer_id) if customer_id else None,
+    })
+
+
+@login_required(login_url='login')
+def payment_receipt_post(request, pk):
+    receipt = get_object_or_404(PaymentReceipt, pk=pk)
+    if request.method == 'POST':
+        try:
+            post_payment_receipt(receipt, request.user)
+            messages.success(request, f'Payment Receipt {receipt.receipt_no} posted.')
+        except ValueError as exc:
+            messages.error(request, str(exc))
+    return redirect('payment_receipt_detail', pk=pk)
 
 
 @login_required(login_url='login')
@@ -365,20 +694,370 @@ def repair_order_return(request, pk):
 
 @login_required(login_url='login')
 def purchase_payables(request):
-    invoices = list(SupplierInvoice.objects.select_related('supplier').order_by('-invoice_date')[:12])
+    """Purchase & Payables hub - links to the 7 document sub-sections in spec order."""
+    open_invoices = SupplierInvoice.objects.exclude(status='cancelled')
     return render(request, 'erp/purchase_payables.html', {
         'vendors': Supplier.objects.filter(is_active=True).count(),
+        'open_purchase_orders': PurchaseOrder.objects.exclude(status__in=['fully_received', 'cancelled', 'rejected']).count(),
         'purchase_invoices': SupplierInvoice.objects.count(),
         'purchase_value': SupplierInvoice.objects.aggregate(total=Sum('net_amount'))['total'] or Decimal('0'),
-        'payables': sum((invoice.outstanding_amount for invoice in invoices), Decimal('0')),
-        'recent_invoices': invoices,
+        'open_payables': sum((invoice.outstanding_amount for invoice in open_invoices), Decimal('0')),
+        'draft_payments': VendorPayment.objects.filter(status='draft').count(),
     })
+
+
+@login_required(login_url='login')
+def purchase_payables_placeholder(request, section):
+    labels = {
+        'vendor-leads': 'Vendor Leads',
+        'debit-notes': 'Debit Notes',
+        'hire-best-vendors': 'Hire The Best Vendors',
+    }
+    return render(request, 'erp/sales_receivables_placeholder.html', {
+        'section_label': labels.get(section, section.replace('-', ' ').title()),
+        'back_url_name': 'purchase_payables',
+        'back_label': 'Purchase & Payables',
+    })
+
+
+@login_required(login_url='login')
+def purchase_invoice_list(request):
+    query = request.GET.get('q', '').strip()
+    status = request.GET.get('status', '').strip()
+    invoices = SupplierInvoice.objects.select_related('supplier').order_by('-invoice_date')
+    if query:
+        invoices = invoices.filter(Q(invoice_no__icontains=query) | Q(document_no__icontains=query) | Q(supplier__name__icontains=query))
+    if status:
+        invoices = invoices.filter(status=status)
+    return render(request, 'erp/purchase_invoice_list.html', {
+        'invoices': invoices, 'query': query, 'status_filter': status, 'status_choices': SupplierInvoice.STATUS_CHOICES,
+    })
+
+
+@login_required(login_url='login')
+def purchase_invoice_detail(request, pk):
+    invoice = get_object_or_404(SupplierInvoice.objects.select_related('supplier', 'purchase_order', 'goods_receipt'), pk=pk)
+    return render(request, 'erp/purchase_invoice_detail.html', {
+        'invoice': invoice,
+        'lines': invoice.lines.select_related('product').all(),
+        'related': get_related_documents(invoice, 'purchase_invoice'),
+        'history': DocumentStatusHistory.objects.filter(document_type='purchase_invoice', document_id=invoice.pk).order_by('changed_at'),
+    })
+
+
+@login_required(login_url='login')
+def purchase_invoice_post(request, pk):
+    invoice = get_object_or_404(SupplierInvoice, pk=pk)
+    if request.method == 'POST':
+        try:
+            post_purchase_invoice(invoice, request.user)
+            messages.success(request, f'Purchase Invoice {invoice.document_no or invoice.invoice_no} posted.')
+        except ValueError as exc:
+            messages.error(request, str(exc))
+    return redirect('purchase_invoice_detail', pk=pk)
+
+
+@login_required(login_url='login')
+def purchase_invoice_create_from_receipt(request, receipt_pk):
+    receipt = get_object_or_404(GoodsReceipt.objects.select_related('purchase_order', 'vendor'), pk=receipt_pk)
+    lines = [line for line in receipt.purchase_order.lines.select_related('product').all() if line.remaining_to_invoice > 0]
+    if request.method == 'POST':
+        form = PurchaseInvoiceFromReceiptForm(request.POST)
+        qty_form = ConvertQuantityForm(request.POST, source_lines=lines, quantity_attr='remaining_to_invoice')
+        if form.is_valid() and qty_form.is_valid():
+            line_quantities = {key.split('_', 1)[1]: value for key, value in qty_form.cleaned_data.items() if value}
+            try:
+                invoice = convert_receipt_to_purchase_invoice(
+                    receipt, request.user, vendor_invoice_no=form.cleaned_data['vendor_invoice_no'],
+                    vendor_invoice_date=form.cleaned_data.get('vendor_invoice_date'), line_quantities=line_quantities,
+                )
+                messages.success(request, f'Purchase Invoice {invoice.document_no} created from {receipt.receipt_no}.')
+                return redirect('purchase_invoice_detail', pk=invoice.pk)
+            except ValueError as exc:
+                messages.error(request, str(exc))
+    else:
+        form = PurchaseInvoiceFromReceiptForm()
+        qty_form = ConvertQuantityForm(source_lines=lines, quantity_attr='remaining_to_invoice')
+    return render(request, 'erp/purchase_invoice_from_receipt.html', {
+        'receipt': receipt, 'form': form, 'qty_form': qty_form, 'lines': lines,
+    })
+
+
+@login_required(login_url='login')
+def purchase_order_list(request):
+    query = request.GET.get('q', '').strip()
+    status = request.GET.get('status', '').strip()
+    tab = request.GET.get('tab', 'open')
+    closed_statuses = ['fully_received', 'cancelled', 'rejected']
+    orders = PurchaseOrder.objects.select_related('vendor', 'warehouse').order_by('-order_date')
+    if query:
+        orders = orders.filter(Q(order_no__icontains=query) | Q(vendor__name__icontains=query))
+    if status:
+        orders = orders.filter(status=status)
+    elif tab == 'history':
+        orders = orders.filter(status__in=closed_statuses)
+    else:
+        orders = orders.exclude(status__in=closed_statuses)
+    return render(request, 'erp/purchase_order_list.html', {
+        'orders': orders, 'query': query, 'status_filter': status, 'tab': tab,
+        'status_choices': PurchaseOrder.STATUS_CHOICES,
+    })
+
+
+@login_required(login_url='login')
+def purchase_order_create(request):
+    if request.method == 'POST':
+        form = PurchaseOrderForm(request.POST)
+        formset = PurchaseOrderLineFormSet(request.POST)
+        if form.is_valid() and formset.is_valid():
+            lines_data = []
+            for line_form in formset:
+                cleaned = line_form.cleaned_data
+                if not cleaned or cleaned.get('DELETE') or not cleaned.get('product'):
+                    continue
+                lines_data.append({
+                    'product': cleaned['product'], 'quantity': cleaned['quantity'],
+                    'unit_price': cleaned.get('unit_price') or Decimal('0'),
+                    'discount_amount': cleaned.get('discount_amount') or Decimal('0'),
+                    'tax_rate': cleaned.get('tax_rate') or Decimal('18.00'),
+                })
+            if not lines_data:
+                messages.error(request, 'Add at least one line to the purchase order.')
+            else:
+                try:
+                    po = create_purchase_order(
+                        vendor=form.cleaned_data['vendor'], warehouse=form.cleaned_data.get('warehouse'),
+                        buyer=form.cleaned_data.get('buyer'), lines_data=lines_data,
+                        expected_delivery_date=form.cleaned_data.get('expected_delivery_date'),
+                        payment_terms=form.cleaned_data.get('payment_terms'), remarks=form.cleaned_data.get('remarks', ''),
+                        user=request.user,
+                    )
+                    messages.success(request, f'Purchase Order {po.order_no} created.')
+                    return redirect('purchase_order_detail', pk=po.pk)
+                except ValueError as exc:
+                    messages.error(request, str(exc))
+    else:
+        form = PurchaseOrderForm()
+        formset = PurchaseOrderLineFormSet()
+    return render(request, 'erp/purchase_order_form.html', {'form': form, 'formset': formset})
+
+
+@login_required(login_url='login')
+def purchase_order_detail(request, pk):
+    po = get_object_or_404(PurchaseOrder.objects.select_related('vendor', 'warehouse', 'buyer'), pk=pk)
+    return render(request, 'erp/purchase_order_detail.html', {
+        'order': po,
+        'lines': po.lines.select_related('product').all(),
+        'related': get_related_documents(po, 'purchase_order'),
+        'history': DocumentStatusHistory.objects.filter(document_type='purchase_order', document_id=po.pk).order_by('changed_at'),
+    })
+
+
+@login_required(login_url='login')
+def purchase_order_submit(request, pk):
+    po = get_object_or_404(PurchaseOrder, pk=pk)
+    if request.method == 'POST':
+        try:
+            submit_for_approval(po, 'purchase_order', request.user)
+            messages.success(request, f'Purchase Order {po.order_no} submitted for approval.')
+        except ValueError as exc:
+            messages.error(request, str(exc))
+    return redirect('purchase_order_detail', pk=pk)
+
+
+@login_required(login_url='login')
+def purchase_order_approve(request, pk):
+    po = get_object_or_404(PurchaseOrder, pk=pk)
+    if request.method == 'POST':
+        approved = request.POST.get('decision') == 'approve'
+        try:
+            approve_purchase_order(po, request.user, approved=approved, notes=request.POST.get('notes', ''))
+            messages.success(request, f'Purchase Order {po.order_no} {"approved" if approved else "rejected"}.')
+        except ValueError as exc:
+            messages.error(request, str(exc))
+    return redirect('purchase_order_detail', pk=pk)
+
+
+@login_required(login_url='login')
+def purchase_order_receive(request, pk):
+    po = get_object_or_404(PurchaseOrder, pk=pk)
+    lines = [line for line in po.lines.select_related('product').all() if line.remaining_quantity > 0]
+    if request.method == 'POST':
+        form = ConvertQuantityForm(request.POST, source_lines=lines)
+        if form.is_valid():
+            line_quantities = {key.split('_', 1)[1]: value for key, value in form.cleaned_data.items() if value}
+            try:
+                receipt = receive_goods(po, request.user, line_quantities)
+                messages.success(request, f'Goods Receipt {receipt.receipt_no} posted against {po.order_no}.')
+                return redirect('purchase_order_detail', pk=po.pk)
+            except ValueError as exc:
+                messages.error(request, str(exc))
+    else:
+        form = ConvertQuantityForm(source_lines=lines)
+    return render(request, 'erp/purchase_order_receive.html', {'order': po, 'form': form, 'lines': lines})
+
+
+@login_required(login_url='login')
+def vendor_payment_list(request):
+    query = request.GET.get('q', '').strip()
+    status = request.GET.get('status', '').strip()
+    payments = VendorPayment.objects.select_related('vendor').order_by('-payment_date')
+    if query:
+        payments = payments.filter(Q(payment_no__icontains=query) | Q(vendor__name__icontains=query))
+    if status:
+        payments = payments.filter(status=status)
+    return render(request, 'erp/vendor_payment_list.html', {
+        'payments': payments, 'query': query, 'status_filter': status, 'status_choices': VendorPayment.STATUS_CHOICES,
+    })
+
+
+@login_required(login_url='login')
+def vendor_payment_detail(request, pk):
+    payment = get_object_or_404(VendorPayment.objects.select_related('vendor', 'bank_account', 'payment_method'), pk=pk)
+    return render(request, 'erp/vendor_payment_detail.html', {
+        'payment': payment,
+        'allocations': payment.allocations.select_related('supplier_invoice').all(),
+        'related': get_related_documents(payment, 'vendor_payment'),
+        'history': DocumentStatusHistory.objects.filter(document_type='vendor_payment', document_id=payment.pk).order_by('changed_at'),
+    })
+
+
+@login_required(login_url='login')
+def vendor_payment_create(request):
+    vendor_id = request.GET.get('vendor') or request.POST.get('vendor')
+    outstanding_invoices = []
+    if vendor_id:
+        outstanding_invoices = list(
+            SupplierInvoice.objects.filter(supplier_id=vendor_id).exclude(status__in=['paid', 'cancelled']).order_by('invoice_date')
+        )
+    if request.method == 'POST':
+        form = VendorPaymentForm(request.POST)
+        if form.is_valid():
+            allocations = {}
+            for invoice in outstanding_invoices:
+                raw = request.POST.get(f'allocate_{invoice.pk}')
+                if raw:
+                    try:
+                        value = Decimal(raw)
+                    except Exception:
+                        value = Decimal('0')
+                    if value > 0:
+                        allocations[invoice.pk] = value
+            try:
+                payment = create_vendor_payment(
+                    vendor=form.cleaned_data['vendor'], bank_account=form.cleaned_data.get('bank_account'),
+                    payment_method=form.cleaned_data['payment_method'], amount=form.cleaned_data['amount'],
+                    allocations=allocations, user=request.user, reference_no=form.cleaned_data.get('reference_no', ''),
+                    transaction_id=form.cleaned_data.get('transaction_id', ''), remarks=form.cleaned_data.get('remarks', ''),
+                )
+                messages.success(request, f'Vendor Payment {payment.payment_no} created.')
+                return redirect('vendor_payment_detail', pk=payment.pk)
+            except ValueError as exc:
+                messages.error(request, str(exc))
+    else:
+        form = VendorPaymentForm(initial={'vendor': vendor_id} if vendor_id else None)
+    return render(request, 'erp/vendor_payment_form.html', {
+        'form': form, 'outstanding_invoices': outstanding_invoices,
+        'vendors': Supplier.objects.filter(is_active=True).order_by('name'),
+        'selected_vendor_id': int(vendor_id) if vendor_id else None,
+    })
+
+
+@login_required(login_url='login')
+def vendor_payment_post(request, pk):
+    payment = get_object_or_404(VendorPayment, pk=pk)
+    if request.method == 'POST':
+        try:
+            post_vendor_payment(payment, request.user)
+            messages.success(request, f'Vendor Payment {payment.payment_no} posted.')
+        except ValueError as exc:
+            messages.error(request, str(exc))
+    return redirect('vendor_payment_detail', pk=pk)
+
+
+def _metal_rate_context(form):
+    return {
+        'latest_rates': JewelleryMetalRate.objects.filter(effective_to__isnull=True, is_active=True)
+            .select_related('store').order_by('metal_type', 'purity', 'store__name'),
+        'history': JewelleryMetalRate.objects.select_related('store').order_by('-effective_from')[:30],
+        'form': form,
+    }
+
+
+@login_required(login_url='login')
+def metal_rate_list(request):
+    return render(request, 'erp/metal_rate_list.html', _metal_rate_context(MetalRateForm()))
+
+
+@login_required(login_url='login')
+def metal_rate_create(request):
+    if request.method == 'POST':
+        form = MetalRateForm(request.POST)
+        if form.is_valid():
+            store = form.cleaned_data.get('store')
+            stores = [store] if store else list(Store.objects.filter(is_active=True))
+            if not stores:
+                messages.error(request, 'No active store found to apply this rate to.')
+            else:
+                apply_metal_rate(
+                    metal_type=form.cleaned_data['metal_type'], purity=form.cleaned_data['purity'],
+                    rate_per_gram=form.cleaned_data['rate_per_gram'], stores=stores,
+                    rate_type=form.cleaned_data['rate_type'], source='manual', user=request.user,
+                )
+                messages.success(
+                    request,
+                    f"{form.cleaned_data['metal_type'].title()} {form.cleaned_data['purity']} rate updated for {len(stores)} store(s)."
+                )
+                return redirect('metal_rate_list')
+    else:
+        form = MetalRateForm()
+    return render(request, 'erp/metal_rate_list.html', _metal_rate_context(form))
+
+
+@login_required(login_url='login')
+def metal_rate_fetch_live(request):
+    if request.method == 'POST':
+        stores = list(Store.objects.filter(is_active=True))
+        if not stores:
+            messages.error(request, 'No active store found to apply live rates to.')
+        else:
+            try:
+                data, created = apply_live_metal_rates(stores, user=request.user)
+                messages.success(
+                    request,
+                    f"Live rates fetched (USD/INR {data['usd_inr_rate']:.2f}): "
+                    f"24K gold Rs.{data['gold']['24K']}/g, 999 silver Rs.{data['silver']['999']}/g "
+                    f"- applied to {len(stores)} store(s)."
+                )
+            except ValueError as exc:
+                messages.error(request, f'Could not fetch live rates: {exc}')
+    return redirect('metal_rate_list')
 
 
 @login_required(login_url='login')
 def posted_voucher_detail(request, pk):
     posted = get_object_or_404(FinancePostedVoucher.objects.prefetch_related('lines'), pk=pk)
     return render(request, 'erp/posted_voucher_detail.html', {'posted': posted})
+
+
+@login_required(login_url='login')
+def trial_balance_report(request):
+    """Every posted JournalEntry keeps GLAccount.current_balance in a debit-positive convention; summing it always balances."""
+    rows = []
+    total_debit = Decimal('0')
+    total_credit = Decimal('0')
+    for account in GLAccount.objects.filter(status='active').order_by('account_code'):
+        balance = account.current_balance or Decimal('0')
+        debit = balance if balance > 0 else Decimal('0')
+        credit = -balance if balance < 0 else Decimal('0')
+        total_debit += debit
+        total_credit += credit
+        if balance != 0:
+            rows.append({'account': account, 'debit': debit, 'credit': credit, 'balance': balance})
+    return render(request, 'erp/trial_balance.html', {
+        'rows': rows, 'total_debit': total_debit, 'total_credit': total_credit,
+        'is_balanced': total_debit == total_credit,
+    })
 
 
 @login_required(login_url='login')
@@ -872,6 +1551,8 @@ def invoice_detail(request, pk):
         'items': invoice.items.all(),
         'income_tax': tax,
         'invoice_setting': setting,
+        'related': get_related_documents(invoice, 'sales_invoice'),
+        'history': DocumentStatusHistory.objects.filter(document_type='sales_invoice', document_id=invoice.pk).order_by('changed_at'),
     }
     return render(request, 'erp/invoice_detail.html', context)
 

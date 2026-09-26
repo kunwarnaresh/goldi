@@ -1,9 +1,11 @@
+from decimal import Decimal
+
 from django import forms
 
 from .models import (
-    Customer, Employee, ExchangeTransaction, GSTSlab, InvoiceSetting,
-    Product, Role, SalesApproval, SalesInvoice, SalesReturn, Supplier,
-    Warehouse, RepairOrder, CustomerOrnament,
+    BankAccount, Customer, Employee, ExchangeTransaction, GSTSlab, InvoiceSetting,
+    PaymentMethod, PaymentTerm, POSStaff, Product, Quotation, Role, SalesApproval,
+    SalesInvoice, SalesReturn, Staff, Store, Supplier, Warehouse, RepairOrder, CustomerOrnament,
 )
 
 
@@ -257,3 +259,122 @@ class ExchangeTransactionForm(forms.ModelForm):
             'exchange_value': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
         }
+
+
+class QuotationForm(forms.ModelForm):
+    class Meta:
+        model = Quotation
+        fields = ['customer', 'store', 'salesperson', 'valid_until', 'payment_terms', 'delivery_terms', 'remarks']
+        widgets = {
+            'customer': forms.Select(attrs={'class': 'form-select'}),
+            'store': forms.Select(attrs={'class': 'form-select'}),
+            'salesperson': forms.Select(attrs={'class': 'form-select'}),
+            'valid_until': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'payment_terms': forms.Select(attrs={'class': 'form-select'}),
+            'delivery_terms': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+            'remarks': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['customer'].queryset = Customer.objects.filter(is_active=True).order_by('name')
+        self.fields['store'].queryset = Store.objects.filter(is_active=True).order_by('name')
+        self.fields['salesperson'].queryset = POSStaff.objects.filter(is_active=True).order_by('name')
+        self.fields['payment_terms'].queryset = PaymentTerm.objects.filter(is_active=True)
+        for field in ('store', 'salesperson', 'payment_terms', 'valid_until'):
+            self.fields[field].required = False
+
+
+class QuotationLineForm(forms.Form):
+    product = forms.ModelChoiceField(queryset=Product.objects.filter(is_active=True).order_by('name'), required=False, widget=forms.Select(attrs={'class': 'form-select'}))
+    quantity = forms.DecimalField(required=False, min_value=Decimal('0.001'), widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.001', 'placeholder': '1'}))
+    discount_amount = forms.DecimalField(required=False, min_value=Decimal('0'), widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'placeholder': '0'}))
+    jewellery_barcode = forms.CharField(required=False, widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Optional: jewellery unit barcode'}))
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if cleaned_data.get('product') and not cleaned_data.get('quantity'):
+            self.add_error('quantity', 'Enter a quantity for this line.')
+        return cleaned_data
+
+
+QuotationLineFormSet = forms.formset_factory(QuotationLineForm, extra=3, can_delete=True)
+
+
+class ConvertQuantityForm(forms.Form):
+    """One quantity-to-convert field per source line; built dynamically in the view."""
+    def __init__(self, *args, source_lines=None, quantity_attr='remaining_quantity', **kwargs):
+        super().__init__(*args, **kwargs)
+        for line in source_lines or []:
+            cap = getattr(line, quantity_attr)
+            self.fields[f'line_{line.pk}'] = forms.DecimalField(
+                label=str(line.product), required=False, min_value=Decimal('0'),
+                max_value=cap, initial=cap,
+                widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.001'}),
+            )
+
+
+class PaymentReceiptForm(forms.Form):
+    customer = forms.ModelChoiceField(queryset=Customer.objects.filter(is_active=True).order_by('name'), widget=forms.Select(attrs={'class': 'form-select'}))
+    store = forms.ModelChoiceField(queryset=Store.objects.filter(is_active=True).order_by('name'), required=False, widget=forms.Select(attrs={'class': 'form-select'}))
+    payment_method = forms.ModelChoiceField(queryset=PaymentMethod.objects.filter(is_active=True), widget=forms.Select(attrs={'class': 'form-select'}))
+    bank_account = forms.ModelChoiceField(queryset=BankAccount.objects.filter(status='active'), required=False, widget=forms.Select(attrs={'class': 'form-select'}))
+    amount = forms.DecimalField(min_value=Decimal('0.01'), widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}))
+    reference_no = forms.CharField(required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
+    transaction_id = forms.CharField(required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
+    remarks = forms.CharField(required=False, widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 2}))
+
+
+class PurchaseOrderForm(forms.Form):
+    vendor = forms.ModelChoiceField(queryset=Supplier.objects.filter(is_active=True).order_by('name'), widget=forms.Select(attrs={'class': 'form-select'}))
+    warehouse = forms.ModelChoiceField(queryset=Warehouse.objects.all().order_by('name'), required=False, widget=forms.Select(attrs={'class': 'form-select'}))
+    buyer = forms.ModelChoiceField(queryset=Staff.objects.all().order_by('name'), required=False, widget=forms.Select(attrs={'class': 'form-select'}))
+    expected_delivery_date = forms.DateField(required=False, widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}))
+    payment_terms = forms.ModelChoiceField(queryset=PaymentTerm.objects.filter(is_active=True), required=False, widget=forms.Select(attrs={'class': 'form-select'}))
+    remarks = forms.CharField(required=False, widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 2}))
+
+
+class PurchaseOrderLineForm(forms.Form):
+    product = forms.ModelChoiceField(queryset=Product.objects.filter(is_active=True).order_by('name'), required=False, widget=forms.Select(attrs={'class': 'form-select'}))
+    quantity = forms.DecimalField(required=False, min_value=Decimal('0.001'), widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.001', 'placeholder': '1'}))
+    unit_price = forms.DecimalField(required=False, min_value=Decimal('0'), widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'placeholder': '0'}))
+    discount_amount = forms.DecimalField(required=False, min_value=Decimal('0'), widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'placeholder': '0'}))
+    tax_rate = forms.DecimalField(required=False, min_value=Decimal('0'), initial=Decimal('18.00'), widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'placeholder': '18'}))
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if cleaned_data.get('product') and not cleaned_data.get('quantity'):
+            self.add_error('quantity', 'Enter a quantity for this line.')
+        return cleaned_data
+
+
+PurchaseOrderLineFormSet = forms.formset_factory(PurchaseOrderLineForm, extra=3, can_delete=True)
+
+
+class VendorPaymentForm(forms.Form):
+    vendor = forms.ModelChoiceField(queryset=Supplier.objects.filter(is_active=True).order_by('name'), widget=forms.Select(attrs={'class': 'form-select'}))
+    payment_method = forms.ModelChoiceField(queryset=PaymentMethod.objects.filter(is_active=True), widget=forms.Select(attrs={'class': 'form-select'}))
+    bank_account = forms.ModelChoiceField(queryset=BankAccount.objects.filter(status='active'), required=False, widget=forms.Select(attrs={'class': 'form-select'}))
+    amount = forms.DecimalField(min_value=Decimal('0.01'), widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}))
+    reference_no = forms.CharField(required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
+    transaction_id = forms.CharField(required=False, widget=forms.TextInput(attrs={'class': 'form-control'}))
+    remarks = forms.CharField(required=False, widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 2}))
+
+
+class PurchaseInvoiceFromReceiptForm(forms.Form):
+    vendor_invoice_no = forms.CharField(widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': "Vendor's own invoice number"}))
+    vendor_invoice_date = forms.DateField(required=False, widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}))
+
+
+class MetalRateForm(forms.Form):
+    METAL_CHOICES = [('gold', 'Gold'), ('silver', 'Silver'), ('platinum', 'Platinum')]
+    RATE_TYPE_CHOICES = [('selling', 'Selling'), ('buying', 'Buying')]
+
+    metal_type = forms.ChoiceField(choices=METAL_CHOICES, widget=forms.Select(attrs={'class': 'form-select'}))
+    purity = forms.CharField(widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': '24K / 22K / 999 / 925'}))
+    rate_per_gram = forms.DecimalField(min_value=Decimal('0.01'), widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}))
+    rate_type = forms.ChoiceField(choices=RATE_TYPE_CHOICES, initial='selling', widget=forms.Select(attrs={'class': 'form-select'}))
+    store = forms.ModelChoiceField(
+        queryset=Store.objects.filter(is_active=True).order_by('name'), required=False,
+        help_text='Leave blank to apply to every active store.', widget=forms.Select(attrs={'class': 'form-select'}),
+    )

@@ -47,8 +47,14 @@ class DocumentNumberSeries(models.Model):
         ('customer', 'Customer'),
         ('vendor', 'Vendor'),
         ('gl_journal', 'G/L Journal'),
+        ('quotation', 'Quotation'),
+        ('sales_order', 'Sales Order'),
+        ('payment_receipt', 'Payment Receipt'),
         ('sales_invoice', 'Sales Invoice'),
         ('sales_credit_memo', 'Sales Credit Memo'),
+        ('purchase_order', 'Purchase Order'),
+        ('goods_receipt', 'Goods Receipt'),
+        ('vendor_payment', 'Vendor Payment'),
         ('purchase_invoice', 'Purchase Invoice'),
         ('purchase_credit_memo', 'Purchase Credit Memo'),
         ('payment', 'Payment'),
@@ -75,6 +81,8 @@ class DocumentNumberSeries(models.Model):
         ('reclassification', 'Reclassification'),
         ('cross_dock', 'Cross Dock'),
         ('journal_voucher', 'Journal Voucher'),
+        ('sales_journal', 'Sales Journal'),
+        ('purchase_journal', 'Purchase Journal'),
         ('cash_receipt', 'Cash Receipt Voucher'),
         ('cash_payment', 'Cash Payment Voucher'),
         ('bank_receipt', 'Bank Receipt Voucher'),
@@ -1379,6 +1387,7 @@ class RepairInvoice(models.Model):
 
 
 class Supplier(models.Model):
+    vendor_no = models.CharField(max_length=50, unique=True, null=True, blank=True)
     name = models.CharField(max_length=200)
     phone = models.CharField(max_length=15, blank=True)
     email = models.EmailField(blank=True)
@@ -1388,8 +1397,14 @@ class Supplier(models.Model):
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(default=dj_timezone.now)
 
+    def save(self, *args, **kwargs):
+        if not self.vendor_no:
+            from .services import get_next_number
+            self.vendor_no = get_next_number('vendor')
+        super().save(*args, **kwargs)
+
     def __str__(self):
-        return self.name
+        return f'{self.vendor_no or self.pk} - {self.name}'
 
 
 class PaymentTerm(models.Model):
@@ -1481,6 +1496,21 @@ class VendorFinanceProfile(models.Model):
     purchase_hold = models.BooleanField(default=False)
     approval_required = models.BooleanField(default=False)
     updated_at = models.DateTimeField(auto_now=True)
+
+
+class FinancePostingSetup(models.Model):
+    """The minimal General Posting Matrix this ERP needs: which default G/L accounts absorb Sales/Purchase document postings."""
+    company = models.OneToOneField(Company, on_delete=models.CASCADE, related_name='posting_setup')
+    sales_revenue_account = models.ForeignKey(GLAccount, on_delete=models.PROTECT, related_name='+')
+    gst_output_account = models.ForeignKey(GLAccount, on_delete=models.PROTECT, related_name='+')
+    purchase_expense_account = models.ForeignKey(GLAccount, on_delete=models.PROTECT, related_name='+')
+    gst_input_account = models.ForeignKey(GLAccount, on_delete=models.PROTECT, related_name='+')
+    default_cash_account = models.ForeignKey(GLAccount, on_delete=models.PROTECT, related_name='+')
+    rounding_account = models.ForeignKey(GLAccount, on_delete=models.PROTECT, null=True, blank=True, related_name='+')
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'Posting Setup - {self.company.company_code}'
 
 
 class DocumentRelationship(models.Model):
@@ -1588,6 +1618,8 @@ class Product(models.Model):
 
 
 class JewelleryMetalRate(models.Model):
+    SOURCE_CHOICES = [('manual', 'Manual'), ('api', 'API')]
+
     metal_type = models.CharField(max_length=30)
     purity = models.CharField(max_length=30)
     rate_per_gram = models.DecimalField(max_digits=14, decimal_places=2)
@@ -1596,6 +1628,9 @@ class JewelleryMetalRate(models.Model):
     effective_from = models.DateTimeField(default=dj_timezone.now)
     effective_to = models.DateTimeField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
+    source = models.CharField(max_length=20, choices=SOURCE_CHOICES, default='manual')
+    source_reference = models.CharField(max_length=200, blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='metal_rates_created')
 
     class Meta:
         ordering = ['-effective_from']
@@ -2149,9 +2184,21 @@ class SalesInvoice(models.Model):
         ('approved', 'Approved'),
         ('rejected', 'Rejected'),
         ('completed', 'Completed'),
+        ('posted', 'Posted'),
+        ('cancelled', 'Cancelled'),
+    ]
+    PAYMENT_STATUS_CHOICES = [
+        ('unpaid', 'Unpaid'),
+        ('partially_paid', 'Partially Paid'),
+        ('paid', 'Paid'),
+        ('overpaid', 'Overpaid'),
     ]
     invoice_no = models.CharField(max_length=50, unique=True)
     customer = models.ForeignKey(Customer, on_delete=models.PROTECT)
+    sales_order = models.ForeignKey('SalesOrder', on_delete=models.SET_NULL, null=True, blank=True, related_name='invoices')
+    quotation = models.ForeignKey('Quotation', on_delete=models.SET_NULL, null=True, blank=True, related_name='invoices')
+    payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS_CHOICES, default='unpaid')
+    paid_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
     sales_date = models.DateTimeField(default=dj_timezone.now)
     subtotal = models.DecimalField(max_digits=14, decimal_places=2, default=0)
     discount_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
@@ -2183,6 +2230,10 @@ class SalesInvoice(models.Model):
     @property
     def roundoff_total(self):
         return self.total_amount.quantize(Decimal('0.01'))
+
+    @property
+    def balance_amount(self):
+        return max(self.total_amount - self.paid_amount, Decimal('0')).quantize(Decimal('0.01'))
 
     @property
     def cgst_amount(self):
@@ -2278,6 +2329,178 @@ class SalesApproval(models.Model):
         return f'{self.invoice.invoice_no} - {self.status}'
 
 
+class JewelleryLineMixin(models.Model):
+    """Shared pricing/jewellery fields for Quotation and Sales Order lines, mirroring SalesInvoiceItem."""
+    quantity = models.DecimalField(max_digits=12, decimal_places=3, default=1)
+    unit_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    discount_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    taxable_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('3.00'))
+    cgst_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    sgst_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    igst_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    line_total = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    gross_weight = models.DecimalField(max_digits=12, decimal_places=3, default=0)
+    stone_weight = models.DecimalField(max_digits=12, decimal_places=3, default=0)
+    net_metal_weight = models.DecimalField(max_digits=12, decimal_places=3, default=0)
+    metal_rate = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    metal_value = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    wastage_value = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    making_charge = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    stone_value = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    hallmark_charge = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    certification_charge = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    other_charges = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    pricing_snapshot = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        abstract = True
+
+    @property
+    def gst_amount(self):
+        return (self.cgst_amount + self.sgst_amount + self.igst_amount).quantize(Decimal('0.01'))
+
+
+class Quotation(models.Model):
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('pending_approval', 'Pending Approval'),
+        ('approved', 'Approved'),
+        ('sent', 'Sent'),
+        ('customer_accepted', 'Customer Accepted'),
+        ('expired', 'Expired'),
+        ('converted', 'Converted'),
+        ('rejected', 'Rejected'),
+        ('cancelled', 'Cancelled'),
+    ]
+    quotation_no = models.CharField(max_length=50, unique=True)
+    customer = models.ForeignKey(Customer, on_delete=models.PROTECT, related_name='quotations')
+    store = models.ForeignKey(Store, on_delete=models.PROTECT, null=True, blank=True, related_name='quotations')
+    salesperson = models.ForeignKey(POSStaff, on_delete=models.SET_NULL, null=True, blank=True, related_name='quotations')
+    quotation_date = models.DateTimeField(default=dj_timezone.now)
+    valid_until = models.DateField(null=True, blank=True)
+    payment_terms = models.ForeignKey(PaymentTerm, on_delete=models.SET_NULL, null=True, blank=True, related_name='quotations')
+    delivery_terms = models.TextField(blank=True)
+    remarks = models.TextField(blank=True)
+    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default='draft')
+    subtotal = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    discount_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    taxable_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    gst_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    total_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='quotations_created')
+    created_at = models.DateTimeField(default=dj_timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.quotation_no
+
+
+class QuotationLine(JewelleryLineMixin):
+    quotation = models.ForeignKey(Quotation, on_delete=models.CASCADE, related_name='lines')
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='quotation_lines')
+    jewellery_unit = models.ForeignKey(JewelleryItemUnit, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    converted_quantity = models.DecimalField(max_digits=12, decimal_places=3, default=0)
+
+    @property
+    def remaining_quantity(self):
+        return max(self.quantity - self.converted_quantity, Decimal('0'))
+
+
+class SalesOrder(models.Model):
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('pending_approval', 'Pending Approval'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+        ('released', 'Released'),
+        ('partially_fulfilled', 'Partially Fulfilled'),
+        ('completed', 'Completed'),
+        ('cancelled', 'Cancelled'),
+    ]
+    order_no = models.CharField(max_length=50, unique=True)
+    customer = models.ForeignKey(Customer, on_delete=models.PROTECT, related_name='sales_orders')
+    quotation = models.ForeignKey(Quotation, on_delete=models.SET_NULL, null=True, blank=True, related_name='sales_orders')
+    store = models.ForeignKey(Store, on_delete=models.PROTECT, null=True, blank=True, related_name='sales_orders')
+    salesperson = models.ForeignKey(POSStaff, on_delete=models.SET_NULL, null=True, blank=True, related_name='sales_orders')
+    order_date = models.DateTimeField(default=dj_timezone.now)
+    expected_delivery_date = models.DateField(null=True, blank=True)
+    payment_terms = models.ForeignKey(PaymentTerm, on_delete=models.SET_NULL, null=True, blank=True, related_name='sales_orders')
+    remarks = models.TextField(blank=True)
+    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default='draft')
+    subtotal = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    discount_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    taxable_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    gst_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    total_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='sales_orders_created')
+    created_at = models.DateTimeField(default=dj_timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.order_no
+
+
+class SalesOrderLine(JewelleryLineMixin):
+    sales_order = models.ForeignKey(SalesOrder, on_delete=models.CASCADE, related_name='lines')
+    quotation_line = models.ForeignKey(QuotationLine, on_delete=models.SET_NULL, null=True, blank=True, related_name='sales_order_lines')
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='sales_order_lines')
+    jewellery_unit = models.ForeignKey(JewelleryItemUnit, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    reserved_quantity = models.DecimalField(max_digits=12, decimal_places=3, default=0)
+    invoiced_quantity = models.DecimalField(max_digits=12, decimal_places=3, default=0)
+    cancelled_quantity = models.DecimalField(max_digits=12, decimal_places=3, default=0)
+
+    @property
+    def remaining_quantity(self):
+        return max(self.quantity - self.invoiced_quantity - self.cancelled_quantity, Decimal('0'))
+
+
+class PaymentReceipt(models.Model):
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('posted', 'Posted'),
+        ('cancelled', 'Cancelled'),
+    ]
+    receipt_no = models.CharField(max_length=50, unique=True)
+    customer = models.ForeignKey(Customer, on_delete=models.PROTECT, related_name='payment_receipts')
+    store = models.ForeignKey(Store, on_delete=models.PROTECT, null=True, blank=True, related_name='payment_receipts')
+    payment_method = models.ForeignKey(PaymentMethod, on_delete=models.SET_NULL, null=True, blank=True, related_name='payment_receipts')
+    bank_account = models.ForeignKey('BankAccount', on_delete=models.SET_NULL, null=True, blank=True, related_name='payment_receipts')
+    amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    receipt_date = models.DateTimeField(default=dj_timezone.now)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    reference_no = models.CharField(max_length=100, blank=True)
+    transaction_id = models.CharField(max_length=100, blank=True)
+    remarks = models.TextField(blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='payment_receipts_created')
+    created_at = models.DateTimeField(default=dj_timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    @property
+    def allocated_amount(self):
+        return self.allocations.aggregate(total=models.Sum('allocated_amount'))['total'] or Decimal('0')
+
+    @property
+    def unapplied_amount(self):
+        return max(self.amount - self.allocated_amount, Decimal('0'))
+
+    def __str__(self):
+        return self.receipt_no
+
+
+class PaymentAllocation(models.Model):
+    receipt = models.ForeignKey(PaymentReceipt, on_delete=models.CASCADE, related_name='allocations')
+    invoice = models.ForeignKey(SalesInvoice, on_delete=models.PROTECT, related_name='receipt_allocations')
+    allocated_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    created_at = models.DateTimeField(default=dj_timezone.now)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=('receipt', 'invoice'), name='unique_payment_allocation_per_invoice')]
+
+    def __str__(self):
+        return f'{self.receipt.receipt_no} -> {self.invoice.invoice_no}: {self.allocated_amount}'
+
+
 class ExchangeTransaction(models.Model):
     METAL_CHOICES = [
         ('gold', 'Gold'),
@@ -2319,6 +2542,7 @@ class BankAccount(models.Model):
     opening_balance = models.DecimalField(max_digits=14, decimal_places=2, default=0)
     current_balance = models.DecimalField(max_digits=14, decimal_places=2, default=0)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
+    gl_account = models.ForeignKey('GLAccount', on_delete=models.SET_NULL, null=True, blank=True, related_name='bank_accounts')
     created_at = models.DateTimeField(default=dj_timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -2410,8 +2634,20 @@ class SupplierInvoice(models.Model):
         ('cancelled', 'Cancelled'),
     ]
 
+    WORKFLOW_STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('pending_approval', 'Pending Approval'),
+        ('approved', 'Approved'),
+        ('posted', 'Posted'),
+        ('cancelled', 'Cancelled'),
+    ]
+
     company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='supplier_invoices')
     supplier = models.ForeignKey(Supplier, on_delete=models.PROTECT, related_name='invoices')
+    document_no = models.CharField(max_length=50, unique=True, null=True, blank=True)
+    purchase_order = models.ForeignKey('PurchaseOrder', on_delete=models.SET_NULL, null=True, blank=True, related_name='invoices')
+    goods_receipt = models.ForeignKey('GoodsReceipt', on_delete=models.SET_NULL, null=True, blank=True, related_name='invoices')
+    workflow_status = models.CharField(max_length=30, choices=WORKFLOW_STATUS_CHOICES, default='draft')
     invoice_no = models.CharField(max_length=100, unique=True)
     invoice_date = models.DateField(default=date.today)
     gross_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
@@ -2449,14 +2685,165 @@ class SupplierInvoice(models.Model):
         return f'{self.invoice_no} - {self.supplier.name}'
 
 
-class PurchaseOrder(models.Model):
-    vendor = models.CharField(max_length=200)
-    product = models.ForeignKey(Product, on_delete=models.PROTECT)
-    quantity = models.DecimalField(max_digits=12, decimal_places=3, default=0)
+class SupplierInvoiceLine(models.Model):
+    supplier_invoice = models.ForeignKey(SupplierInvoice, on_delete=models.CASCADE, related_name='lines')
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, null=True, blank=True, related_name='supplier_invoice_lines')
+    description = models.CharField(max_length=250, blank=True)
+    purchase_order_line = models.ForeignKey('PurchaseOrderLine', on_delete=models.SET_NULL, null=True, blank=True, related_name='invoice_lines')
+    quantity = models.DecimalField(max_digits=12, decimal_places=3, default=1)
     unit_cost = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    total_cost = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    discount_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    taxable_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('18.00'))
+    cgst_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    sgst_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    igst_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    line_total = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+
+    @property
+    def gst_amount(self):
+        return (self.cgst_amount + self.sgst_amount + self.igst_amount).quantize(Decimal('0.01'))
+
+
+class VendorPayment(models.Model):
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('posted', 'Posted'),
+        ('cancelled', 'Cancelled'),
+    ]
+    payment_no = models.CharField(max_length=50, unique=True)
+    vendor = models.ForeignKey(Supplier, on_delete=models.PROTECT, related_name='payments_made')
+    bank_account = models.ForeignKey('BankAccount', on_delete=models.SET_NULL, null=True, blank=True, related_name='vendor_payments')
+    payment_method = models.ForeignKey(PaymentMethod, on_delete=models.SET_NULL, null=True, blank=True, related_name='vendor_payments')
+    amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    payment_date = models.DateTimeField(default=dj_timezone.now)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    reference_no = models.CharField(max_length=100, blank=True)
+    transaction_id = models.CharField(max_length=100, blank=True)
+    remarks = models.TextField(blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='vendor_payments_created')
+    created_at = models.DateTimeField(default=dj_timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    @property
+    def allocated_amount(self):
+        return self.allocations.aggregate(total=models.Sum('allocated_amount'))['total'] or Decimal('0')
+
+    @property
+    def unapplied_amount(self):
+        return max(self.amount - self.allocated_amount, Decimal('0'))
+
+    def __str__(self):
+        return self.payment_no
+
+
+class VendorPaymentAllocation(models.Model):
+    payment = models.ForeignKey(VendorPayment, on_delete=models.CASCADE, related_name='allocations')
+    supplier_invoice = models.ForeignKey(SupplierInvoice, on_delete=models.PROTECT, related_name='payment_allocations')
+    allocated_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    created_at = models.DateTimeField(default=dj_timezone.now)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=('payment', 'supplier_invoice'), name='unique_vendor_payment_allocation_per_invoice')]
+
+    def __str__(self):
+        return f'{self.payment.payment_no} -> {self.supplier_invoice.invoice_no}: {self.allocated_amount}'
+
+
+class PurchaseOrder(models.Model):
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('pending_approval', 'Pending Approval'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+        ('sent_to_vendor', 'Sent to Vendor'),
+        ('partially_received', 'Partially Received'),
+        ('fully_received', 'Fully Received'),
+        ('cancelled', 'Cancelled'),
+    ]
+    order_no = models.CharField(max_length=50, unique=True)
+    vendor = models.ForeignKey(Supplier, on_delete=models.PROTECT, related_name='purchase_orders')
+    warehouse = models.ForeignKey('Warehouse', on_delete=models.SET_NULL, null=True, blank=True, related_name='purchase_orders')
+    buyer = models.ForeignKey('Staff', on_delete=models.SET_NULL, null=True, blank=True, related_name='purchase_orders')
     order_date = models.DateTimeField(default=dj_timezone.now)
-    received = models.BooleanField(default=False)
+    expected_delivery_date = models.DateField(null=True, blank=True)
+    payment_terms = models.ForeignKey(PaymentTerm, on_delete=models.SET_NULL, null=True, blank=True, related_name='purchase_orders')
+    remarks = models.TextField(blank=True)
+    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default='draft')
+    subtotal = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    discount_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    taxable_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    gst_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    total_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='purchase_orders_created')
+    created_at = models.DateTimeField(default=dj_timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.order_no
+
+
+class PurchaseOrderLine(models.Model):
+    purchase_order = models.ForeignKey(PurchaseOrder, on_delete=models.CASCADE, related_name='lines')
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='purchase_order_lines')
+    quantity = models.DecimalField(max_digits=12, decimal_places=3, default=1)
+    unit_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    discount_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    taxable_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('18.00'))
+    cgst_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    sgst_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    igst_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    line_total = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    received_quantity = models.DecimalField(max_digits=12, decimal_places=3, default=0)
+    invoiced_quantity = models.DecimalField(max_digits=12, decimal_places=3, default=0)
+    cancelled_quantity = models.DecimalField(max_digits=12, decimal_places=3, default=0)
+
+    @property
+    def gst_amount(self):
+        return (self.cgst_amount + self.sgst_amount + self.igst_amount).quantize(Decimal('0.01'))
+
+    @property
+    def remaining_quantity(self):
+        return max(self.quantity - self.received_quantity - self.cancelled_quantity, Decimal('0'))
+
+    @property
+    def remaining_to_invoice(self):
+        return max(self.received_quantity - self.invoiced_quantity, Decimal('0'))
+
+
+class GoodsReceipt(models.Model):
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('posted', 'Posted'),
+        ('cancelled', 'Cancelled'),
+    ]
+    receipt_no = models.CharField(max_length=50, unique=True)
+    purchase_order = models.ForeignKey(PurchaseOrder, on_delete=models.PROTECT, related_name='goods_receipts')
+    vendor = models.ForeignKey(Supplier, on_delete=models.PROTECT, related_name='goods_receipts')
+    warehouse = models.ForeignKey('Warehouse', on_delete=models.SET_NULL, null=True, blank=True, related_name='goods_receipts')
+    receipt_date = models.DateTimeField(default=dj_timezone.now)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    received_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='goods_receipts_received')
+    remarks = models.TextField(blank=True)
+    created_at = models.DateTimeField(default=dj_timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.receipt_no
+
+
+class GoodsReceiptLine(models.Model):
+    goods_receipt = models.ForeignKey(GoodsReceipt, on_delete=models.CASCADE, related_name='lines')
+    purchase_order_line = models.ForeignKey(PurchaseOrderLine, on_delete=models.PROTECT, related_name='receipt_lines')
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='goods_receipt_lines')
+    quantity_received = models.DecimalField(max_digits=12, decimal_places=3, default=0)
+    quantity_rejected = models.DecimalField(max_digits=12, decimal_places=3, default=0)
+    rejection_reason = models.CharField(max_length=200, blank=True)
+
+    @property
+    def accepted_quantity(self):
+        return max(self.quantity_received - self.quantity_rejected, Decimal('0'))
 
 
 class StockLedger(models.Model):

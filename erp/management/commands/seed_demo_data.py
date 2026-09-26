@@ -2,14 +2,21 @@ from decimal import Decimal
 
 from django.core.management.base import BaseCommand
 
-from erp.models import Customer, Product, StockLedger, Supplier
+from erp.models import (
+    Company, Customer, CustomerPostingGroup, FinancePostingSetup, GLAccount,
+    Product, StockLedger, Supplier, VendorFinanceProfile, VendorPostingGroup,
+)
 
 
 class Command(BaseCommand):
-    help = 'Seed demo jewelry ERP data for local development.'
+    help = 'Seed demo jewelry ERP data for local development, including a working Finance posting setup.'
 
     def handle(self, *args, **options):
-        Customer.objects.get_or_create(
+        company, _ = Company.objects.get_or_create(
+            company_code='GOLDI', defaults={'company_name': 'Goldi Jewellers', 'status': 'active'},
+        )
+
+        customer, _ = Customer.objects.get_or_create(
             name='Asha Jewels',
             defaults={
                 'phone': '9876543210',
@@ -30,7 +37,7 @@ class Command(BaseCommand):
             },
         )
 
-        Supplier.objects.get_or_create(
+        supplier, _ = Supplier.objects.get_or_create(
             name='Mumbai Bullion Traders',
             defaults={
                 'phone': '9988776655',
@@ -79,4 +86,45 @@ class Command(BaseCommand):
             reference='Initial stock',
         )
 
+        self._seed_finance_posting_setup(company, customer, supplier)
+
         self.stdout.write(self.style.SUCCESS('Demo jewelry ERP seed data created successfully.'))
+
+    def _seed_finance_posting_setup(self, company, customer, supplier):
+        """Default chart of accounts + posting groups so Sales/Purchase documents can post to the G/L out of the box."""
+        if FinancePostingSetup.objects.filter(company=company).exists():
+            return
+
+        def account(code, name, account_type):
+            obj, _ = GLAccount.objects.get_or_create(
+                account_code=code, defaults={'company': company, 'account_name': name, 'account_type': account_type},
+            )
+            return obj
+
+        receivable = account('1100', 'Trade Receivables', 'asset')
+        customer_advance = account('1150', 'Customer Advances', 'liability')
+        payable = account('2000', 'Trade Payables', 'liability')
+        vendor_advance = account('1200', 'Vendor Advances', 'asset')
+        revenue = account('4000', 'Sales Revenue', 'revenue')
+        gst_output = account('2100', 'GST Output Payable', 'liability')
+        expense = account('5000', 'Purchase Expense', 'expense')
+        gst_input = account('1300', 'GST Input Credit', 'asset')
+        cash = account('1000', 'Cash', 'asset')
+
+        FinancePostingSetup.objects.create(
+            company=company, sales_revenue_account=revenue, gst_output_account=gst_output,
+            purchase_expense_account=expense, gst_input_account=gst_input, default_cash_account=cash,
+        )
+
+        customer_group, _ = CustomerPostingGroup.objects.get_or_create(
+            company=company, code='DOMESTIC',
+            defaults={'name': 'Domestic Customers', 'receivable_account': receivable, 'advance_account': customer_advance},
+        )
+        customer.customer_posting_group = customer_group
+        customer.save(update_fields=['customer_posting_group'])
+
+        vendor_group, _ = VendorPostingGroup.objects.get_or_create(
+            company=company, code='DOMESTIC-V',
+            defaults={'name': 'Domestic Vendors', 'payable_account': payable, 'advance_account': vendor_advance},
+        )
+        VendorFinanceProfile.objects.get_or_create(vendor=supplier, defaults={'posting_group': vendor_group})

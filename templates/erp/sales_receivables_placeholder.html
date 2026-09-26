@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% block title %}{{ section_label }} | Goldi ERP{% endblock %}
+{% block content %}
+<div class="max-w-3xl mx-auto px-6 pb-32">
+    <div class="glass p-10 text-center space-y-4">
+        <span class="h-14 w-14 rounded-xl bg-slate-400/10 border border-slate-300/20 flex items-center justify-center text-slate-300 mx-auto"><i class="fas fa-hourglass-half text-xl"></i></span>
+        <h2 class="text-2xl font-bold text-white">{{ section_label }}</h2>
+        <p class="text-slate-400">This document type is planned for a later build phase, after the current vertical slice is in production.</p>
+        <a href="{% url back_url_name|default:'sales_receivables' %}" class="btn-gold inline-block px-5 py-3 rounded-lg"><i class="fas fa-arrow-left mr-2"></i>Back to {{ back_label|default:'Sales &amp; Receivables' }}</a>
+    </div>
+</div>
+{% endblock %}
