@@ -8,9 +8,12 @@
             <h2 class="text-4xl font-bold text-white mt-2">Gold &amp; Silver Rates</h2>
             <p class="text-slate-400 mt-2">Update today's metal rate manually, or fetch live spot rates and convert to INR/gram automatically.</p>
         </div>
-        <form method="post" action="{% url 'metal_rate_fetch_live' %}">{% csrf_token %}
-            <button type="submit" class="btn-gold px-4 py-3 rounded-xl"><i class="fas fa-cloud-arrow-down mr-2"></i>Fetch live rates now</button>
-        </form>
+        <div class="flex gap-3">
+            <a href="{% url 'metal_price_simulator' %}" class="glass px-4 py-3 text-slate-300"><i class="fas fa-calculator mr-2"></i>Price simulator</a>
+            <form method="post" action="{% url 'metal_rate_fetch_live' %}">{% csrf_token %}
+                <button type="submit" class="btn-gold px-4 py-3 rounded-xl"><i class="fas fa-cloud-arrow-down mr-2"></i>Fetch live rates now</button>
+            </form>
+        </div>
     </div>
 
     <p class="text-xs text-slate-500 -mt-4">Live rates use two free public feeds: <span class="text-slate-400">gold-api.com</span> for XAU/XAG spot prices and <span class="text-slate-400">open.er-api.com</span> for the USD&rarr;INR rate, converted from troy ounce to INR/gram per purity and applied to every active store.</p>

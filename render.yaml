@@ -1,0 +1,27 @@
+databases:
+  - name: goldi-db
+    databaseName: goldi
+    user: goldi
+    plan: free
+
+services:
+  - type: web
+    name: goldi-erp
+    runtime: python
+    plan: free
+    branch: dev
+    buildCommand: "pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py migrate"
+    startCommand: "gunicorn goldi.wsgi:application --workers 2"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "False"
+      - key: ALLOWED_HOSTS
+        value: ".onrender.com"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: goldi-db
+          property: connectionString

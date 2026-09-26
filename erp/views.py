@@ -1,4 +1,4 @@
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from io import BytesIO
 from datetime import date
 
@@ -6,6 +6,7 @@ from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.hashers import check_password
+from django.contrib.auth.models import User
 from django.db.models import Count, Q, Sum
 from django.http import HttpResponse
 from django.forms import modelform_factory
@@ -55,6 +56,7 @@ from .services import (
     create_purchase_order, create_quotation, create_vendor_payment, get_next_customer_number, get_next_number,
     get_next_repair_number, get_related_documents, move_customer_ornament, post_payment_receipt,
     post_purchase_invoice, post_sales_invoice, post_vendor_payment, receive_goods, submit_for_approval,
+    ManualPricingRule, ManualUnit, ProductWeightAsUnit, ResolvedRate, resolve_current_metal_rate,
 )
 
 
@@ -73,6 +75,85 @@ def login_view(request):
 def logout_view(request):
     logout(request)
     return redirect('login')
+
+
+def index(request):
+    if request.user.is_authenticated:
+        return dashboard(request)
+    context = {
+        'features': [
+            {'icon': 'fa-cash-register', 'title': 'POS', 'desc': 'Fast jewellery billing.'},
+            {'icon': 'fa-coins', 'title': 'Gold & Silver Pricing', 'desc': 'Price jewellery using applicable metal rates.'},
+            {'icon': 'fa-boxes-stacked', 'title': 'Inventory', 'desc': 'Track weight, quantity, purity and serialized jewellery.'},
+            {'icon': 'fa-users', 'title': 'Customers', 'desc': 'Know every customer and every transaction.'},
+            {'icon': 'fa-file-invoice', 'title': 'Sales', 'desc': 'Quotes → Orders → Delivery → Invoice → Payment.'},
+            {'icon': 'fa-truck-fast', 'title': 'Purchases', 'desc': 'Vendor → Purchase Order → Receipt → Invoice → Payment.'},
+            {'icon': 'fa-scale-balanced', 'title': 'Finance', 'desc': 'Double-entry accounting and financial reporting.'},
+            {'icon': 'fa-chart-line', 'title': 'Reports', 'desc': 'Turn business data into decisions.'},
+            {'icon': 'fa-store', 'title': 'Multi-Store', 'desc': 'Manage multiple jewellery stores from one environment.'},
+        ],
+        'trust_items': [
+            'Tenant Isolation', 'Secure Authentication', 'Role-Based Access',
+            'Audit Trail', 'Cloud Backup', 'Scalable Architecture',
+        ],
+        'industries': [
+            'Gold Retail', 'Diamond Retail', 'Silver Retail', 'Multi-Store Jewellers',
+            'Independent Jewellers', 'Jewellery Startups', 'Bullion Businesses', 'Jewellery Brands',
+        ],
+        'faqs': [
+            ('Is Goldio really free?', 'Yes. The initial Goldio Free plan provides access to the complete platform. Goldio may introduce additional plans and limits in the future.'),
+            ('Do I need a credit card?', 'No credit card is required to create the Free workspace.'),
+            ('Can I create my own business workspace?', 'Yes. Every registration creates an independent business workspace.'),
+            ('Can two jewellery businesses use Goldio?', 'Yes. Goldio is designed as a multi-tenant SaaS platform where multiple businesses can operate independently.'),
+            ('Will my data be visible to another jewellery business?', 'No. Tenant data is logically isolated and protected by authorization and data-access controls.'),
+            ('What is the $2 plan?', 'The $2 Goldio Supporter option is a voluntary way to support the continued development of Goldio. It does not currently remove functionality from the Free plan.'),
+        ],
+    }
+    return render(request, 'marketing/home.html', context)
+
+
+def register_view(request):
+    if request.user.is_authenticated:
+        return redirect('dashboard')
+
+    if request.method == 'POST':
+        first_name = request.POST.get('first_name', '').strip()
+        last_name = request.POST.get('last_name', '').strip()
+        email = request.POST.get('email', '').strip().lower()
+        mobile = request.POST.get('mobile', '').strip()
+        business_name = request.POST.get('business_name', '').strip()
+        password = request.POST.get('password', '')
+        confirm_password = request.POST.get('confirm_password', '')
+
+        errors = []
+        if not first_name:
+            errors.append('Please tell us your name.')
+        if not email:
+            errors.append('Please enter your email address.')
+        elif User.objects.filter(username__iexact=email).exists():
+            errors.append('An account already exists with this email. Try logging in instead.')
+        if not business_name:
+            errors.append('Please enter your business name.')
+        if not password or len(password) < 8:
+            errors.append('Password must be at least 8 characters.')
+        elif password != confirm_password:
+            errors.append('Passwords do not match.')
+
+        if errors:
+            for error in errors:
+                messages.error(request, error)
+            return render(request, 'marketing/register.html', {'form_data': request.POST})
+
+        user = User.objects.create_user(
+            username=email, email=email, password=password,
+            first_name=first_name, last_name=last_name,
+        )
+        UserProfile.objects.create(user=user, phone=mobile)
+        login(request, user)
+        messages.success(request, f'Welcome to Goldio, {first_name}! Your workspace for {business_name} is ready.')
+        return redirect('dashboard')
+
+    return render(request, 'marketing/register.html')
 
 
 @login_required(login_url='login')
@@ -1035,6 +1116,64 @@ def metal_rate_fetch_live(request):
 
 
 @login_required(login_url='login')
+def metal_price_simulator(request):
+    """Quote a jewellery price using the exact same pricing engine as POS billing, without creating any transaction."""
+    products = Product.objects.filter(is_active=True).order_by('name')
+    stores = Store.objects.filter(is_active=True).order_by('name')
+    result = None
+
+    if request.GET.get('simulate'):
+        try:
+            product = Product.objects.filter(pk=request.GET.get('product')).first() if request.GET.get('product') else None
+            jewellery_rule = getattr(product, 'jewellery_pricing_rule', None) if product else None
+            store = Store.objects.filter(pk=request.GET.get('store')).first() if request.GET.get('store') else None
+
+            metal_type = request.GET.get('metal_type') or (product.metal_type if product else 'gold')
+            purity = (request.GET.get('purity') or (product.purity if product else '') or '').strip()
+            gross_weight = Decimal(request.GET.get('gross_weight') or (str(product.weight_grams) if product else '0') or '0')
+            stone_weight = Decimal(request.GET.get('stone_weight') or '0')
+            other_weight = Decimal(request.GET.get('other_weight') or '0')
+            discount = Decimal(request.GET.get('discount') or '0')
+
+            if not purity:
+                raise ValueError('Enter a purity (e.g. 22K, 999) or select a saved jewellery product.')
+
+            if jewellery_rule:
+                pricing_rule = jewellery_rule
+            else:
+                pricing_rule = ManualPricingRule(
+                    making_method=request.GET.get('making_method', 'per_gram'),
+                    making_rate=Decimal(request.GET.get('making_rate') or '0'),
+                    wastage_method=request.GET.get('wastage_method', 'weight'),
+                    wastage_percent=Decimal(request.GET.get('wastage_percent') or '0'),
+                    tax_rate_code=request.GET.get('tax_rate_code') or 'GST-3',
+                )
+
+            unit = ManualUnit(gross_weight=gross_weight, stone_weight=stone_weight, other_weight=other_weight)
+            rate_resolution = resolve_current_metal_rate(metal_type=metal_type, purity=purity, store=store)
+            if rate_resolution['resolved']:
+                breakdown = calculate_jewellery_price(
+                    unit=unit, metal_rate=ResolvedRate(rate_resolution['rate_per_gram']), pricing_rule=pricing_rule,
+                    tax_rate_code=pricing_rule.tax_rate_code, discount=discount,
+                )
+                result = {'breakdown': breakdown, 'rate_resolution': rate_resolution, 'metal_type': metal_type, 'purity': purity}
+                if rate_resolution['is_purity_converted']:
+                    messages.info(request, f"No {purity} rate configured; derived from the {rate_resolution['purity_used']} rate.")
+                if rate_resolution['is_stale']:
+                    messages.warning(request, f"This rate is {rate_resolution['age_minutes']:.0f} minutes old.")
+            else:
+                messages.warning(request, f'No current {metal_type} {purity} rate is configured.')
+        except GSTRate.DoesNotExist:
+            messages.error(request, f'No active GST rate is configured for tax code "{request.GET.get("tax_rate_code") or "GST-3"}".')
+        except (InvalidOperation, ValueError) as exc:
+            messages.error(request, f'Could not simulate this price: {exc}')
+
+    return render(request, 'erp/metal_price_simulator.html', {
+        'products': products, 'stores': stores, 'result': result, 'query': request.GET,
+    })
+
+
+@login_required(login_url='login')
 def posted_voucher_detail(request, pk):
     posted = get_object_or_404(FinancePostedVoucher.objects.prefetch_related('lines'), pk=pk)
     return render(request, 'erp/posted_voucher_detail.html', {'posted': posted})
@@ -1407,22 +1546,38 @@ def pos(request):
 
             pricing_breakdown = None
             jewellery_rule = getattr(product, 'jewellery_pricing_rule', None)
-            metal_rate = JewelleryMetalRate.objects.filter(
-                metal_type=jewellery_unit.metal_type if jewellery_unit else product.metal_type,
-                purity=jewellery_unit.purity if jewellery_unit else product.purity,
-                store=pos_session.terminal.store, is_active=True,
-                effective_from__lte=timezone.now(),
-            ).filter(Q(effective_to__isnull=True) | Q(effective_to__gte=timezone.now())).first()
-            if jewellery_unit and jewellery_rule and metal_rate:
+            pricing_unit = jewellery_unit or (ProductWeightAsUnit(product) if jewellery_rule else None)
+            rate_resolution = None
+            if pricing_unit and jewellery_rule:
+                requested_metal = jewellery_unit.metal_type if jewellery_unit else product.metal_type
+                requested_purity = jewellery_unit.purity if jewellery_unit else product.purity
+                rate_resolution = resolve_current_metal_rate(
+                    metal_type=requested_metal, purity=requested_purity, store=pos_session.terminal.store,
+                )
+            if rate_resolution and rate_resolution['resolved']:
                 pricing_breakdown = calculate_jewellery_price(
-                    unit=jewellery_unit, metal_rate=metal_rate, pricing_rule=jewellery_rule,
+                    unit=pricing_unit, metal_rate=ResolvedRate(rate_resolution['rate_per_gram']), pricing_rule=jewellery_rule,
                     tax_rate_code=jewellery_rule.tax_rate_code, discount=discount_amount,
                 )
+                pricing_breakdown['rate_resolution'] = {
+                    'requested_purity': requested_purity, 'purity_used': rate_resolution['purity_used'],
+                    'is_purity_converted': rate_resolution['is_purity_converted'],
+                    'is_store_fallback': rate_resolution['is_store_fallback'],
+                    'is_stale': rate_resolution['is_stale'], 'age_minutes': rate_resolution['age_minutes'],
+                }
                 unit_price = pricing_breakdown['metal_value']
                 line_total = pricing_breakdown['final_amount']
+                if rate_resolution['is_purity_converted']:
+                    messages.info(request, f"No {requested_purity} rate configured; derived from the {rate_resolution['purity_used']} rate.")
+                elif rate_resolution['is_store_fallback']:
+                    messages.info(request, f"No store-specific {requested_purity} rate configured; used the company-wide rate.")
+                if rate_resolution['is_stale']:
+                    messages.warning(request, f"This {requested_metal} {requested_purity} rate is {rate_resolution['age_minutes']:.0f} minutes old — consider refreshing metal rates.")
             else:
                 unit_price = product.sale_price or product.mrp or Decimal('0')
                 line_total = (unit_price * quantity) + making_charge + stone_value - discount_amount
+                if jewellery_rule:
+                    messages.warning(request, f"No current metal rate available for {product.name} — sold at the flat listed price instead of a live metal rate.")
             invoice.invoice_no = invoice.invoice_no or get_next_number('sales_invoice')
             invoice.cashier_staff = pos_session.staff
             invoice.cashier_name_snapshot = pos_session.staff.name

@@ -290,6 +290,16 @@
 
     <!-- Main Content -->
     <main class="workspace-main min-h-screen pt-8 pb-16">
+        {% if messages %}
+        <div class="max-w-7xl mx-auto px-6 mb-6 space-y-3">
+            {% for message in messages %}
+            <div class="glass px-5 py-4 rounded-lg text-sm flex items-start gap-3 {% if message.tags == 'error' %}border-l-4 border-red-500 text-red-300{% elif message.tags == 'warning' %}border-l-4 border-amber-500 text-amber-300{% elif message.tags == 'success' %}border-l-4 border-emerald-500 text-emerald-300{% else %}border-l-4 border-sky-500 text-sky-300{% endif %}">
+                <i class="fas {% if message.tags == 'error' %}fa-circle-exclamation{% elif message.tags == 'warning' %}fa-triangle-exclamation{% elif message.tags == 'success' %}fa-circle-check{% else %}fa-circle-info{% endif %} mt-0.5"></i>
+                <span>{{ message }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
         {% block content %}{% endblock %}
     </main>
 

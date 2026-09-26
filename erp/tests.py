@@ -8,6 +8,7 @@ from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db.models import Sum
 from django.test import TestCase
+from django.utils import timezone as dj_timezone
 from django.urls import reverse
 from zipfile import ZipFile
 
@@ -40,6 +41,7 @@ from erp.services import (
     get_next_customer_number, get_next_number, get_related_documents, post_finance_voucher,
     post_payment_receipt, post_purchase_invoice, post_sales_invoice, post_vendor_payment,
     receive_goods, submit_for_approval,
+    ManualPricingRule, ManualUnit, ProductWeightAsUnit, ResolvedRate, resolve_current_metal_rate,
 )
 
 
@@ -560,6 +562,107 @@ class JewelleryPricingEngineTests(TestCase):
         self.assertEqual(result['stone_value'], Decimal('10000.00'))
         self.assertEqual(result['taxable_value'], Decimal('78490.00'))
         self.assertEqual(result['final_amount'], Decimal('80844.70'))
+
+
+class MetalRateResolutionTests(TestCase):
+    """The Current Metal Rate Service: store fallback, fine-metal purity conversion, staleness, and
+    product-level (non-serialized) dynamic pricing through the same calculate_jewellery_price engine."""
+
+    def setUp(self):
+        self.company = Company.objects.create(company_code='MRR-CO', company_name='Metal Rate Resolution Co')
+        self.store = Store.objects.create(company=self.company, code='MRR', name='Metal Rate Resolution Store')
+        GSTRate.objects.create(
+            code='GST-3', description='Jewellery GST', effective_from=date(2026, 1, 1),
+            cgst_rate=Decimal('1.5'), sgst_rate=Decimal('1.5'), igst_rate=Decimal('3'),
+        )
+
+    def test_exact_store_rate_is_preferred_over_company_wide(self):
+        JewelleryMetalRate.objects.create(metal_type='gold', purity='22K', store=self.store, rate_per_gram=Decimal('7000'))
+        JewelleryMetalRate.objects.create(metal_type='gold', purity='22K', store=None, rate_per_gram=Decimal('6800'))
+
+        result = resolve_current_metal_rate(metal_type='gold', purity='22K', store=self.store)
+
+        self.assertTrue(result['resolved'])
+        self.assertEqual(result['rate_per_gram'], Decimal('7000'))
+        self.assertFalse(result['is_store_fallback'])
+        self.assertFalse(result['is_purity_converted'])
+
+    def test_falls_back_to_company_wide_rate_when_no_store_rate(self):
+        JewelleryMetalRate.objects.create(metal_type='gold', purity='22K', store=None, rate_per_gram=Decimal('6800'))
+
+        result = resolve_current_metal_rate(metal_type='gold', purity='22K', store=self.store)
+
+        self.assertTrue(result['resolved'])
+        self.assertEqual(result['rate_per_gram'], Decimal('6800'))
+        self.assertTrue(result['is_store_fallback'])
+
+    def test_derives_purity_via_fine_metal_conversion_when_not_directly_maintained(self):
+        JewelleryMetalRate.objects.create(metal_type='gold', purity='24K', store=self.store, rate_per_gram=Decimal('8000'))
+
+        result = resolve_current_metal_rate(metal_type='gold', purity='22K', store=self.store)
+
+        self.assertTrue(result['resolved'])
+        self.assertTrue(result['is_purity_converted'])
+        self.assertEqual(result['purity_used'], '24K')
+        self.assertEqual(result['rate_per_gram'], (Decimal('8000') * Decimal('0.916')).quantize(Decimal('0.01')))
+
+    def test_unresolved_when_no_rate_available_at_all(self):
+        result = resolve_current_metal_rate(metal_type='gold', purity='22K', store=self.store)
+        self.assertFalse(result['resolved'])
+        self.assertIsNone(result['rate_per_gram'])
+
+    def test_old_rate_is_flagged_stale(self):
+        old_rate = JewelleryMetalRate.objects.create(
+            metal_type='gold', purity='22K', store=self.store, rate_per_gram=Decimal('7000'),
+            effective_from=dj_timezone.now() - timedelta(hours=5),
+        )
+
+        result = resolve_current_metal_rate(metal_type='gold', purity='22K', store=self.store, max_age_minutes=60)
+
+        self.assertTrue(result['resolved'])
+        self.assertTrue(result['is_stale'])
+        self.assertGreater(result['age_minutes'], 60)
+
+    def test_non_serialized_product_prices_dynamically_from_its_own_weight(self):
+        category = ItemCategory.objects.create(name='Metal Rate Resolution Category')
+        product = Product.objects.create(
+            item_category=category, sku='MRR-001', name='Gold Chain (loose stock)',
+            metal_type='gold', purity='22K', weight_grams=Decimal('5.000'),
+        )
+        rule = JewelleryPricingRule.objects.create(
+            product=product, making_method='per_gram', making_rate=Decimal('500'),
+            wastage_method='percent', wastage_percent=Decimal('4'), tax_rate_code='GST-3',
+        )
+        JewelleryMetalRate.objects.create(metal_type='gold', purity='22K', store=self.store, rate_per_gram=Decimal('7000'))
+
+        rate_resolution = resolve_current_metal_rate(metal_type=product.metal_type, purity=product.purity, store=self.store)
+        self.assertTrue(rate_resolution['resolved'])
+
+        breakdown = calculate_jewellery_price(
+            unit=ProductWeightAsUnit(product), metal_rate=ResolvedRate(rate_resolution['rate_per_gram']),
+            pricing_rule=rule, tax_rate_code=rule.tax_rate_code,
+        )
+
+        self.assertEqual(breakdown['net_metal_weight'], Decimal('5.000'))
+        self.assertEqual(breakdown['metal_value'], Decimal('35000.00'))
+        self.assertGreater(breakdown['final_amount'], breakdown['metal_value'])
+
+    def test_manual_unit_and_pricing_rule_drive_the_same_engine_for_ad_hoc_quotes(self):
+        """The Price Simulator's ad-hoc inputs (no saved product) must go through the identical engine."""
+        JewelleryMetalRate.objects.create(metal_type='silver', purity='999', store=None, rate_per_gram=Decimal('235'))
+
+        rate_resolution = resolve_current_metal_rate(metal_type='silver', purity='999', store=None)
+        self.assertTrue(rate_resolution['resolved'])
+
+        breakdown = calculate_jewellery_price(
+            unit=ManualUnit(gross_weight=Decimal('20.000')),
+            metal_rate=ResolvedRate(rate_resolution['rate_per_gram']),
+            pricing_rule=ManualPricingRule(making_method='fixed', making_rate=Decimal('300'), wastage_percent=Decimal('0')),
+            tax_rate_code='GST-3',
+        )
+
+        self.assertEqual(breakdown['metal_value'], Decimal('4700.00'))
+        self.assertEqual(breakdown['making_value'], Decimal('300.00'))
 
 
 class FinanceOperationsPhase1Tests(TestCase):

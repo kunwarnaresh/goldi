@@ -5,7 +5,8 @@ from . import views
 urlpatterns = [
     path('login/', views.login_view, name='login'),
     path('logout/', views.logout_view, name='logout'),
-    path('', views.dashboard, name='dashboard'),
+    path('register/', views.register_view, name='register'),
+    path('', views.index, name='dashboard'),
     path('finance/', views.finance_management, name='finance_management'),
     path('finance/operations/', views.finance_operations, name='finance_operations'),
     path('sales-receivables/', views.sales_receivables, name='sales_receivables'),
@@ -54,6 +55,7 @@ urlpatterns = [
     path('metal-rates/', views.metal_rate_list, name='metal_rate_list'),
     path('metal-rates/new/', views.metal_rate_create, name='metal_rate_create'),
     path('metal-rates/fetch-live/', views.metal_rate_fetch_live, name='metal_rate_fetch_live'),
+    path('metal-rates/simulator/', views.metal_price_simulator, name='metal_price_simulator'),
     path('finance/posted/<int:pk>/', views.posted_voucher_detail, name='posted_voucher_detail'),
     path('finance/trial-balance/', views.trial_balance_report, name='trial_balance_report'),
     path('gst/control/', views.gst_control_center, name='gst_control_center'),
