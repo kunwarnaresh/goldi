@@ -1,0 +1,47 @@
+{% extends 'inventory/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}{% if location %}{{ location.code }}{% else %}New location{% endif %}{% endblock %}
+{% block eyebrow %}Location card{% endblock %}
+{% block heading %}{% if location %}{{ location.code }} · {{ location.name }}{% else %}New location{% endif %}{% endblock %}
+{% block subheading %}{% if location %}{{ location.get_location_type_display }}{% if location.city %} · {{ location.city }}{% endif %} {% if location.blocked %}{% badge 'BLOCKED' %}{% endif %}{% endif %}{% endblock %}
+{% block actions %}
+{% if location %}
+<a href="{% url 'inventory_bins' %}?location={{ location.pk }}" class="glass px-3 py-2 text-slate-300 text-sm">Bins</a>
+<a href="{% url 'inventory_setup' 'zones' %}" class="glass px-3 py-2 text-slate-300 text-sm">Zones</a>
+<a href="{% url 'inventory_skus' %}?location={{ location.pk }}" class="glass px-3 py-2 text-slate-300 text-sm">SKUs ({{ sku_count }})</a>
+<a href="{% url 'inventory_stock_report' %}?location={{ location.pk }}" class="glass px-3 py-2 text-slate-300 text-sm">Inventory</a>
+<a href="{% url 'inventory_transfers' %}?from={{ location.pk }}" class="glass px-3 py-2 text-slate-300 text-sm">Transfers</a>
+<a href="{% url 'inventory_ledger' %}?location={{ location.pk }}" class="glass px-3 py-2 text-slate-300 text-sm">Transactions</a>
+{% if admin %}<form method="post">{% csrf_token %}<button name="action" value="{% if location.blocked %}unblock{% else %}block{% endif %}" class="glass px-3 py-2 text-sm {% if location.blocked %}text-emerald-700{% else %}text-rose-600{% endif %}">{% if location.blocked %}Unblock{% else %}Block{% endif %}</button></form>{% endif %}
+{% endif %}
+{% endblock %}
+{% block body %}
+{% if location %}
+<section class="grid grid-cols-2 md:grid-cols-5 gap-4">
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">On hand</p><p class="text-xl font-bold text-white">{{ availability.on_hand|qty }}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Available</p><p class="text-xl font-bold text-emerald-700">{{ availability.available|qty }}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Reserved</p><p class="text-xl font-bold text-white">{{ availability.reserved|qty }}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Net metal</p><p class="text-xl font-bold text-white">{{ availability.net_weight|grams }} g</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Cost value</p><p class="text-xl font-bold text-white">{{ availability.cost_value|inr }}</p></div>
+</section>
+{% endif %}
+<form method="post" class="space-y-6">{% csrf_token %}
+    {% for error in form.non_field_errors %}<p class="glass p-3 text-rose-600">{{ error }}</p>{% endfor %}
+    {% for title, fields in sections %}
+    <section class="glass p-5">
+        <h3 class="font-semibold text-white mb-4">{{ title }}</h3>
+        <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">{% for field in fields %}{% include 'inventory/_field.html' %}{% endfor %}</div>
+    </section>
+    {% endfor %}
+    {% if admin %}<div class="flex justify-end"><button class="btn-gold px-6 py-3 rounded-lg"><i class="fas fa-save mr-2"></i>Save location</button></div>
+    {% else %}<p class="text-sm text-slate-500">Read-only: only workspace administrators can change location setup.</p>{% endif %}
+</form>
+{% if location %}
+<div class="grid lg:grid-cols-2 gap-6">
+    <section class="glass overflow-hidden"><div class="px-5 py-4 border-b border-white/10 flex justify-between"><h3 class="font-semibold text-white">Bins</h3><a class="text-sm text-sky-700" href="{% url 'inventory_setup_new' 'bins' %}">New bin</a></div>
+        <table class="w-full text-left text-sm"><tbody>{% for b in bins %}<tr class="border-b border-white/5"><td class="px-5 py-2"><a class="text-sky-700" href="{% url 'inventory_setup_edit' 'bins' b.pk %}">{{ b.code }}</a></td><td>{{ b.get_bin_type_display }}</td><td>{{ b.zone.code|default:'' }}</td><td class="px-5">{% if b.blocked %}{% badge 'BLOCKED' %}{% endif %}</td></tr>{% empty %}<tr><td class="px-5 py-5 text-slate-500">No bins.</td></tr>{% endfor %}</tbody></table></section>
+    <section class="glass overflow-hidden"><div class="px-5 py-4 border-b border-white/10"><h3 class="font-semibold text-white">Recent transfers</h3></div>
+        <table class="w-full text-left text-sm"><tbody>{% for o in transfers %}<tr class="border-b border-white/5"><td class="px-5 py-2"><a class="text-sky-700" href="{% url 'inventory_transfer_detail' o.pk %}">{{ o.transfer_no }}</a></td><td>{{ o.from_location.code }} → {{ o.to_location.code }}</td><td class="px-5 text-right">{% badge o.status %}</td></tr>{% empty %}<tr><td class="px-5 py-5 text-slate-500">No transfers.</td></tr>{% endfor %}</tbody></table></section>
+</div>
+{% endif %}
+{% endblock %}

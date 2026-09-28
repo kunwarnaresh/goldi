@@ -18,6 +18,8 @@ from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Spacer, Table, TableStyle, Paragraph
 from reportlab.lib.styles import getSampleStyleSheet
 
+from inventory.tenancy import create_tenant_for_user
+
 from .compliance import calculate_gst, estimate_income_tax, round_money
 from .excel_templates import build_template
 from .forms import (
@@ -149,6 +151,7 @@ def register_view(request):
             first_name=first_name, last_name=last_name,
         )
         UserProfile.objects.create(user=user, phone=mobile)
+        create_tenant_for_user(user, business_name)
         login(request, user)
         messages.success(request, f'Welcome to Goldio, {first_name}! Your workspace for {business_name} is ready.')
         return redirect('dashboard')

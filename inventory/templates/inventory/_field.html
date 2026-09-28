@@ -1,0 +1,6 @@
+<div class="{% if field.field.widget.input_type == 'checkbox' %}flex items-center gap-2 py-2{% endif %}">
+    {% if field.field.widget.input_type == 'checkbox' %}{{ field }}<label for="{{ field.id_for_label }}" class="text-sm text-white">{{ field.label }}</label>
+    {% else %}<label for="{{ field.id_for_label }}" class="block text-xs uppercase tracking-wider text-slate-500 mb-1">{{ field.label }}{% if field.field.required %} *{% endif %}</label>{{ field }}{% endif %}
+    {% if field.help_text %}<p class="text-xs text-slate-500 mt-1">{{ field.help_text }}</p>{% endif %}
+    {% for error in field.errors %}<p class="text-xs text-rose-600 mt-1">{{ error }}</p>{% endfor %}
+</div>

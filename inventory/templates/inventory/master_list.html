@@ -1,0 +1,15 @@
+{% extends 'inventory/base.html' %}
+{% block page_title %}{{ title }}{% endblock %}
+{% block eyebrow %}Setup{% endblock %}
+{% block heading %}{{ title }}{% endblock %}
+{% block actions %}<a href="{% url 'inventory_setup_new' kind %}" class="btn-gold px-4 py-2 rounded-lg text-sm"><i class="fas fa-plus mr-1"></i>New</a>{% endblock %}
+{% block body %}
+<form method="get" class="glass p-4 flex gap-3 items-end"><div class="flex-1"><label class="text-xs uppercase text-slate-500">Search code</label><input name="q" value="{{ request.GET.q }}"></div><button class="btn-gold px-5 py-3 rounded-lg text-sm">Filter</button></form>
+<section class="glass overflow-x-auto">
+    <table class="w-full text-left text-sm min-w-[800px]">
+        <thead class="text-xs uppercase text-slate-500 bg-white/5"><tr>{% for h in headers %}<th class="px-4 py-3">{{ h|capfirst }}</th>{% endfor %}<th></th></tr></thead>
+        <tbody>{% for row, values in table %}<tr class="border-b border-white/5 hover:bg-white/5">{% for v in values %}<td class="px-4 py-2">{% if v is True %}<i class="fas fa-check text-emerald-600"></i>{% elif v is False %}<span class="text-slate-400">–</span>{% else %}{{ v|default_if_none:'' }}{% endif %}</td>{% endfor %}<td class="px-4 text-right"><a class="text-sky-700" href="{% url 'inventory_setup_edit' kind row.pk %}">Edit</a></td></tr>
+        {% empty %}<tr><td colspan="{{ headers|length|add:1 }}" class="px-5 py-10 text-center text-slate-500">Nothing set up yet.</td></tr>{% endfor %}</tbody>
+    </table>
+</section>
+{% endblock %}

@@ -1,0 +1,12 @@
+{% extends 'inventory/base.html' %}
+{% block page_title %}{{ title }}{% endblock %}
+{% block eyebrow %}Setup · {{ title }}{% endblock %}
+{% block heading %}{% if instance %}Edit {{ instance }}{% else %}New{% endif %}{% endblock %}
+{% block actions %}<a href="{% url 'inventory_setup' kind %}" class="glass px-4 py-2 text-slate-300 text-sm">Back to list</a>{% endblock %}
+{% block body %}
+<form method="post" class="glass p-5 space-y-4">{% csrf_token %}
+    {% for error in form.non_field_errors %}<p class="text-rose-600 text-sm">{{ error }}</p>{% endfor %}
+    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">{% for field in form %}{% include 'inventory/_field.html' %}{% endfor %}</div>
+    <div class="flex justify-end"><button class="btn-gold px-6 py-3 rounded-lg"><i class="fas fa-save mr-2"></i>Save</button></div>
+</form>
+{% endblock %}

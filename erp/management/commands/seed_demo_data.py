@@ -1,10 +1,18 @@
 from decimal import Decimal
+from datetime import date
 
 from django.core.management.base import BaseCommand
 
 from erp.models import (
-    Company, Customer, CustomerPostingGroup, FinancePostingSetup, GLAccount,
-    Product, StockLedger, Supplier, VendorFinanceProfile, VendorPostingGroup,
+    BankAccount, Barcode, BinLocation, Brand, Branch, BusinessUnit, Category, Channel,
+    Company, CostCenter, Customer, CustomerDiscountGroup, CustomerFinanceProfile,
+    CustomerPostingGroup, CustomerPriceGroup, Department, Division, DocumentNumberSeries,
+    Employee, FinanceJournalTemplate, FinancePostingSetup, FinanceVoucherType, GLAccount,
+    GSTComponent, GSTGroup, GSTRegistration, GSTState, GSTTaxRule, GSTRate, HSNCode,
+    Item, ItemCategory, ItemLocation, ItemUnitOfMeasure, ItemVariant, Location,
+    PaymentMethod, PaymentTerm, Permission, Product, Role, SACCode, SKU, SpecialGroup,
+    Store, SubCategory, SupplyType, StockLedger, Supplier, UnitOfMeasure,
+    VendorFinanceProfile, VendorPostingGroup, Warehouse, WarehouseZone,
 )
 
 

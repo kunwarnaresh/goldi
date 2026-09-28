@@ -1,0 +1,25 @@
+{% extends 'inventory/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}{{ adjustment.adjustment_no }}{% endblock %}
+{% block eyebrow %}Inventory adjustment{% endblock %}
+{% block heading %}{{ adjustment.adjustment_no }} {% badge adjustment.status %}{% endblock %}
+{% block subheading %}{{ adjustment.location.code }} · {{ adjustment.get_reason_code_display }} · posting {{ adjustment.posting_date|date:'d M Y' }}{% if adjustment.reference %} · ref {{ adjustment.reference }}{% endif %}{% if adjustment.source_count %} · from count {{ adjustment.source_count.count_no }}{% endif %}{% endblock %}
+{% block actions %}
+<form method="post" class="flex gap-2">{% csrf_token %}
+{% if adjustment.status == 'DRAFT' %}<button name="action" value="submit" class="glass px-4 py-2 text-sm text-sky-700">Submit</button>{% endif %}
+{% if adjustment.status == 'SUBMITTED' %}<button name="action" value="approve" class="glass px-4 py-2 text-sm text-emerald-700">Approve</button>{% endif %}
+{% if adjustment.status == 'APPROVED' %}<button name="action" value="post" class="btn-gold px-4 py-2 rounded-lg text-sm">Post to ledger</button>{% endif %}
+{% if adjustment.status == 'DRAFT' or adjustment.status == 'SUBMITTED' or adjustment.status == 'APPROVED' %}<button name="action" value="cancel" class="glass px-4 py-2 text-sm text-rose-600">Cancel</button>{% endif %}
+</form>
+{% endblock %}
+{% block body %}
+<section class="glass overflow-x-auto"><table class="w-full text-left text-sm min-w-[900px]">
+    <thead class="text-xs uppercase text-slate-500 bg-white/5"><tr><th class="px-5 py-3">Line</th><th>Type</th><th>Item / SKU</th><th>Barcode</th><th>Bin</th><th class="text-right">Qty</th><th class="text-right">Gross Δ</th><th class="text-right">Net Δ</th><th class="text-right">Unit cost</th><th class="px-5">Status change</th></tr></thead>
+    <tbody>{% for l in lines %}<tr class="border-b border-white/5"><td class="px-5 py-2">{{ l.line_no }}</td><td>{{ l.get_adjustment_type_display }}</td><td>{{ l.item.item_no }} <span class="text-xs text-slate-500">{{ l.sku.code|default:'' }}</span></td><td>{{ l.jewellery_unit.barcode|default:'' }}</td><td>{{ l.bin.code|default:'' }}</td><td class="text-right {% if l.adjustment_type == 'NEGATIVE' %}text-rose-600{% endif %}">{% if l.adjustment_type == 'NEGATIVE' %}−{% endif %}{{ l.quantity|qty }}</td><td class="text-right">{{ l.gross_weight|grams }}</td><td class="text-right">{{ l.net_weight|grams }}</td><td class="text-right">{{ l.unit_cost|inr }}</td><td class="px-5">{% if l.adjustment_type == 'STATUS' %}{{ l.from_status|default:'AVAILABLE' }} → {{ l.to_status|default:'AVAILABLE' }}{% endif %}</td></tr>{% endfor %}</tbody>
+</table></section>
+<section class="glass p-5 text-sm space-y-1">
+    <p>Created by <b>{{ adjustment.created_by.username }}</b> on {{ adjustment.created_at|date:'d M Y H:i' }}{% if adjustment.approved_by %} · approved by <b>{{ adjustment.approved_by.username }}</b>{% endif %}{% if adjustment.posted_by %} · posted by <b>{{ adjustment.posted_by.username }}</b>{% endif %}</p>
+    {% if adjustment.remarks %}<p>{{ adjustment.remarks }}</p>{% endif %}
+    {% for a in audit_log %}<p class="text-xs text-slate-500">{{ a.created_at|date:'d M H:i' }} · {{ a.user.username }} · {{ a.action }} {{ a.reason }}</p>{% endfor %}
+</section>
+{% endblock %}

@@ -1,0 +1,13 @@
+{% load inventory_tags %}
+<div class="overflow-x-auto"><table class="w-full text-left text-sm min-w-[1000px]">
+    <thead class="text-xs uppercase text-slate-500 bg-white/5"><tr><th class="px-5 py-3">Location</th><th class="text-right">On hand</th><th class="text-right">Reserved</th><th class="text-right">QC/Dmg/Rep</th><th class="text-right">Available</th><th class="text-right">In transit</th><th class="text-right">On purchase</th><th class="text-right">Transfer in</th><th class="text-right">Transfer out</th><th class="text-right">Projected</th><th class="text-right">Gross g</th><th class="text-right px-5">Net g</th></tr></thead>
+    <tbody>{% for r in rows %}<tr class="border-b border-white/5">
+        <td class="px-5 py-2"><a class="text-sky-700 font-semibold" href="{% url 'inventory_location_card' r.location.pk %}">{{ r.location.code }}</a> <span class="text-slate-500 text-xs">{{ r.location.get_location_type_display }}</span></td>
+        <td class="text-right">{{ r.on_hand|qty }}</td><td class="text-right">{{ r.reserved|qty }}</td><td class="text-right">{{ r.qc|qty }}/{{ r.damaged|qty }}/{{ r.repair|qty }}</td>
+        <td class="text-right font-semibold text-emerald-700">{{ r.available|qty }}</td><td class="text-right">{{ r.in_transit|qty }}</td><td class="text-right">{{ r.on_purchase|qty }}</td>
+        <td class="text-right">{{ r.transfer_in|qty }}</td><td class="text-right">{{ r.transfer_out|qty }}</td><td class="text-right font-semibold">{{ r.projected|qty }}</td>
+        <td class="text-right">{{ r.gross_weight|grams }}</td><td class="text-right px-5">{{ r.net_weight|grams }}</td></tr>
+    {% empty %}<tr><td colspan="12" class="px-5 py-8 text-center text-slate-500">No stock at the locations you can see.</td></tr>{% endfor %}</tbody>
+    {% if rows %}<tfoot class="font-semibold text-white"><tr><td class="px-5 py-3">Total</td><td class="text-right">{{ totals.on_hand|qty }}</td><td class="text-right">{{ totals.reserved|qty }}</td><td></td><td class="text-right text-emerald-700">{{ totals.available|qty }}</td><td class="text-right">{{ totals.in_transit|qty }}</td><td colspan="3"></td><td class="text-right">{{ totals.projected|qty }}</td><td class="text-right">{{ totals.gross_weight|grams }}</td><td class="text-right px-5">{{ totals.net_weight|grams }}</td></tr></tfoot>{% endif %}
+</table></div>
+<p class="px-5 py-3 text-xs text-slate-500">Available = on hand − reserved − blocked − QC − repair − damaged − picked. Projected = on hand + purchases + transfers in − other reservations − sales − transfers out.</p>

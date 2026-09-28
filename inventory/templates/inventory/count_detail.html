@@ -1,0 +1,29 @@
+{% extends 'inventory/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}{{ count.count_no }}{% endblock %}
+{% block eyebrow %}Physical inventory{% endblock %}
+{% block heading %}{{ count.count_no }} {% badge count.status %}{% endblock %}
+{% block subheading %}{{ count.location.code }} · snapshot {{ count.snapshot_at|date:'d M Y H:i'|default:'–' }}{% if count.blind_count %} · blind count{% endif %}{% endblock %}
+{% block actions %}{% if adjustment %}<a href="{% url 'inventory_adjustment_detail' adjustment.pk %}" class="btn-gold px-4 py-2 rounded-lg text-sm">Variance adjustment {{ adjustment.adjustment_no }}</a>{% endif %}{% endblock %}
+{% block body %}
+{% if count.status == 'COUNTING' %}
+<form method="post" class="glass p-5 grid md:grid-cols-4 gap-3 items-end">{% csrf_token %}<input type="hidden" name="action" value="scan">
+    <div class="md:col-span-2"><label class="text-xs uppercase text-slate-500">Scan barcodes / HUIDs (one per line)</label><textarea name="codes" rows="2" autofocus></textarea></div>
+    <div><label class="text-xs uppercase text-slate-500">Captured gross weight (single piece, optional)</label><input name="gross_weight"></div>
+    <button class="btn-gold px-5 py-3 rounded-lg"><i class="fas fa-barcode mr-1"></i>Record scans</button>
+</form>
+{% endif %}
+<form method="post">{% csrf_token %}
+<section class="glass overflow-x-auto"><table class="w-full text-left text-sm min-w-[900px]">
+    <thead class="text-xs uppercase text-slate-500 bg-white/5"><tr><th class="px-5 py-3">Bin</th><th>Item / SKU</th><th>Barcode</th>{% if not hide_system %}<th class="text-right">System qty</th><th class="text-right">System g</th>{% endif %}<th class="text-right">Counted qty</th><th class="text-right">Counted g</th>{% if not hide_system %}<th class="text-right">Variance</th><th class="text-right px-5">Weight var.</th>{% endif %}</tr></thead>
+    <tbody>{% for l in lines %}<tr class="border-b border-white/5 {% if l.unexpected %}bg-amber-50{% endif %}">
+        <td class="px-5 py-2">{{ l.bin.code|default:'–' }}</td><td>{{ l.item.item_no }} <span class="text-xs text-slate-500">{{ l.sku.code|default:'' }}</span></td><td>{{ l.jewellery_unit.barcode|default:'' }}{% if l.unexpected %} <span class="text-xs text-amber-700">not expected here</span>{% endif %}{% if l.scanned %} <i class="fas fa-check text-emerald-600"></i>{% endif %}</td>
+        {% if not hide_system %}<td class="text-right">{{ l.system_qty|qty }}</td><td class="text-right">{{ l.system_gross_weight|grams }}</td>{% endif %}
+        <td class="text-right">{% if count.status == 'COUNTING' and not l.jewellery_unit %}<input name="qty_{{ l.pk }}" value="{{ l.counted_qty|qty }}" class="w-20 text-right">{% else %}{{ l.counted_qty|qty }}{% endif %}</td>
+        <td class="text-right">{% if count.status == 'COUNTING' and not l.jewellery_unit %}<input name="weight_{{ l.pk }}" value="{{ l.counted_gross_weight|default_if_none:'' }}" class="w-24 text-right">{% else %}{{ l.counted_gross_weight|grams }}{% endif %}</td>
+        {% if not hide_system %}<td class="text-right {% if l.variance_qty < 0 %}text-rose-600{% elif l.variance_qty > 0 %}text-emerald-700{% endif %}">{% if l.counted_qty is not None %}{{ l.variance_qty|qty }}{% endif %}</td><td class="text-right px-5">{% if l.counted_gross_weight is not None %}{{ l.variance_weight|grams }}{% endif %}</td>{% endif %}</tr>{% endfor %}</tbody>
+    <tfoot class="font-semibold text-white"><tr><td class="px-5 py-3" colspan="3">Total</td>{% if not hide_system %}<td class="text-right">{{ totals.system|qty }}</td><td class="text-right">{{ totals.system_weight|grams }}</td>{% endif %}<td class="text-right">{{ totals.counted|qty }}</td><td class="text-right">{{ totals.counted_weight|grams }}</td>{% if not hide_system %}<td colspan="2"></td>{% endif %}</tr></tfoot>
+</table></section>
+{% if count.status == 'COUNTING' %}<div class="flex justify-end gap-3 mt-4"><button name="action" value="record" class="glass px-5 py-3 text-sky-700">Save counted quantities</button><button name="action" value="submit" class="btn-gold px-5 py-3 rounded-lg" onclick="return confirm('Submit the count? Unscanned serialized pieces are treated as missing.')">Submit count</button></div>{% endif %}
+</form>
+{% endblock %}

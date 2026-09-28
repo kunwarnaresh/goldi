@@ -1,0 +1,34 @@
+{% extends 'inventory/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}Where is my jewellery?{% endblock %}
+{% block eyebrow %}Traceability{% endblock %}
+{% block heading %}Where is my jewellery?{% endblock %}
+{% block subheading %}Scan a barcode, serial, HUID or unit number — or enter a document number.{% endblock %}
+{% block body %}
+<form method="get" class="glass p-4 flex gap-3 items-end"><div class="flex-1"><label class="text-xs uppercase text-slate-500">Barcode / serial / HUID / document</label><input name="q" value="{{ q }}" autofocus></div><button class="btn-gold px-5 py-3 rounded-lg text-sm"><i class="fas fa-location-crosshairs mr-1"></i>Trace</button></form>
+{% if result %}{% with u=result.unit %}
+<section class="grid md:grid-cols-3 gap-4">
+    <div class="glass p-5 md:col-span-2 grid grid-cols-2 gap-4 text-sm">
+        <div><p class="text-xs uppercase text-slate-500">Current location</p><p class="text-xl font-bold text-white">{{ u.current_location.name|default:'–' }}</p></div>
+        <div><p class="text-xs uppercase text-slate-500">Current bin</p><p class="text-xl font-bold text-white">{{ u.current_bin.code|default:'–' }}</p></div>
+        <div><p class="text-xs uppercase text-slate-500">Status</p>{% badge u.status %}</div>
+        <div><p class="text-xs uppercase text-slate-500">Last movement</p><p class="text-white">{% if result.last %}{{ result.last.get_transaction_type_display }} {{ result.last.document_no }} · {{ result.last.posting_date|date:'d M Y' }}{% else %}–{% endif %}</p></div>
+        <div><p class="text-xs uppercase text-slate-500">Previous location</p><p class="text-white">{{ result.previous_location.name|default:'–' }}</p></div>
+        <div><p class="text-xs uppercase text-slate-500">Received via</p><p class="text-white">{% if result.origin %}{{ result.origin.get_transaction_type_display }} {{ result.origin.document_no }}{% else %}–{% endif %}</p></div>
+    </div>
+    <div class="glass p-5 text-sm space-y-1">
+        <p class="text-lg font-bold text-white">{{ u.unit_no }}</p>
+        <p>Barcode <b>{{ u.barcode }}</b> · serial {{ u.serial_no }}</p><p>HUID <b>{{ u.huid|default:'–' }}</b> · hallmark {{ u.hallmark|default:'–' }}</p>
+        <p>{{ u.item.item_no }} · {{ u.get_metal_display }} {{ u.purity }}</p>
+        <p>Gross {{ u.gross_weight|grams }} g · stone {{ u.stone_weight|grams }} · other {{ u.other_weight|grams }} · <b>net {{ u.net_metal_weight|grams }} g</b></p>
+        <p>Certificate {{ u.certificate_type }} {{ u.certificate_no|default:'–' }}</p>
+        <p>Specific cost <b>{{ u.total_cost|inr }}</b> (metal {{ u.metal_cost|inr }}, making {{ u.making_cost|inr }}, stone {{ u.stone_cost|inr }})</p>
+    </div>
+</section>
+<section class="glass p-5"><h3 class="font-semibold text-white mb-3">Journey</h3>
+    <div class="flex flex-wrap items-center gap-2 text-sm">{% for stop in result.path %}<span class="px-3 py-1 rounded-full bg-sky-100 text-sky-800">{{ stop }}</span>{% if not forloop.last %}<i class="fas fa-arrow-right text-slate-400"></i>{% endif %}{% empty %}<span class="text-slate-500">Not received into stock yet.</span>{% endfor %}</div></section>
+<section class="glass overflow-x-auto"><div class="px-5 py-4 border-b border-white/10"><h3 class="font-semibold text-white">Complete history</h3></div>{% include 'inventory/_ledger_rows.html' with entries=result.entries %}</section>
+{% endwith %}{% elif documents %}
+<section class="glass overflow-x-auto"><div class="px-5 py-4 border-b border-white/10"><h3 class="font-semibold text-white">Document {{ q }}</h3></div>{% include 'inventory/_ledger_rows.html' with entries=documents %}</section>
+{% elif q %}<p class="glass p-5 text-slate-500">Nothing found for "{{ q }}".</p>{% endif %}
+{% endblock %}

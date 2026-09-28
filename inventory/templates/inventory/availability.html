@@ -1,0 +1,30 @@
+{% extends 'inventory/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}Item availability{% endblock %}
+{% block eyebrow %}Stock{% endblock %}
+{% block heading %}Item availability{% endblock %}
+{% block subheading %}Search by item number, SKU, barcode or HUID.{% endblock %}
+{% block body %}
+<form method="get" class="glass p-4 flex flex-col md:flex-row gap-3 items-end">
+    <div class="flex-1 w-full"><label class="text-xs uppercase text-slate-500">Item / SKU / barcode / HUID</label><input name="q" value="{{ q }}" autofocus placeholder="Scan or type"></div>
+    <div class="w-full md:w-48"><label class="text-xs uppercase text-slate-500">Location type</label><select name="type"><option value="">All</option>{% for code, label in types %}<option value="{{ code }}" {% if request.GET.type == code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+    <div class="w-full md:w-40"><label class="text-xs uppercase text-slate-500">City</label><input name="city" value="{{ request.GET.city }}"></div>
+    <div class="w-full md:w-40"><label class="text-xs uppercase text-slate-500">Region</label><input name="region" value="{{ request.GET.region }}"></div>
+    <button class="btn-gold px-5 py-3 rounded-lg text-sm"><i class="fas fa-magnifying-glass mr-1"></i>Search</button>
+</form>
+{% if unit %}
+<section class="glass p-5 flex flex-wrap gap-6 items-center text-sm">
+    <div><p class="text-xs uppercase text-slate-500">Scanned piece</p><p class="text-lg font-bold text-white">{{ unit.barcode }}</p></div>
+    <div><p class="text-xs uppercase text-slate-500">Location</p><p class="text-white">{{ unit.current_location.code|default:'–' }} {{ unit.current_bin.code|default:'' }}</p></div>
+    <div><p class="text-xs uppercase text-slate-500">Status</p>{% badge unit.status %}</div>
+    <div><p class="text-xs uppercase text-slate-500">Weight</p><p class="text-white">{{ unit.gross_weight|grams }} g gross · {{ unit.net_metal_weight|grams }} g net · {{ unit.purity }}</p></div>
+    <a class="text-sky-700" href="{% url 'inventory_trace' %}?q={{ unit.barcode }}">Full history →</a>
+</section>
+{% endif %}
+{% if item %}
+<section class="glass overflow-hidden">
+    <div class="px-5 py-4 border-b border-white/10 flex justify-between"><h3 class="font-semibold text-white"><a class="text-sky-700" href="{% url 'inventory_item_card' item.pk %}">{{ item.item_no }}</a> · {{ item.description }}</h3><span class="text-sm text-slate-500">{{ item.get_metal_display }} {{ item.purity }}</span></div>
+    {% include 'inventory/_availability_table.html' %}
+</section>
+{% endif %}
+{% endblock %}
