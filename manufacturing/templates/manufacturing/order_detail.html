@@ -1,0 +1,95 @@
+{% extends 'manufacturing/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}{{ order.order_no }}{% endblock %}
+{% block eyebrow %}Production order{% endblock %}
+{% block heading %}{{ order.order_no }} {% badge order.status %}{% endblock %}
+{% block subheading %}{{ order.item.item_no }} – {{ order.item.description }} · {{ order.planned_qty|qty }} pcs at {{ order.location.code }}{% if order.due_date %} · due {{ order.due_date }}{% endif %}{% endblock %}
+{% block body %}
+<section class="glass p-5 text-sm space-y-4">
+    <div class="flex flex-wrap gap-2 items-center">
+        {% if not order.is_closed and perms_mfg.create_order %}
+        <form method="post" class="flex items-center gap-2">{% csrf_token %}<input type="hidden" name="action" value="refresh">{% if order.is_executable %}<label class="flex items-center gap-1 text-xs text-slate-500"><input type="checkbox" name="confirm" class="w-auto"> confirm</label>{% endif %}<button class="glass px-3 py-2 text-sky-700"><i class="fas fa-rotate mr-1"></i>Refresh</button></form>
+        {% endif %}
+        {% if order.status in 'DRAFT,PLANNED' and perms_mfg.plan %}
+        <form method="post">{% csrf_token %}<input type="hidden" name="action" value="firm"><button class="glass px-3 py-2 text-sky-700">Firm plan</button></form>
+        {% endif %}
+        {% if order.is_planning and order.status != 'APPROVED' and perms_mfg.approve_order %}
+        <form method="post">{% csrf_token %}<input type="hidden" name="action" value="approve"><button class="glass px-3 py-2 text-emerald-700"><i class="fas fa-check mr-1"></i>Approve</button></form>
+        {% endif %}
+        {% if order.is_planning and perms_mfg.release %}
+        <form method="post" class="flex items-center gap-2">{% csrf_token %}<input type="hidden" name="action" value="release"><label class="flex items-center gap-1 text-xs text-slate-500"><input type="checkbox" name="confirm" class="w-auto"> despite shortage</label><button class="btn-gold px-3 py-2 rounded-lg"><i class="fas fa-play mr-1"></i>Release</button></form>
+        {% endif %}
+        {% if order.is_executable and perms_mfg.finish %}
+        <form method="post" class="flex items-center gap-2">{% csrf_token %}<input type="hidden" name="action" value="finish"><input name="reason" placeholder="Reason (if work remains)" class="text-xs w-48"><label class="flex items-center gap-1 text-xs text-slate-500"><input type="checkbox" name="confirm" class="w-auto"> close remaining</label><button class="btn-gold px-3 py-2 rounded-lg"><i class="fas fa-flag-checkered mr-1"></i>Finish</button></form>
+        {% endif %}
+        {% if order.status == 'FINISHED' and perms_mfg.finish %}
+        <form method="post">{% csrf_token %}<input type="hidden" name="action" value="close"><button class="glass px-3 py-2 text-sky-700">Close</button></form>
+        {% endif %}
+        {% if not order.is_closed and perms_mfg.release %}
+        <form method="post" class="flex items-center gap-2 ml-auto">{% csrf_token %}<input type="hidden" name="action" value="cancel"><input name="reason" placeholder="Cancellation reason" class="text-xs w-48"><button class="glass px-3 py-2 text-rose-600">Cancel order</button></form>
+        {% endif %}
+    </div>
+    {% if blocking or remaining %}
+    <div class="text-xs space-y-1">{% for b in blocking %}<p class="text-rose-600"><i class="fas fa-ban mr-1"></i>{{ b }}</p>{% endfor %}{% for r in remaining %}<p class="text-amber-600"><i class="fas fa-triangle-exclamation mr-1"></i>{{ r }}</p>{% endfor %}</div>
+    {% endif %}
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 pt-2 border-t border-white/10">
+        <div><p class="text-xs uppercase text-slate-500">BOM</p><p class="text-white">{% if order.bom %}<a class="text-sky-700" href="{% url 'manufacturing_bom_detail' order.bom.pk %}">{{ order.bom_version|default:order.bom.bom_no }}</a>{% else %}—{% endif %}</p></div>
+        <div><p class="text-xs uppercase text-slate-500">Routing</p><p class="text-white">{% if order.routing %}<a class="text-sky-700" href="{% url 'manufacturing_routing_detail' order.routing.pk %}">{{ order.routing_version|default:order.routing.routing_no }}</a>{% else %}—{% endif %}</p></div>
+        <div><p class="text-xs uppercase text-slate-500">Progress</p><p class="text-white">{{ order.produced_qty|qty }} / {{ order.planned_qty|qty }} ({{ order.progress_percent }}%)</p></div>
+        <div><p class="text-xs uppercase text-slate-500">Accepted / rejected / scrap</p><p class="text-white">{{ order.accepted_qty|qty }} / {{ order.rejected_qty|qty }} / {{ order.scrap_qty|qty }}</p></div>
+        <div><p class="text-xs uppercase text-slate-500">Planned start → end</p><p class="text-white">{{ order.planned_start|date:'d M H:i'|default:'—' }} → {{ order.planned_end|date:'d M H:i'|default:'—' }}</p></div>
+        <div><p class="text-xs uppercase text-slate-500">Planned unit cost</p><p class="text-white">{{ order.planned_unit_cost|inr }}</p></div>
+        <div><p class="text-xs uppercase text-slate-500">Planned total cost</p><p class="text-white">{{ order.planned_total_cost|inr }}</p></div>
+        <div><p class="text-xs uppercase text-slate-500">Last refreshed</p><p class="text-white">{{ order.refreshed_at|date:'d M Y H:i'|default:'never' }}</p></div>
+    </div>
+</section>
+
+<section class="glass overflow-hidden">
+    <div class="px-5 py-4 border-b border-white/10"><h3 class="font-semibold text-white">Components & material availability</h3></div>
+    <div class="overflow-x-auto"><table class="w-full text-left text-sm min-w-[900px]">
+        <thead class="text-xs uppercase text-slate-500 bg-white/5"><tr><th class="px-5 py-3">#</th><th>Component</th><th>Location</th><th class="text-right">Required</th><th class="text-right">Consumed</th><th class="text-right">Issued</th><th class="text-right">Reserved</th><th class="text-right">Available</th><th class="text-right">Shortage</th><th class="text-right px-5">Status</th></tr></thead>
+        <tbody>{% for r in availability %}<tr class="border-b border-white/5">
+            <td class="px-5 py-2">{{ r.component.line_no }}</td>
+            <td>{{ r.component.item.item_no }} <span class="text-slate-500">{{ r.component.get_component_type_display }}</span></td>
+            <td>{{ r.component.location.code }}</td>
+            <td class="text-right">{{ r.required|qty }} {{ r.component.uom.code|default:'' }}</td>
+            <td class="text-right">{{ r.consumed|qty }}</td><td class="text-right">{{ r.issued|qty }}</td><td class="text-right">{{ r.reserved|qty }}</td>
+            <td class="text-right">{{ r.available|qty }}</td>
+            <td class="text-right {% if r.shortage %}text-rose-600 font-semibold{% endif %}">{{ r.shortage|qty }}</td>
+            <td class="text-right px-5">{% badge r.status %}</td>
+        </tr>{% empty %}<tr><td colspan="10" class="px-5 py-8 text-center text-slate-500">No components yet – refresh the order to explode its BOM.</td></tr>{% endfor %}</tbody>
+    </table></div>
+</section>
+
+<section class="glass overflow-hidden">
+    <div class="px-5 py-4 border-b border-white/10"><h3 class="font-semibold text-white">Operations</h3></div>
+    <div class="overflow-x-auto"><table class="w-full text-left text-sm min-w-[900px]">
+        <thead class="text-xs uppercase text-slate-500 bg-white/5"><tr><th class="px-5 py-3">Op</th><th>Description</th><th>Work centre</th><th class="text-right">Planned min</th><th class="text-right">Actual min</th><th class="text-right">Output</th><th class="text-right">Scrap</th><th>Planned start</th><th class="text-right px-5">Status</th></tr></thead>
+        <tbody>{% for op in operations %}<tr class="border-b border-white/5">
+            <td class="px-5 py-2">{{ op.operation_no }}{% if op.is_rework %} <span class="text-xs text-amber-600">rework</span>{% endif %}</td>
+            <td>{{ op.description }}{% if op.subcontracting %} <span class="text-xs text-slate-500">(subcontract)</span>{% endif %}</td>
+            <td>{{ op.work_center.code }}{% if op.machine_center %} / {{ op.machine_center.code }}{% endif %}</td>
+            <td class="text-right">{{ op.planned_total_minutes|qty }}</td><td class="text-right">{{ op.actual_capacity_minutes|qty }}</td>
+            <td class="text-right">{{ op.output_qty|qty }}</td><td class="text-right">{{ op.scrap_qty|qty }}</td>
+            <td>{{ op.planned_start|date:'d M H:i'|default:'' }}</td>
+            <td class="text-right px-5">{% badge op.status %}</td>
+        </tr>{% empty %}<tr><td colspan="9" class="px-5 py-8 text-center text-slate-500">No operations – the item may have no certified routing.</td></tr>{% endfor %}</tbody>
+    </table></div>
+</section>
+
+<div class="grid lg:grid-cols-2 gap-6">
+    <section class="glass overflow-hidden">
+        <div class="px-5 py-4 border-b border-white/10"><h3 class="font-semibold text-white">Cost: standard vs actual</h3></div>
+        <table class="w-full text-left text-sm">
+            <thead class="text-xs uppercase text-slate-500 bg-white/5"><tr><th class="px-5 py-2">Type</th><th class="text-right">Planned</th><th class="text-right">Standard</th><th class="text-right">Actual</th><th class="text-right px-5">Variance</th></tr></thead>
+            <tbody>{% for r in costs.rows %}<tr class="border-b border-white/5"><td class="px-5 py-2">{{ r.type|title }}</td><td class="text-right">{{ r.planned|inr }}</td><td class="text-right">{{ r.standard|inr }}</td><td class="text-right">{{ r.actual|inr }}</td><td class="text-right px-5 {% if r.variance > 0 %}text-rose-600{% elif r.variance < 0 %}text-emerald-700{% endif %}">{{ r.variance|inr }}</td></tr>{% endfor %}
+            <tr class="font-semibold"><td class="px-5 py-2">Total</td><td class="text-right">{{ costs.planned_total|inr }}</td><td class="text-right">{{ costs.standard_total|inr }}</td><td class="text-right">{{ costs.input_total|inr }}</td><td class="px-5"></td></tr></tbody>
+        </table>
+        <div class="px-5 py-3 text-xs text-slate-500">Output {{ costs.output|inr }} · by-product credit {{ costs.byproduct|inr }} · WIP balance {{ costs.wip|inr }}</div>
+    </section>
+    <section class="glass overflow-hidden">
+        <div class="px-5 py-4 border-b border-white/10"><h3 class="font-semibold text-white">Audit trail</h3></div>
+        <table class="w-full text-left text-sm"><tbody>{% for a in audit %}<tr class="border-b border-white/5"><td class="px-5 py-2 text-slate-500 whitespace-nowrap">{{ a.created_at|date:'d M H:i' }}</td><td>{{ a.action|title }}</td><td>{{ a.user.username|default:'' }}</td><td class="px-5 text-slate-500">{{ a.reason }}</td></tr>{% empty %}<tr><td class="px-5 py-6 text-slate-500">No activity yet.</td></tr>{% endfor %}</tbody></table>
+    </section>
+</div>
+{% endblock %}

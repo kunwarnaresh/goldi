@@ -1,0 +1,10 @@
+{% extends 'jobwork/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}Goods at job workers{% endblock %}
+{% block heading %}Goods at job workers — statutory due dates{% endblock %}
+{% block subheading %}Due date = dispatch date + approved return period (inputs / capital goods). Alert bands are internal and never move the statutory date.{% endblock %}
+{% block actions %}<form method="post">{% csrf_token %}<button class="glass px-3 py-2 text-sky-700 text-sm">Run compliance scan</button></form>{% endblock %}
+{% block body %}
+{% include 'jobwork/_material_table.html' %}
+<section class="glass overflow-hidden"><div class="px-5 py-4 border-b border-white/10"><h3 class="font-semibold text-white">E-way bills pending generation</h3></div><table class="w-full text-left text-sm"><tbody>{% for e in eway_pending %}<tr class="border-b border-white/5"><td class="px-5 py-2">{{ e.document_no }}</td><td><a class="text-sky-700" href="{% url 'jobwork_order_detail' e.dispatch.order_id %}">{{ e.dispatch.dispatch_no }}</a></td><td class="text-xs">{{ e.dispatch.eway_bill_reason }}</td></tr>{% empty %}<tr><td class="px-5 py-4 text-slate-500">None pending.</td></tr>{% endfor %}</tbody></table></section>
+{% endblock %}

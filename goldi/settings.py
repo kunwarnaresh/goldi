@@ -52,6 +52,9 @@ INSTALLED_APPS = [
     'rest_framework',
     'erp',
     'inventory',
+    'manufacturing',
+    'savings',
+    'jobwork',
 ]
 
 REST_FRAMEWORK = {

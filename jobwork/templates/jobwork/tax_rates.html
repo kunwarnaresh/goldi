@@ -1,0 +1,17 @@
+{% extends 'jobwork/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}GST tax master{% endblock %}
+{% block heading %}GST / HSN-SAC tax master{% endblock %}
+{% block subheading %}Effective-dated. A second tax administrator approves every change; approving a new version closes the old one. Posted documents keep their tax snapshot.{% endblock %}
+{% block body %}
+<section class="glass overflow-hidden"><table class="w-full text-left text-sm">
+    <thead class="text-xs uppercase text-slate-500 bg-white/5"><tr><th class="px-5 py-3">Code</th><th>Description</th><th class="text-right">CGST / SGST / IGST / cess %</th><th>RCM</th><th>Effective</th><th>Notification</th><th>Status</th><th class="px-5"></th></tr></thead>
+    <tbody>{% for r in rates %}<tr class="border-b border-white/5"><td class="px-5 py-2">{{ r.code_type }} {{ r.code }}</td><td>{{ r.description }}</td><td class="text-right">{{ r.cgst_rate|qty }} / {{ r.sgst_rate|qty }} / {{ r.igst_rate|qty }} / {{ r.cess_rate|qty }}</td><td>{% if r.reverse_charge %}yes{% endif %}</td><td class="text-xs">{{ r.effective_from }}{% if r.effective_to %} – {{ r.effective_to }}{% endif %}</td><td class="text-xs">{{ r.notification }}</td><td>{% badge r.status %}</td>
+        <td class="px-5">{% if r.status == 'DRAFT' and perms_jw.tax_admin %}<form method="post">{% csrf_token %}<input type="hidden" name="action" value="approve"><input type="hidden" name="rate" value="{{ r.pk }}"><button class="text-emerald-700 text-xs">Approve</button></form>{% endif %}</td></tr>{% empty %}<tr><td colspan="8" class="px-5 py-8 text-center text-slate-500">No rates. Job worker invoices cannot be posted until a rate for their SAC is approved.</td></tr>{% endfor %}</tbody>
+</table></section>
+{% if perms_jw.tax_admin %}<form method="post" class="glass p-5 grid md:grid-cols-5 gap-3 text-sm">{% csrf_token %}<input type="hidden" name="action" value="add">
+    <label>Type<select name="code_type"><option>SAC</option><option>HSN</option></select></label><label>Code<input name="code" required></label><label class="md:col-span-3">Description<input name="description" required></label>
+    <label>CGST %<input name="cgst_rate"></label><label>SGST %<input name="sgst_rate"></label><label>IGST %<input name="igst_rate"></label><label>Cess %<input name="cess_rate"></label><label class="flex items-center gap-2"><input type="checkbox" name="reverse_charge" class="w-auto"> Reverse charge</label>
+    <label>Effective from<input type="date" name="effective_from"></label><label class="md:col-span-3">Notification / circular<input name="notification"></label>
+    <button class="btn-gold px-4 py-2 rounded-lg">Save draft</button></form>{% endif %}
+{% endblock %}

@@ -1,0 +1,10 @@
+{% extends 'jobwork/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}Dispatches & challans{% endblock %}
+{% block heading %}Dispatches & delivery challans{% endblock %}
+{% block body %}
+<section class="glass overflow-hidden"><div class="overflow-x-auto"><table class="w-full text-left text-sm min-w-[1000px]">
+    <thead class="text-xs uppercase text-slate-500 bg-white/5"><tr><th class="px-5 py-3">Dispatch</th><th>Movement</th><th>Order</th><th>From → to</th><th>Challan</th><th>Date</th><th class="text-right">Net g</th><th class="text-right">Value</th><th>E-way bill</th><th class="text-right px-5">Status</th></tr></thead>
+    <tbody>{% for d in dispatches %}<tr class="border-b border-white/5"><td class="px-5 py-2 font-semibold">{{ d.dispatch_no }}</td><td class="text-xs">{{ d.get_movement_type_display }}</td><td><a class="text-sky-700" href="{% url 'jobwork_order_detail' d.order.pk %}">{{ d.order.order_no }}</a></td><td class="text-xs">{{ d.from_location.code }} → {{ d.to_location.code }}</td><td>{% if d.challan %}<a class="text-sky-700" href="{% url 'jobwork_challan' d.challan.pk %}">{{ d.challan.challan_no }}</a>{% endif %}</td><td>{{ d.dispatch_date }}</td><td class="text-right">{{ d.total_net|grams }}</td><td class="text-right">{{ d.total_value|inr }}</td><td class="text-xs">{% if d.eway_bill_required %}required{% else %}—{% endif %}</td><td class="text-right px-5">{% badge d.status %}</td></tr>{% empty %}<tr><td colspan="10" class="px-5 py-10 text-center text-slate-500">No dispatches.</td></tr>{% endfor %}</tbody>
+</table></div></section>
+{% endblock %}

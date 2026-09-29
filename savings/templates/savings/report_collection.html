@@ -1,0 +1,23 @@
+{% extends 'savings/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}Collection report{% endblock %}
+{% block heading %}Collection report{% endblock %}
+{% block subheading %}Installments collected {{ start|date:'d-M-Y' }} to {{ end|date:'d-M-Y' }} · total {{ total|inr }}{% endblock %}
+{% block body %}
+<form method="get" class="glass p-4 flex flex-wrap gap-3 text-sm items-end">
+    <label><span class="text-slate-500 text-xs uppercase">From</span><input type="date" name="start" value="{{ start|date:'Y-m-d' }}"></label>
+    <label><span class="text-slate-500 text-xs uppercase">To</span><input type="date" name="end" value="{{ end|date:'Y-m-d' }}"></label>
+    <label><span class="text-slate-500 text-xs uppercase">Group by</span><select name="group_by">
+        <option value="day" {% if group_by == 'day' %}selected{% endif %}>Day</option><option value="staff" {% if group_by == 'staff' %}selected{% endif %}>Staff</option>
+        <option value="location" {% if group_by == 'location' %}selected{% endif %}>Branch</option><option value="method" {% if group_by == 'method' %}selected{% endif %}>Payment method</option>
+        <option value="scheme" {% if group_by == 'scheme' %}selected{% endif %}>Scheme</option></select></label>
+    <button class="px-4 py-2 rounded-lg bg-slate-700 text-white">Show</button>
+</form>
+<section class="glass overflow-x-auto">
+    <table class="w-full text-left text-sm">
+        <thead class="text-xs uppercase text-slate-500"><tr><th class="px-5 py-2">{{ group_by|title }}</th><th class="text-right">Receipts</th><th class="text-right">Reversals</th><th class="text-right">Contribution</th><th class="text-right">Late charges</th><th class="text-right px-5">Net collected</th></tr></thead>
+        <tbody>{% for r in rows %}<tr class="border-t border-white/5"><td class="px-5 py-1.5">{{ r.key }}</td><td class="text-right">{{ r.receipts }}</td><td class="text-right">{{ r.reversals }}</td><td class="text-right">{{ r.contribution|inr }}</td><td class="text-right">{{ r.penalty|inr }}</td><td class="text-right px-5 font-semibold">{{ r.amount|inr }}</td></tr>
+        {% empty %}<tr><td colspan="6" class="px-5 py-6 text-slate-500">No collections in this period.</td></tr>{% endfor %}</tbody>
+    </table>
+</section>
+{% endblock %}

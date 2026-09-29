@@ -359,6 +359,9 @@ DOCUMENT_TYPE_PREFIXES = {
     'accrual_journal': 'ACC',
     'provision_journal': 'PROV',
     'reversal_journal': 'REV',
+    'production_journal': 'PRJ',
+    'scheme_journal': 'SCJ',
+    'job_work_journal': 'JWJ',
 }
 
 
@@ -1307,6 +1310,9 @@ _AUTO_VOUCHER_NAMES = {
     'purchase_journal': 'Purchase Journal (Auto)',
     'receipt_journal': 'Receipt Journal (Auto)',
     'payment_journal': 'Payment Journal (Auto)',
+    'production_journal': 'Production Journal (Auto)',
+    'scheme_journal': 'Jewellery Savings Journal (Auto)',
+    'job_work_journal': 'Job Work Journal (Auto)',
 }
 
 

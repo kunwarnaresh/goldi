@@ -24,11 +24,24 @@ def get_membership(user, tenant=None):
 def get_current_tenant(request):
     """The tenant for this request, cached on the request object."""
     if not hasattr(request, '_inventory_membership'):
-        request._inventory_membership = get_membership(request.user)
+        request._inventory_membership = get_membership(request.user) or provision_legacy_user(request.user)
     membership = request._inventory_membership
     if membership is None:
         raise PermissionDenied('Your account is not linked to an inventory workspace.')
     return membership.tenant
+
+
+def provision_legacy_user(user):
+    """Accounts created before workspaces existed (or outside registration) get their own workspace on first use.
+    Users who ever had a membership are left alone, so a deactivated member is still denied."""
+    if not getattr(user, 'is_authenticated', False) or TenantMembership.objects.filter(user=user).exists():
+        return None
+    from erp.models import Company
+    company = Company.objects.order_by('id').first()
+    name = (company.company_name if company else '') or user.get_full_name() or user.get_username()
+    with transaction.atomic():
+        create_tenant_for_user(user, name)
+    return get_membership(user)
 
 
 def is_tenant_admin(tenant, user):

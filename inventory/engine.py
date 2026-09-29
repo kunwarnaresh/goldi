@@ -267,8 +267,9 @@ class InventoryPostingEngine:
 
     @transaction.atomic
     def receive(self, *, transaction_type, item, location, quantity=1, unit_cost=None, variant=None, sku=None, bin=None,
-                unit=None, lot_no='', gross_weight=None, net_weight=None, into_state=None, reason_code='', line_no=0):
-        """Inbound stock: purchase, opening, positive adjustment, customer return, count surplus."""
+                unit=None, lot_no='', gross_weight=None, net_weight=None, into_state=None, reason_code='', line_no=0,
+                reversal_of=None):
+        """Inbound stock: purchase, opening, positive adjustment, customer return, count surplus, production output."""
         qty = D(quantity)
         if qty <= 0:
             raise InventoryError('Quantity must be greater than zero.')
@@ -289,7 +290,7 @@ class InventoryPostingEngine:
         balance = self._lock_balance(item=item, variant=variant, location=location, bin=bin, unit=unit, lot_no=lot_no, sku=sku)
         entry = self._post_in(balance, qty, transaction_type=transaction_type, cost_amount=cost, gross=D(gross_weight),
                               net=D(net_weight), into_state=into_state, reason_code=reason_code, document_line_no=line_no,
-                              to_location=location, to_bin=bin)
+                              to_location=location, to_bin=bin, reversal_of=reversal_of)
         if unit is not None:
             self._set_unit(unit, location=location, bin=bin, status=STATE_UNIT_STATUS.get(into_state, 'AVAILABLE'), sku=sku)
         if sku is not None and transaction_type in ('PURCHASE', 'OPENING'):
@@ -299,8 +300,10 @@ class InventoryPostingEngine:
     @transaction.atomic
     def issue(self, *, transaction_type, item, location, quantity=1, variant=None, sku=None, bin=None, unit=None, lot_no='',
               consume_state=None, reservation=None, final_unit_status='SOLD', reason_code='', line_no=0,
-              gross_weight=None, net_weight=None):
-        """Outbound stock: sale, negative adjustment, count shortage, scrap, return to vendor."""
+              gross_weight=None, net_weight=None, cost_amount=None, reversal_of=None):
+        """Outbound stock: sale, negative adjustment, count shortage, scrap, return to vendor, production consumption.
+
+        `cost_amount` overrides the costing method - only for reversals, which must leave at the original cost."""
         qty = D(quantity)
         if qty <= 0:
             raise InventoryError('Quantity must be greater than zero.')
@@ -329,8 +332,9 @@ class InventoryPostingEngine:
             entries.append(self._post_out(balance, part, transaction_type=transaction_type, consume_state=consume_state,
                                           gross=D(gross_weight) if gross_weight is not None else None,
                                           net=D(net_weight) if net_weight is not None else None,
+                                          cost_amount=money(D(cost_amount) * part / qty) if cost_amount is not None else None,
                                           reason_code=reason_code, document_line_no=line_no, from_location=location,
-                                          from_bin=balance.bin))
+                                          from_bin=balance.bin, reversal_of=reversal_of))
         if unit is not None:
             self._set_unit(unit, location=location, bin=bin, status=final_unit_status)
         return entries[0] if len(entries) == 1 else entries
@@ -465,6 +469,32 @@ class InventoryPostingEngine:
                             stock_state='ON_HAND', quantity=ZERO, gross_weight=D(gross_delta), net_weight=D(net_delta),
                             reason_code=reason_code, document_line_no=line_no)
 
+    @transaction.atomic
+    def revalue(self, *, item, location, cost_delta, variant=None, sku=None, bin=None, unit=None, lot_no='', reason_code='',
+                line_no=0):
+        """Value-only adjustment (quantity and weight unchanged) of stock still on hand - e.g. settling a production
+        order's actual cost onto its output. The bucket must hold stock; a unit's historical cost follows the delta."""
+        delta = money(cost_delta)
+        if unit is not None:
+            unit = self._lock_unit(unit)
+            location, bin = self._unit_position(unit, location, bin)
+        self._validate(item=item, location=location, variant=variant, sku=sku, bin=bin, unit=unit, inbound=True)
+        balance = self._lock_balance(item=item, variant=variant, location=location, bin=bin, unit=unit, lot_no=lot_no, sku=sku)
+        if physical_qty(balance) <= 0:
+            raise InventoryError(f'Nothing on hand to revalue for {item.item_no} at {location.code}.')
+        if balance.cost_value + delta < 0:
+            raise InventoryError('Revaluation would make the stock value negative.')
+        balance.cost_value += delta
+        self._save_balance(balance)
+        if unit is not None:
+            unit.other_cost += delta
+            unit.purchase_cost = unit.total_cost + delta if unit.purchase_cost else unit.purchase_cost
+            unit.version += 1
+            unit.updated_by = self.user
+            unit.save(update_fields=['other_cost', 'purchase_cost', 'version', 'updated_by', 'updated_at'])
+        return self._ledger(balance, transaction_type='REVALUATION', stock_state='ON_HAND', quantity=ZERO, cost_amount=delta,
+                            reason_code=reason_code, document_line_no=line_no)
+
     # ------------------------------------------------------------------ reservations
 
     @transaction.atomic
@@ -537,7 +567,7 @@ class InventoryPostingEngine:
     # ------------------------------------------------------------------ helpers
 
     def _unit_position(self, unit, location, bin, allow_transit=False):
-        if unit.status in ('SOLD', 'MISSING', 'SCRAPPED', 'RETURNED_TO_VENDOR', 'NOT_IN_STOCK'):
+        if unit.status in ('SOLD', 'MISSING', 'SCRAPPED', 'RETURNED_TO_VENDOR', 'NOT_IN_STOCK', 'CONSUMED'):
             raise InventoryError(f'Jewellery unit {unit.barcode} is {unit.get_status_display().lower()}.')
         if unit.status == 'IN_TRANSIT' and not allow_transit:
             raise InventoryError(f'Jewellery unit {unit.barcode} is in transit and cannot be used here.')

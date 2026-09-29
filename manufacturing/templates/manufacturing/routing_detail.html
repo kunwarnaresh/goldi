@@ -1,0 +1,23 @@
+{% extends 'manufacturing/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}{{ routing.routing_no }}{% endblock %}
+{% block eyebrow %}Routing{% endblock %}
+{% block heading %}{{ routing.routing_no }} – {{ routing.description }} {% badge routing.status %}{% endblock %}
+{% block subheading %}{% if routing.item %}{{ routing.item.item_no }} – {{ routing.item.description }} · {% endif %}{{ routing.get_routing_type_display }}{% endblock %}
+{% block body %}
+{% include 'manufacturing/_version_panel.html' %}
+<section class="glass overflow-hidden">
+    <div class="px-5 py-4 border-b border-white/10"><h3 class="font-semibold text-white">Operations{% if selected %} · {{ selected.code }}{% endif %}</h3></div>
+    <div class="overflow-x-auto"><table class="w-full text-left text-sm min-w-[900px]">
+        <thead class="text-xs uppercase text-slate-500 bg-white/5"><tr><th class="px-5 py-3">Op</th><th>Description</th><th>Work centre</th><th>Machine</th><th class="text-right">Setup min</th><th class="text-right">Run min/pc</th><th class="text-right">Scrap %</th><th>Link</th><th>Flags</th><th class="text-right px-5">Cost / hr</th></tr></thead>
+        <tbody>{% for l in lines %}<tr class="border-b border-white/5">
+            <td class="px-5 py-2">{{ l.operation_no }}</td><td>{{ l.description }}</td>
+            <td>{{ l.work_center.code }}</td><td>{{ l.machine_center.code|default:'' }}</td>
+            <td class="text-right">{{ l.setup_time|qty }}</td><td class="text-right">{{ l.run_time|qty }}</td><td class="text-right">{{ l.scrap_percent|qty }}</td>
+            <td>{{ l.routing_link_code }}</td>
+            <td class="text-xs text-slate-500">{% if l.quality_check_required %}QC {% endif %}{% if l.subcontracting %}Subcontract{% endif %}</td>
+            <td class="text-right px-5">{{ l.cost_per_hour|inr }}</td>
+        </tr>{% empty %}<tr><td colspan="10" class="px-5 py-8 text-center text-slate-500">No operations on this version.</td></tr>{% endfor %}</tbody>
+    </table></div>
+</section>
+{% endblock %}

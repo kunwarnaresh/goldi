@@ -1,0 +1,22 @@
+{% extends 'jobwork/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}ITC-04{% endblock %}
+{% block heading %}ITC-04 preparation{% endblock %}
+{% block subheading %}Generated only from posted challans, receipts and loss reports; every record must reconcile before preparation is complete{% endblock %}
+{% block actions %}{% if can_compliance %}<form method="post" class="flex gap-2 text-sm">{% csrf_token %}<input type="hidden" name="action" value="generate"><label>FY starting <input name="fy" value="{{ fy }}" class="w-20"></label><select name="half"><option value="1">H1 / annual</option><option value="2">H2</option></select><button class="btn-gold px-3 py-2 rounded-lg">Generate / rebuild</button></form>{% endif %}{% endblock %}
+{% block body %}
+<div class="flex flex-wrap gap-2 text-sm">{% for r in returns %}<a href="?id={{ r.pk }}" class="glass px-3 py-2 {% if record == r %}text-sky-700 font-semibold{% endif %}">{{ r.period_code }} {% badge r.status %}</a>{% endfor %}</div>
+{% if record %}
+<section class="glass p-5 text-sm grid md:grid-cols-5 gap-4">
+    <div><p class="text-xs uppercase text-slate-500">Period</p><p>{{ record.period_start }} – {{ record.period_end }} ({{ record.get_frequency_display }})</p></div>
+    <div><p class="text-xs uppercase text-slate-500">Challans / job workers</p><p>{{ record.summary.challans }} / {{ record.summary.job_workers }}</p></div>
+    <div><p class="text-xs uppercase text-slate-500">Table 4 / 5A / 5B</p><p>{{ record.summary.tables.4.lines|default:0 }} / {{ record.summary.tables.5A.lines|default:0 }} / {{ record.summary.tables.5B.lines|default:0 }} lines</p></div>
+    <div><p class="text-xs uppercase text-slate-500">Errors</p><p class="{% if record.summary.errors %}text-rose-600 font-semibold{% endif %}">{{ record.summary.errors }}</p></div>
+    <div>{% if can_compliance %}{% if record.status == 'RECONCILED' %}<form method="post">{% csrf_token %}<input type="hidden" name="action" value="prepare"><input type="hidden" name="itc04" value="{{ record.pk }}"><button class="btn-gold px-3 py-2 rounded-lg">Mark prepared</button></form>{% elif record.status == 'PREPARED' %}<form method="post" class="flex gap-1">{% csrf_token %}<input type="hidden" name="action" value="filed"><input type="hidden" name="itc04" value="{{ record.pk }}"><input name="filed_reference" placeholder="ARN" class="w-28"><button class="glass px-3 py-2 text-emerald-700">Mark filed</button></form>{% endif %}{% endif %}</div>
+</section>
+<section class="glass overflow-hidden"><div class="overflow-x-auto"><table class="w-full text-left text-sm min-w-[1200px]">
+    <thead class="text-xs uppercase text-slate-500 bg-white/5"><tr><th class="px-5 py-3">Table</th><th>Job worker (GSTIN / state)</th><th>Challan</th><th>Original challan</th><th>Order</th><th>Item</th><th>HSN</th><th class="text-right">Qty</th><th class="text-right">Loss</th><th class="text-right">Value</th><th>Category</th><th class="px-5">Match</th></tr></thead>
+    <tbody>{% for l in lines %}<tr class="border-b border-white/5"><td class="px-5 py-2">{{ l.table }}</td><td>{{ l.job_worker_name }} <span class="text-xs">{{ l.job_worker_gstin }} / {{ l.job_worker_state_code }}</span></td><td>{{ l.challan_no }} <span class="text-xs">{{ l.challan_date }}</span></td><td>{{ l.original_challan_no }} <span class="text-xs">{{ l.original_challan_date|default:'' }}</span></td><td>{{ l.order_no }}</td><td>{{ l.item_no }}</td><td>{{ l.hsn_code }}</td><td class="text-right">{{ l.quantity|qty }} {{ l.uom }}</td><td class="text-right">{{ l.loss_quantity|qty }}</td><td class="text-right">{{ l.taxable_value|inr }}</td><td class="text-xs">{{ l.get_goods_category_display }}</td><td class="px-5">{% badge l.match_status l.get_match_status_display %}</td></tr>{% endfor %}</tbody>
+</table></div></section>
+{% else %}<p class="glass p-8 text-center text-slate-500">No ITC-04 working yet. It needs an approved ITC-04 frequency rule.</p>{% endif %}
+{% endblock %}

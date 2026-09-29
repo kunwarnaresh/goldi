@@ -1,0 +1,11 @@
+{% extends 'jobwork/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}Job work status board{% endblock %}
+{% block heading %}Status board{% endblock %}
+{% block body %}
+<div class="grid md:grid-cols-3 xl:grid-cols-5 gap-4">
+{% for title, orders in columns %}<section class="glass p-3 space-y-2"><h3 class="text-xs uppercase tracking-widest {% if title == 'Overdue' %}text-rose-600{% else %}text-slate-500{% endif %}">{{ title }} ({{ orders|length }})</h3>
+    {% for o in orders %}<a href="{% url 'jobwork_order_detail' o.pk %}" class="block glass p-2 card-hover text-sm"><span class="font-semibold text-sky-700">{{ o.order_no }}</span> <span class="text-xs text-slate-500">{{ o.job_worker.code }}</span><span class="block text-xs">{{ o.get_transaction_type_display }} · back {{ o.expected_return_date|default:'—' }}</span></a>{% endfor %}
+</section>{% endfor %}
+</div>
+{% endblock %}

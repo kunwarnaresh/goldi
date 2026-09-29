@@ -1,0 +1,20 @@
+{% extends 'jobwork/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}Delivery challan {{ challan.challan_no }}{% endblock %}
+{% block eyebrow %}Delivery challan — not a tax invoice{% endblock %}
+{% block heading %}{{ challan.challan_no }} {% badge challan.status %}{% endblock %}
+{% block subheading %}{{ challan.get_reason_display }} · {{ challan.challan_date }} · {{ challan.get_job_work_type_display }}{% endblock %}
+{% block actions %}<button onclick="window.print()" class="glass px-3 py-2 text-sky-700 text-sm"><i class="fas fa-print mr-1"></i>Print</button>{% endblock %}
+{% block body %}
+<section class="glass p-5 text-sm grid md:grid-cols-3 gap-4">
+    <div><p class="text-xs uppercase text-slate-500">Consignor</p><p class="font-semibold">{{ challan.consignor_name }}</p><p>GSTIN {{ challan.consignor_gstin|default:'unregistered' }} · state {{ challan.consignor_state_code }}</p><p class="text-xs">{{ challan.consignor_address }}</p></div>
+    <div><p class="text-xs uppercase text-slate-500">Consignee</p><p class="font-semibold">{{ challan.consignee_name }}</p><p>GSTIN {{ challan.consignee_gstin|default:'unregistered' }} · state {{ challan.consignee_state_code }}</p><p class="text-xs">{{ challan.consignee_address }}</p></div>
+    <div><p class="text-xs uppercase text-slate-500">Principal / reference</p><p>{{ challan.principal_name }} ({{ challan.principal_gstin }})</p><p>Order {{ challan.order_no }}{% if challan.production_order_no %} · production {{ challan.production_order_no }}{% endif %}</p><p>Vehicle {{ challan.vehicle_no|default:'—' }} · {{ challan.transporter }}</p><p>E-way bill {{ challan.eway_bill_no|default:'—' }}</p><p>Return due {{ challan.return_due_date|default:'—' }} ({{ challan.get_goods_category_display }})</p></div>
+</section>
+<section class="glass overflow-hidden"><table class="w-full text-left text-sm">
+    <thead class="text-xs uppercase text-slate-500 bg-white/5"><tr><th class="px-5 py-3">#</th><th>Item</th><th>HSN</th><th class="text-right">Qty</th><th class="text-right">Gross g</th><th class="text-right">Net g</th><th class="text-right">Fine g</th><th>Purity</th><th>Serial / HUID / lot</th><th class="text-right px-5">Value (documentation)</th></tr></thead>
+    <tbody>{% for l in lines %}<tr class="border-b border-white/5"><td class="px-5 py-2">{{ l.line_no }}</td><td>{{ l.item_no }} <span class="text-xs text-slate-500">{{ l.description }}</span></td><td>{{ l.hsn_code }}</td><td class="text-right">{{ l.quantity|qty }} {{ l.uom }}</td><td class="text-right">{{ l.gross_weight|grams }}</td><td class="text-right">{{ l.net_weight|grams }}</td><td class="text-right">{{ l.fine_weight|grams }}</td><td>{{ l.purity }}</td><td class="text-xs">{{ l.serial_no }} {{ l.huid }} {{ l.lot_no }}</td><td class="text-right px-5">{{ l.value|inr }}</td></tr>{% endfor %}
+    <tr><td colspan="9" class="px-5 py-2 text-right font-semibold">Total</td><td class="text-right px-5 font-semibold">{{ challan.total_value|inr }}</td></tr></tbody>
+</table></section>
+<p class="text-xs text-slate-500">Goods moved for job work without a supply; issued as a delivery challan. {{ tax_disclaimer }}</p>
+{% endblock %}

@@ -1,0 +1,65 @@
+{% extends 'savings/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}{{ scheme.code }}{% endblock %}
+{% block heading %}{{ scheme.code }} · {{ scheme.name }}{% endblock %}
+{% block subheading %}{% badge scheme.status scheme.get_status_display %} · account numbers {{ scheme.account_prefix }}-000001 · {{ enrolled }} enrolment{{ enrolled|pluralize }}{% endblock %}
+{% block actions %}
+{% if perms_sav.configure %}
+<form method="post" class="flex gap-2">{% csrf_token %}
+    {% if scheme.status == 'ACTIVE' %}<button name="action" value="SUSPENDED" class="px-4 py-2 rounded-lg bg-slate-700 text-white text-sm">Suspend enrolments</button>{% endif %}
+    {% if scheme.status == 'SUSPENDED' %}<button name="action" value="ACTIVE" class="px-4 py-2 rounded-lg bg-slate-700 text-white text-sm">Re-open enrolments</button>{% endif %}
+    {% if scheme.status == 'ACTIVE' or scheme.status == 'SUSPENDED' %}<button name="action" value="new_version" class="btn-gold px-4 py-2 rounded-lg text-sm">New version</button>{% endif %}
+</form>
+{% endif %}
+{% endblock %}
+{% block body %}
+<div class="flex flex-wrap gap-2 text-sm">
+    {% for x in versions %}<a href="?version={{ x.pk }}" class="px-3 py-1 rounded-lg {% if x.pk == v.pk %}bg-sky-100 text-sky-800 font-semibold{% else %}glass{% endif %}">{{ x.code }} · {{ x.get_status_display }}</a>{% endfor %}
+</div>
+{% if v %}
+<div class="glass p-4 text-sm flex flex-wrap items-center gap-3">
+    <span>{{ v.code }} is <strong>{{ v.get_status_display|lower }}</strong>.</span>
+    {% if v.status == 'DRAFT' %}<span class="text-slate-500">Edit the rules, then submit for approval.</span>{% endif %}
+    {% if v.status == 'UNDER_REVIEW' %}<span class="text-slate-500">Submitted by {{ v.submitted_by|default:'—' }} - a different user must approve (unless self-approval is on in setup).</span>{% endif %}
+    {% if v.status == 'ACTIVE' %}<span class="text-slate-500">New members enrol on this version. Approved {{ v.approved_at|date:'d-M-Y' }} by {{ v.approved_by }}.</span>{% endif %}
+    <form method="post" class="flex gap-2 ml-auto">{% csrf_token %}<input type="hidden" name="version" value="{{ v.pk }}">
+        {% if v.status == 'DRAFT' and perms_sav.configure %}<button name="action" value="submit" class="btn-gold px-4 py-1.5 rounded-lg">Submit for approval</button>{% endif %}
+        {% if v.status == 'UNDER_REVIEW' and perms_sav.approve_scheme %}<button name="action" value="approve" class="btn-gold px-4 py-1.5 rounded-lg">Approve &amp; activate</button>
+            <button name="action" value="reject" class="px-4 py-1.5 rounded-lg bg-slate-700 text-white">Send back to draft</button>{% endif %}
+    </form>
+</div>
+
+<form method="post" class="glass p-6 grid md:grid-cols-4 gap-4 text-sm">
+    {% csrf_token %}<input type="hidden" name="action" value="save"><input type="hidden" name="version" value="{{ v.pk }}">
+    {% with ro=v.editable|yesno:',disabled' %}
+    <h3 class="md:col-span-4 font-semibold text-white">Installments</h3>
+    <label><span class="text-slate-500 text-xs uppercase">Mode</span><select name="installment_mode" {{ ro }}>{% for c, l in choices.installment_mode %}<option value="{{ c }}" {% if v.installment_mode == c %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
+    <label><span class="text-slate-500 text-xs uppercase">Default monthly ₹</span><input name="installment_amount" type="number" step="0.01" value="{{ v.installment_amount }}" {{ ro }}></label>
+    <label><span class="text-slate-500 text-xs uppercase">Minimum ₹</span><input name="min_installment" type="number" step="0.01" value="{{ v.min_installment }}" {{ ro }}></label>
+    <label><span class="text-slate-500 text-xs uppercase">Maximum ₹ (0 = none)</span><input name="max_installment" type="number" step="0.01" value="{{ v.max_installment }}" {{ ro }}></label>
+    <label><span class="text-slate-500 text-xs uppercase">Multiple of ₹ (0 = any)</span><input name="installment_step" type="number" step="0.01" value="{{ v.installment_step }}" {{ ro }}></label>
+    <label><span class="text-slate-500 text-xs uppercase">Number of installments</span><input name="number_of_installments" type="number" min="1" value="{{ v.number_of_installments }}" {{ ro }}></label>
+    <label><span class="text-slate-500 text-xs uppercase">Due day of month (1-28)</span><input name="due_day" type="number" min="1" max="28" value="{{ v.due_day }}" {{ ro }}></label>
+    <label><span class="text-slate-500 text-xs uppercase">Grace days</span><input name="grace_days" type="number" min="0" value="{{ v.grace_days }}" {{ ro }}></label>
+    <label><span class="text-slate-500 text-xs uppercase">Maturity: months after last installment</span><input name="maturity_months_after_last" type="number" min="0" value="{{ v.maturity_months_after_last }}" {{ ro }}></label>
+    <label><span class="text-slate-500 text-xs uppercase">Missed installment rule</span><select name="missed_installment_rule" {{ ro }}>{% for c, l in choices.missed_installment_rule %}<option value="{{ c }}" {% if v.missed_installment_rule == c %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
+    <label class="flex items-center gap-2 pt-5"><input type="checkbox" name="partial_payment_allowed" {% if v.partial_payment_allowed %}checked{% endif %} {{ ro }}> Partial payment allowed</label>
+
+    <h3 class="md:col-span-4 font-semibold text-white">Jeweller benefit</h3>
+    <label><span class="text-slate-500 text-xs uppercase">Benefit type</span><select name="benefit_type" {{ ro }}>{% for c, l in choices.benefit_type %}<option value="{{ c }}" {% if v.benefit_type == c %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
+    <label><span class="text-slate-500 text-xs uppercase">Value (₹ fixed / % for percentage)</span><input name="benefit_value" type="number" step="0.001" value="{{ v.benefit_value }}" {{ ro }}></label>
+    <label><span class="text-slate-500 text-xs uppercase">Maximum benefit ₹ (0 = none)</span><input name="max_benefit" type="number" step="0.01" value="{{ v.max_benefit }}" {{ ro }}></label>
+    <label><span class="text-slate-500 text-xs uppercase">Eligibility</span><select name="benefit_eligibility" {{ ro }}>{% for c, l in choices.benefit_eligibility %}<option value="{{ c }}" {% if v.benefit_eligibility == c %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
+
+    <h3 class="md:col-span-4 font-semibold text-white">Redemption, refund, KYC</h3>
+    <label><span class="text-slate-500 text-xs uppercase">Redemption window (days after maturity)</span><input name="redemption_window_days" type="number" min="0" value="{{ v.redemption_window_days }}" {{ ro }}></label>
+    <label class="flex items-center gap-2 pt-5"><input type="checkbox" name="partial_redemption_allowed" {% if v.partial_redemption_allowed %}checked{% endif %} {{ ro }}> Partial / multiple redemption</label>
+    <label class="flex items-center gap-2 pt-5"><input type="checkbox" name="refund_allowed" {% if v.refund_allowed %}checked{% endif %} {{ ro }}> Refund on cancellation</label>
+    <label class="flex items-center gap-2 pt-5"><input type="checkbox" name="nominee_required" {% if v.nominee_required %}checked{% endif %} {{ ro }}> Nominee required</label>
+    <label class="flex items-center gap-2"><input type="checkbox" name="kyc_required" {% if v.kyc_required %}checked{% endif %} {{ ro }}> KYC (PAN) required</label>
+    <label class="md:col-span-4"><span class="text-slate-500 text-xs uppercase">Terms &amp; conditions (printed on the agreement)</span><textarea name="terms" rows="5" {{ ro }}>{{ v.terms }}</textarea></label>
+    {% if v.editable and perms_sav.configure %}<div class="md:col-span-4"><button class="btn-gold px-5 py-2 rounded-lg">Save {{ v.code }}</button></div>{% endif %}
+    {% endwith %}
+</form>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,24 @@
+{% extends 'jobwork/base.html' %}
+{% block page_title %}New job work order{% endblock %}
+{% block heading %}New job work order{% endblock %}
+{% block subheading %}Manual requirement. Subcontract orders for production operations are created from the <a class="text-sky-700" href="{% url 'jobwork_worksheet' %}">subcontracting worksheet</a>.{% endblock %}
+{% block body %}
+<form method="post" class="glass p-5 space-y-4 text-sm">{% csrf_token %}
+    <div class="grid md:grid-cols-4 gap-3">
+        <label>Job worker<select name="job_worker" required>{% for w in workers %}<option value="{{ w.pk }}">{{ w }}</option>{% endfor %}</select></label>
+        <label>Dispatch from<select name="source_location" required>{% for l in locations %}<option value="{{ l.pk }}">{{ l }}</option>{% endfor %}</select></label>
+        <label>Job work type<select name="transaction_type">{% for v, l in transaction_types %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select></label>
+        <label>Operation code (price lookup)<input name="operation_code" placeholder="CASTING"></label>
+        <label>Goods category<select name="goods_category"><option value="INPUTS">Inputs</option><option value="CAPITAL_GOODS">Capital goods</option></select></label>
+        <label>Expected return<input type="date" name="expected_return_date"></label>
+        <label class="md:col-span-2">Description<input name="description"></label>
+    </div>
+    <table class="w-full text-left text-sm"><thead class="text-xs uppercase text-slate-500"><tr><th>Type</th><th>Item no</th><th>Qty</th><th>Gross g</th><th>Net g</th><th>Supply</th></tr></thead><tbody>
+    {% for i in rows %}<tr><td><select name="type_{{ i }}"><option value="INPUT">Input</option><option value="COMPONENT">Component</option><option value="WIP">WIP</option><option value="OUTPUT">Output</option><option value="SCRAP">Scrap item</option><option value="BY_PRODUCT">By-product</option></select></td>
+        <td><input name="item_{{ i }}"></td><td><input name="qty_{{ i }}"></td><td><input name="gross_{{ i }}"></td><td><input name="net_{{ i }}"></td>
+        <td><select name="supply_{{ i }}"><option value="PRINCIPAL">Principal</option><option value="VENDOR">Vendor supplied</option><option value="CUSTOMER">Customer supplied</option><option value="DIRECT_PURCHASE">Direct purchase to JW</option></select></td></tr>{% endfor %}
+    </tbody></table>
+    <label class="block">Remarks<textarea name="remarks" rows="2"></textarea></label>
+    <button class="btn-gold px-4 py-2 rounded-lg">Create draft order</button>
+</form>
+{% endblock %}

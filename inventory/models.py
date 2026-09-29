@@ -94,7 +94,8 @@ class Location(TenantModel):
     TYPES = [
         ('STORE', 'Store'), ('WAREHOUSE', 'Warehouse'), ('DISTRIBUTION_CENTER', 'Distribution centre'),
         ('E_COMMERCE', 'E-commerce'), ('MANUFACTURING', 'Manufacturing'), ('REPAIR', 'Repair'),
-        ('QC', 'QC'), ('RETURN', 'Return'), ('TRANSIT', 'Transit'), ('VIRTUAL', 'Virtual'), ('OTHER', 'Other'),
+        ('QC', 'QC'), ('RETURN', 'Return'), ('TRANSIT', 'Transit'), ('VIRTUAL', 'Virtual'), ('JOB_WORKER', 'Job worker premises'),
+        ('OTHER', 'Other'),
     ]
     company = models.ForeignKey('erp.Company', on_delete=models.PROTECT, null=True, blank=True, related_name='inventory_locations')
     store = models.OneToOneField('erp.Store', on_delete=models.SET_NULL, null=True, blank=True, related_name='inventory_location',
@@ -366,7 +367,7 @@ class ItemUOM(TenantModel):
 
 class SKU(TenantModel):
     """An item configured for one location (and optionally one variant) - Business Central's Stockkeeping Unit."""
-    REPLENISHMENT = [('TRANSFER', 'Transfer'), ('PURCHASE', 'Purchase'), ('NONE', 'None')]
+    REPLENISHMENT = [('TRANSFER', 'Transfer'), ('PURCHASE', 'Purchase'), ('PRODUCTION', 'Production'), ('NONE', 'None')]
     code = models.CharField(max_length=60)
     item = models.ForeignKey(Item, on_delete=models.PROTECT, related_name='skus')
     variant = models.ForeignKey(ItemVariant, on_delete=models.PROTECT, null=True, blank=True, related_name='skus')
@@ -452,7 +453,7 @@ class JewelleryUnit(TenantModel):
         ('AVAILABLE', 'Available'), ('RESERVED', 'Reserved'), ('PICKED', 'Picked'), ('IN_TRANSIT', 'In transit'),
         ('QC', 'In QC'), ('DAMAGED', 'Damaged'), ('REPAIR', 'In repair'), ('BLOCKED', 'Blocked'),
         ('SOLD', 'Sold'), ('MISSING', 'Missing'), ('SCRAPPED', 'Scrapped'), ('RETURNED_TO_VENDOR', 'Returned to vendor'),
-        ('NOT_IN_STOCK', 'Not yet received'),
+        ('NOT_IN_STOCK', 'Not yet received'), ('CONSUMED', 'Consumed in production'),
     ]
     IN_STOCK_STATUSES = ('AVAILABLE', 'RESERVED', 'PICKED', 'QC', 'DAMAGED', 'REPAIR', 'BLOCKED')
     unit_no = models.CharField(max_length=40)
@@ -599,6 +600,8 @@ class InventoryLedgerEntry(TenantModel):
         ('REPAIR', 'Repair'), ('QC', 'QC'), ('DAMAGE', 'Damage'), ('STATUS', 'Status change'),
         ('ASSEMBLY', 'Assembly'), ('DISASSEMBLY', 'Disassembly'), ('PRODUCTION', 'Production'),
         ('TRANSFER_LOSS', 'Transfer short close'), ('REVERSAL', 'Reversal'),
+        ('CONSUMPTION', 'Production consumption'), ('OUTPUT', 'Production output'), ('SCRAP', 'Production scrap'),
+        ('REVALUATION', 'Revaluation'),
     ]
     STATES = [('ON_HAND', 'On hand'), ('IN_TRANSIT', 'In transit'), ('RESERVED', 'Reserved'), ('BLOCKED', 'Blocked'),
               ('QC', 'QC'), ('REPAIR', 'Repair'), ('DAMAGED', 'Damaged'), ('PICKED', 'Picked'), ('AVAILABLE', 'Available')]
@@ -670,7 +673,7 @@ class InventoryLedgerEntry(TenantModel):
 class InventoryReservation(TenantModel):
     SOURCES = [('SALES_ORDER', 'Sales order'), ('QUOTATION', 'Quotation'), ('POS', 'POS'), ('CUSTOMER_ORDER', 'Customer order'),
                ('TRANSFER_ORDER', 'Transfer order'), ('PRODUCTION_ORDER', 'Production order'), ('REPAIR_ORDER', 'Repair order'),
-               ('ECOMMERCE_ORDER', 'E-commerce order')]
+               ('ECOMMERCE_ORDER', 'E-commerce order'), ('JOB_WORK_ORDER', 'Job work order')]
     STATUSES = [('ACTIVE', 'Active'), ('RELEASED', 'Released'), ('CONSUMED', 'Consumed')]
     item = models.ForeignKey(Item, on_delete=models.PROTECT, related_name='reservations')
     variant = models.ForeignKey(ItemVariant, on_delete=models.PROTECT, null=True, blank=True, related_name='+')

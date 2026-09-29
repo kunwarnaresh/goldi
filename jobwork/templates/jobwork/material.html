@@ -1,0 +1,10 @@
+{% extends 'jobwork/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}Material at job workers{% endblock %}
+{% block heading %}Material at job workers{% endblock %}
+{% block subheading %}Owned by the principal, in the custody of the job worker — at historical cost{% endblock %}
+{% block body %}
+<form class="glass p-4 flex flex-wrap gap-2 text-sm"><select name="job_worker"><option value="">All job workers</option>{% for w in workers %}<option value="{{ w.pk }}" {% if worker == w %}selected{% endif %}>{{ w }}</option>{% endfor %}</select>
+<select name="metal"><option value="">All metals</option><option>GOLD</option><option>SILVER</option><option>PLATINUM</option><option>DIAMOND</option></select><input name="huid" placeholder="HUID"><button class="glass px-3 py-2 text-sky-700">Filter</button></form>
+{% include 'jobwork/_material_table.html' %}
+{% endblock %}

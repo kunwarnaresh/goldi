@@ -1,0 +1,23 @@
+{% extends 'savings/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}Scheme master{% endblock %}
+{% block heading %}Scheme master{% endblock %}
+{% block subheading %}Scheme rules are versioned: an approved version is frozen, so existing members keep the terms they signed.{% endblock %}
+{% block actions %}
+{% if perms_sav.configure %}
+<form method="post" action="{% url 'savings_dashboard' %}">{% csrf_token %}<input type="hidden" name="action" value="create_template">
+    <button class="btn-gold px-4 py-2 rounded-lg text-sm whitespace-nowrap"><i class="fas fa-plus mr-2"></i>New 11+1 plan from template</button></form>
+{% endif %}
+{% endblock %}
+{% block body %}
+<section class="glass overflow-x-auto">
+    <table class="w-full text-left text-sm">
+        <thead class="text-xs uppercase text-slate-500"><tr><th class="px-5 py-2">Code</th><th>Name</th><th>Current version</th><th class="text-right">Monthly</th><th class="text-right">Installments</th><th>Benefit</th><th class="px-5">Status</th></tr></thead>
+        <tbody>{% for s in schemes %}{% with v=s.current_version|default:s.versions.first %}
+            <tr class="border-t border-white/5"><td class="px-5 py-2"><a class="text-sky-700 font-semibold" href="{% url 'savings_scheme_detail' s.pk %}">{{ s.code }}</a></td><td>{{ s.name }}</td>
+                <td>{% if v %}{{ v.code }} {% badge v.status v.get_status_display %}{% endif %}</td><td class="text-right">{{ v.installment_amount|inr }}</td><td class="text-right">{{ v.number_of_installments }}</td>
+                <td>{{ v.get_benefit_type_display }}</td><td class="px-5">{% badge s.status s.get_status_display %}</td></tr>{% endwith %}
+        {% empty %}<tr><td colspan="7" class="px-5 py-6 text-slate-500">No schemes yet - start from the 11+1 template.</td></tr>{% endfor %}</tbody>
+    </table>
+</section>
+{% endblock %}

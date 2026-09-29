@@ -1,0 +1,21 @@
+{% extends 'jobwork/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}Job workers{% endblock %}
+{% block heading %}Job workers & subcontractors{% endblock %}
+{% block subheading %}Each job worker gets its own controlled inventory location — custody changes, ownership does not{% endblock %}
+{% block body %}
+<section class="glass overflow-hidden"><div class="overflow-x-auto"><table class="w-full text-left text-sm min-w-[900px]">
+    <thead class="text-xs uppercase text-slate-500 bg-white/5"><tr><th class="px-5 py-3">Code</th><th>Name</th><th>GSTIN / state</th><th>Location</th><th>Specialisation</th><th class="text-right">Lead days</th><th class="text-right">Loss % exp / max</th><th class="px-5">Compliance</th></tr></thead>
+    <tbody>{% for w in workers %}<tr class="border-b border-white/5"><td class="px-5 py-2"><a class="text-sky-700 font-semibold" href="{% url 'jobwork_worker_detail' w.pk %}">{{ w.code }}</a></td><td>{{ w.legal_name }}</td><td>{{ w.gstin|default:'unregistered' }} · {{ w.state_code }}</td><td>{{ w.default_location.code }}</td><td class="text-xs">{{ w.specializations|join:', ' }}</td><td class="text-right">{{ w.lead_time_days }}</td><td class="text-right">{{ w.default_loss_percent|qty }} / {{ w.max_loss_percent|qty }}</td><td class="px-5">{% badge w.compliance_status %}{% if w.blocked %} {% badge 'BLOCKED' %}{% endif %}</td></tr>{% empty %}<tr><td colspan="8" class="px-5 py-8 text-center text-slate-500">No job workers yet.</td></tr>{% endfor %}</tbody>
+</table></div></section>
+{% if perms_jw.masters %}
+<form method="post" class="glass p-5 grid md:grid-cols-4 gap-3 text-sm">{% csrf_token %}
+    <h3 class="md:col-span-4 font-semibold text-white">New job worker</h3>
+    <label>Code<input name="code" required></label><label>Legal name<input name="legal_name" required></label><label>Trade name<input name="trade_name"></label><label>GSTIN<input name="gstin" maxlength="15"></label>
+    <label>State<input name="state"></label><label>City<input name="city"></label><label class="md:col-span-2">Address<input name="address"></label>
+    <label>Default SAC<input name="default_sac" placeholder="9988"></label><label>Lead time (days)<input name="lead_time_days" value="7"></label><label>Expected loss %<input name="default_loss_percent"></label><label>Max loss %<input name="max_loss_percent"></label>
+    <label>Phone<input name="phone"></label>
+    <label class="md:col-span-3">Specialisations<select name="specializations" multiple size="3">{% for s in specializations %}<option>{{ s }}</option>{% endfor %}</select></label>
+    <button class="btn-gold px-4 py-2 rounded-lg md:col-span-4">Create job worker and location</button>
+</form>{% endif %}
+{% endblock %}

@@ -1,0 +1,80 @@
+{% extends 'savings/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}{{ e.account_no }}{% endblock %}
+{% block heading %}{{ e.account_no }} · {{ e.customer_name }}{% endblock %}
+{% block subheading %}{{ e.scheme.name }} ({{ e.agreement_version }}) · {{ e.mobile }} · enrolled {{ e.enrollment_date|date:'d-M-Y' }}{% if e.branch %} at {{ e.branch.code }}{% endif %} · {% badge e.status e.get_status_display %}{% endblock %}
+{% block actions %}
+<a href="{% url 'savings_customer_detail' e.customer_id %}" class="px-4 py-2 rounded-lg bg-slate-700 text-white text-sm">Customer ledger</a>
+{% if e.status == 'PENDING_APPROVAL' and perms_sav.approve_enrollment %}
+<form method="post">{% csrf_token %}<input type="hidden" name="action" value="approve"><button class="btn-gold px-4 py-2 rounded-lg text-sm">Approve enrolment</button></form>
+{% endif %}
+{% endblock %}
+{% block body %}
+{% if e.status == 'PENDING_APPROVAL' %}<div class="glass p-4 text-sm text-amber-700">Agreement accepted - waiting for a manager to approve the enrolment before installments can be collected.</div>{% endif %}
+
+<section class="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Installments paid</p><p class="text-2xl font-bold text-white">{{ s.installments_paid }} / {{ s.installments_total }}</p><p class="text-xs text-slate-500">₹{{ e.installment_amount }} monthly · {{ s.installments_remaining }} remaining</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Customer contribution paid</p><p class="text-2xl font-bold text-white">{{ s.contribution_paid|inr }}</p>{% if s.unallocated_advance %}<p class="text-xs text-slate-500">incl. {{ s.unallocated_advance|inr }} advance</p>{% endif %}</div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Pending contribution</p><p class="text-2xl font-bold {% if s.overdue_amount %}text-rose-600{% else %}text-white{% endif %}">{{ s.outstanding_contribution|inr }}</p><p class="text-xs text-slate-500">{{ s.overdue_amount|inr }} overdue</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Next due</p>{% if s.next_due %}<p class="text-2xl font-bold text-white">{{ s.next_due.outstanding|inr }}</p><p class="text-xs text-slate-500">#{{ s.next_due.installment_no }} due {{ s.next_due.due_date|date:'d-M-Y' }}</p>{% else %}<p class="text-2xl font-bold text-white">—</p>{% endif %}</div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">{% if e.benefit_approved %}Jeweller benefit{% else %}Expected benefit{% endif %}</p><p class="text-2xl font-bold text-white">{% if e.benefit_approved %}{{ s.benefit_approved|inr }}{% else %}{{ s.expected_benefit|inr }}{% endif %}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">{% if e.benefit_approved %}Purchase entitlement{% else %}Expected entitlement{% endif %}</p><p class="text-2xl font-bold text-white">{{ s.expected_entitlement|inr }}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Redeemed · refunded</p><p class="text-2xl font-bold text-white">{{ s.redeemed|inr }}</p><p class="text-xs text-slate-500">{{ s.refunded|inr }} refunded</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Available for purchase</p><p class="text-2xl font-bold text-white">{{ s.available_for_purchase|inr }}</p><p class="text-xs text-slate-500">Maturity {{ s.maturity_date|date:'d-M-Y' }}</p></div>
+</section>
+
+{% if perms_sav.collect and e.status in 'ACTIVE PAYMENT_DUE PARTIALLY_PAID OVERDUE COMPLETED' %}
+<form method="post" class="glass p-5 grid md:grid-cols-6 gap-3 text-sm items-end">
+    {% csrf_token %}<input type="hidden" name="action" value="collect">
+    <h3 class="md:col-span-6 font-semibold text-white">Collect installment</h3>
+    <label><span class="text-slate-500 text-xs uppercase">Amount ₹</span><input name="amount" type="number" step="0.01" min="0.01" value="{% if s.next_due %}{{ s.next_due.outstanding }}{% endif %}" required></label>
+    <label><span class="text-slate-500 text-xs uppercase">Method</span><select name="method_type">{% for code, label in methods %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select></label>
+    <label><span class="text-slate-500 text-xs uppercase">Reference (UPI / cheque no)</span><input name="reference_no"></label>
+    <label><span class="text-slate-500 text-xs uppercase">Collected at</span><select name="location"><option value="">—</option>{% for l in locations %}<option value="{{ l.pk }}" {% if l.pk == e.branch_id %}selected{% endif %}>{{ l.code }}</option>{% endfor %}</select></label>
+    <label class="flex items-center gap-2"><input type="checkbox" name="confirm"> Confirm second payment today</label>
+    <button class="btn-gold px-5 py-2 rounded-lg">Collect &amp; post receipt</button>
+</form>
+{% endif %}
+
+<div class="grid lg:grid-cols-2 gap-6">
+    <section class="glass overflow-x-auto">
+        <div class="px-5 py-4 border-b border-white/10"><h3 class="font-semibold text-white">Installment schedule</h3></div>
+        <table class="w-full text-left text-sm">
+            <thead class="text-xs uppercase text-slate-500"><tr><th class="px-5 py-2">#</th><th>Due date</th><th class="text-right">Amount</th><th class="text-right">Paid</th><th class="text-right">Pending</th><th>Paid on</th><th class="px-5">Status</th></tr></thead>
+            <tbody>{% for i in installments %}
+                <tr class="border-t border-white/5"><td class="px-5 py-1.5">{{ i.installment_no }}</td><td>{{ i.due_date|date:'d-M-Y' }}</td><td class="text-right">{{ i.scheduled_amount|inr }}</td>
+                    <td class="text-right">{{ i.paid_amount|inr }}</td><td class="text-right {% if i.outstanding and i.status == 'OVERDUE' %}text-rose-600{% endif %}">{{ i.outstanding|inr }}</td>
+                    <td>{{ i.settled_date|date:'d-M-Y'|default:'' }}{% if i.settled_date and not i.paid_within_grace %} <span class="text-amber-600">(late)</span>{% endif %}</td><td class="px-5">{% badge i.status i.get_status_display %}</td></tr>
+            {% endfor %}</tbody>
+        </table>
+    </section>
+    <section class="glass overflow-x-auto">
+        <div class="px-5 py-4 border-b border-white/10"><h3 class="font-semibold text-white">Receipts</h3></div>
+        <table class="w-full text-left text-sm">
+            <thead class="text-xs uppercase text-slate-500"><tr><th class="px-5 py-2">Receipt</th><th>Date</th><th>Method</th><th class="text-right">Amount</th><th>Status</th><th class="px-5"></th></tr></thead>
+            <tbody>{% for p in payments %}
+                <tr class="border-t border-white/5"><td class="px-5 py-1.5 font-semibold">{{ p.receipt_no }}</td><td>{{ p.payment_date|date:'d-M-Y' }}</td><td>{{ p.method_type|upper }}{% if p.reference_no %} · {{ p.reference_no }}{% endif %}</td>
+                    <td class="text-right">{{ p.amount|inr }}</td><td>{% badge p.status p.get_status_display %}</td>
+                    <td class="px-5">{% if p.status == 'POSTED' and perms_sav.reverse_payment %}
+                        <form method="post" class="flex gap-1" onsubmit="return confirm('Reverse receipt {{ p.receipt_no }}?')">{% csrf_token %}<input type="hidden" name="action" value="reverse_payment"><input type="hidden" name="payment" value="{{ p.pk }}">
+                            <input name="reason" placeholder="Reason" required class="w-28 text-xs"><button class="text-rose-600 text-xs">Reverse</button></form>{% endif %}</td></tr>
+            {% empty %}<tr><td colspan="6" class="px-5 py-6 text-slate-500">No receipts yet.</td></tr>{% endfor %}</tbody>
+        </table>
+        {% if nominees %}<div class="px-5 py-3 border-t border-white/10 text-sm text-slate-500">Nominee: {% for n in nominees %}{{ n.name }} ({{ n.relationship }}, {{ n.percentage|floatformat:0 }}%){% if not forloop.last %}, {% endif %}{% endfor %}</div>{% endif %}
+    </section>
+</div>
+
+<section class="glass overflow-x-auto">
+    <div class="px-5 py-4 border-b border-white/10"><h3 class="font-semibold text-white">Customer scheme ledger</h3><p class="text-xs text-slate-500">Every money event, never edited - corrections appear as reversal entries.</p></div>
+    <table class="w-full text-left text-sm">
+        <thead class="text-xs uppercase text-slate-500"><tr><th class="px-5 py-2">Date</th><th>Document</th><th>Description</th><th class="text-right">Contribution</th><th class="text-right">Benefit</th><th class="text-right">Redeemed</th><th class="text-right">Refund / forfeit</th><th class="text-right px-5">Available after</th></tr></thead>
+        <tbody>{% for l in ledger %}
+            <tr class="border-t border-white/5"><td class="px-5 py-1.5 whitespace-nowrap">{{ l.entry_date|date:'d-M-Y' }}</td><td class="whitespace-nowrap">{{ l.document_no }}</td><td>{{ l.description }}</td>
+                <td class="text-right">{% if l.contribution %}{{ l.contribution|inr }}{% endif %}</td><td class="text-right">{% if l.benefit %}{{ l.benefit|inr }}{% endif %}</td>
+                <td class="text-right">{% if l.contribution_redeemed or l.benefit_redeemed %}{{ l.contribution_redeemed|add:l.benefit_redeemed|inr }}{% endif %}</td>
+                <td class="text-right">{% if l.refund or l.contribution_forfeited or l.benefit_forfeited %}{{ l.refund|add:l.contribution_forfeited|add:l.benefit_forfeited|inr }}{% endif %}</td>
+                <td class="text-right px-5">{{ l.entitlement_balance|inr }}</td></tr>
+        {% empty %}<tr><td colspan="8" class="px-5 py-6 text-slate-500">No ledger entries yet - the account starts its ledger once the enrolment is approved.</td></tr>{% endfor %}</tbody>
+    </table>
+</section>
+{% endblock %}

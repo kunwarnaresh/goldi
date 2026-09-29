@@ -1,0 +1,24 @@
+{% extends 'manufacturing/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}Work & machine centres{% endblock %}
+{% block heading %}Work & machine centres{% endblock %}
+{% block subheading %}Where and by whom products are made · capacity and hourly rates{% endblock %}
+{% block actions %}<a href="{% url 'manufacturing_capacity' %}" class="glass px-4 py-2 text-sm text-sky-700">Capacity load →</a>{% endblock %}
+{% block body %}
+<section class="glass overflow-hidden">
+    <div class="px-5 py-4 border-b border-white/10"><h3 class="font-semibold text-white">Work centres</h3></div>
+    <div class="overflow-x-auto"><table class="w-full text-left text-sm min-w-[860px]">
+        <thead class="text-xs uppercase text-slate-500 bg-white/5"><tr><th class="px-5 py-3">Code</th><th>Name</th><th>Group</th><th>Location</th><th class="text-right">Capacity</th><th class="text-right">Efficiency %</th><th class="text-right">Cost / hr</th><th>Calendar</th><th class="text-right px-5">Status</th></tr></thead>
+        <tbody>{% for w in centers %}<tr class="border-b border-white/5"><td class="px-5 py-2 font-semibold">{{ w.code }}</td><td>{{ w.name }}</td><td>{{ w.group.code|default:'' }}</td><td>{{ w.location.code|default:'' }}</td><td class="text-right">{{ w.capacity|qty }}</td><td class="text-right">{{ w.efficiency|qty }}</td><td class="text-right">{{ w.unit_cost|inr }}</td><td>{{ w.calendar.code|default:'Default' }}</td><td class="text-right px-5">{% if w.usable %}{% badge 'ACTIVE' %}{% else %}{% badge 'BLOCKED' 'Inactive' %}{% endif %}</td></tr>
+        {% empty %}<tr><td colspan="9" class="px-5 py-10 text-center text-slate-500">No work centres yet.</td></tr>{% endfor %}</tbody>
+    </table></div>
+</section>
+<section class="glass overflow-hidden">
+    <div class="px-5 py-4 border-b border-white/10"><h3 class="font-semibold text-white">Machine centres</h3></div>
+    <div class="overflow-x-auto"><table class="w-full text-left text-sm min-w-[760px]">
+        <thead class="text-xs uppercase text-slate-500 bg-white/5"><tr><th class="px-5 py-3">Code</th><th>Name</th><th>Work centre</th><th class="text-right">Capacity</th><th class="text-right">Cost / hr</th><th>Next maintenance</th><th class="text-right px-5">Status</th></tr></thead>
+        <tbody>{% for m in machines %}<tr class="border-b border-white/5"><td class="px-5 py-2 font-semibold">{{ m.code }}</td><td>{{ m.name }}</td><td>{{ m.work_center.code }}</td><td class="text-right">{{ m.capacity|qty }}</td><td class="text-right">{{ m.hourly_cost|inr }}</td><td>{{ m.next_maintenance_date|default:'' }}</td><td class="text-right px-5">{% badge m.status %}</td></tr>
+        {% empty %}<tr><td colspan="7" class="px-5 py-8 text-center text-slate-500">No machine centres.</td></tr>{% endfor %}</tbody>
+    </table></div>
+</section>
+{% endblock %}

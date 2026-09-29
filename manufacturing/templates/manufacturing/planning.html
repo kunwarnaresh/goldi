@@ -1,0 +1,35 @@
+{% extends 'manufacturing/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}Planning worksheet{% endblock %}
+{% block heading %}Planning worksheet{% endblock %}
+{% block subheading %}Nets sales orders, reorder points and safety stock against stock and open production{% endblock %}
+{% block actions %}
+{% if can_plan %}
+<form method="post" class="flex gap-2 items-center">{% csrf_token %}<input type="hidden" name="action" value="run">
+    <select name="location" class="text-sm w-44"><option value="">All locations</option>{% for l in locations %}<option value="{{ l.pk }}">{{ l.code }} – {{ l.name }}</option>{% endfor %}</select>
+    <input name="horizon_days" type="number" min="1" value="30" class="text-sm w-20" title="Horizon (days)">
+    <button class="btn-gold px-4 py-2 rounded-lg text-sm whitespace-nowrap"><i class="fas fa-calculator mr-2"></i>Run planning</button>
+</form>
+{% endif %}
+{% endblock %}
+{% block body %}
+{% if runs %}
+<div class="flex flex-wrap gap-2 text-sm">{% for r in runs %}<a href="?run={{ r.pk }}" class="px-3 py-1 rounded border {% if r.pk == run.pk %}border-sky-600 text-sky-700 font-semibold{% else %}border-slate-200 text-slate-500{% endif %}">{{ r.run_no }} · {{ r.run_at|date:'d M H:i' }}</a>{% endfor %}</div>
+{% endif %}
+<form method="post" class="glass overflow-hidden">{% csrf_token %}
+    <div class="px-5 py-4 border-b border-white/10 flex justify-between items-center"><h3 class="font-semibold text-white">Suggestions{% if run %} · {{ run.run_no }} ({{ run.horizon_days }} days){% endif %}</h3>
+        {% if can_plan and suggestions %}<div class="flex gap-3 items-center text-sm"><label class="flex items-center gap-1 text-xs text-slate-500"><input type="checkbox" name="firm" class="w-auto"> as firm planned</label><button name="action" value="carry_out" class="btn-gold px-4 py-2 rounded-lg">Carry out selected</button></div>{% endif %}
+    </div>
+    <div class="overflow-x-auto"><table class="w-full text-left text-sm min-w-[900px]">
+        <thead class="text-xs uppercase text-slate-500 bg-white/5"><tr><th class="px-5 py-3"></th><th>Action</th><th class="text-right">Level</th><th>Item</th><th>Location</th><th class="text-right">Demand</th><th class="text-right">Supply</th><th class="text-right">Suggested</th><th>Due</th><th>Source</th><th class="text-right px-5">Status</th></tr></thead>
+        <tbody>{% for s in suggestions %}<tr class="border-b border-white/5">
+            <td class="px-5 py-2">{% if s.status == 'SUGGESTED' %}<input type="checkbox" name="suggestion" value="{{ s.pk }}" class="w-auto">{% endif %}</td>
+            <td>{{ s.get_suggestion_type_display }}</td><td class="text-right">{{ s.level }}</td>
+            <td>{{ s.item.item_no }}</td><td>{{ s.location.code }}{% if s.source_location %} ← {{ s.source_location.code }}{% endif %}</td>
+            <td class="text-right">{{ s.demand_qty|qty }}</td><td class="text-right">{{ s.supply_qty|qty }}</td><td class="text-right font-semibold">{{ s.quantity|qty }}</td>
+            <td>{{ s.due_date|default:'' }}</td><td class="text-xs text-slate-500">{{ s.demand_source|truncatechars:40 }}</td>
+            <td class="text-right px-5">{% if s.production_order %}<a class="text-sky-700" href="{% url 'manufacturing_order_detail' s.production_order.pk %}">{{ s.production_order.order_no }}</a>{% else %}{% badge s.status %}{% endif %}</td>
+        </tr>{% empty %}<tr><td colspan="11" class="px-5 py-10 text-center text-slate-500">{% if run %}Nothing to plan – demand is covered.{% else %}No planning runs yet. Run planning to get suggestions.{% endif %}</td></tr>{% endfor %}</tbody>
+    </table></div>
+</form>
+{% endblock %}

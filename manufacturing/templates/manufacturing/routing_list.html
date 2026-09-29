@@ -1,0 +1,13 @@
+{% extends 'manufacturing/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}Routings{% endblock %}
+{% block heading %}Routings{% endblock %}
+{% block subheading %}How each product is made · operations, work centres and standard times{% endblock %}
+{% block actions %}<form method="get"><input name="q" value="{{ q }}" placeholder="Routing, description, item…" class="text-sm w-56"></form>{% endblock %}
+{% block body %}
+<section class="glass overflow-hidden"><div class="overflow-x-auto"><table class="w-full text-left text-sm min-w-[760px]">
+    <thead class="text-xs uppercase text-slate-500 bg-white/5"><tr><th class="px-5 py-3">Routing</th><th>Description</th><th>Item</th><th>Type</th><th class="text-right">Versions</th><th class="text-right px-5">Status</th></tr></thead>
+    <tbody>{% for r in routings %}<tr class="border-b border-white/5"><td class="px-5 py-3"><a class="text-sky-700 font-semibold" href="{% url 'manufacturing_routing_detail' r.pk %}">{{ r.routing_no }}</a></td><td>{{ r.description }}</td><td>{{ r.item.item_no|default:'—' }}</td><td>{{ r.get_routing_type_display }}</td><td class="text-right">{{ r.version_count }}</td><td class="text-right px-5">{% badge r.status %}</td></tr>
+    {% empty %}<tr><td colspan="6" class="px-5 py-10 text-center text-slate-500">No routings yet.</td></tr>{% endfor %}</tbody>
+</table></div></section>
+{% endblock %}

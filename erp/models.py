@@ -94,6 +94,9 @@ class DocumentNumberSeries(models.Model):
         ('accrual_journal', 'Accrual Journal'),
         ('provision_journal', 'Provision Journal'),
         ('reversal_journal', 'Reversal Journal'),
+        ('production_journal', 'Production Journal'),
+        ('scheme_journal', 'Jewellery Savings Journal'),
+        ('job_work_journal', 'Job Work Journal'),
     ]
 
     company = models.ForeignKey(

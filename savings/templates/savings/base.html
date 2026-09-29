@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% load inventory_tags %}
+{% block title %}{% block page_title %}Jewellery Savings{% endblock %} | Goldio{% endblock %}
+{% block content %}
+<div class="max-w-7xl mx-auto px-6 space-y-6 animate-in pb-32">
+    <details class="glass px-5 py-3 text-sm">
+        <summary class="cursor-pointer text-slate-500 font-semibold select-none"><i class="fas fa-piggy-bank mr-2"></i>Jewellery Savings menu</summary>
+        <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-5 mt-4 pb-2">
+            {% for group, links in savings_menu %}
+            <div>
+                <p class="text-[10px] uppercase tracking-widest text-slate-500 mb-1">{{ group }}</p>
+                {% for url, label in links %}<a href="{{ url }}" class="block py-0.5 text-sky-700 hover:underline">{{ label }}</a>{% endfor %}
+            </div>
+            {% endfor %}
+        </div>
+    </details>
+    <div class="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
+        <div>
+            <p class="text-xs uppercase tracking-[0.25em] text-sky-600">{% block eyebrow %}{{ setup.display_name }}{% endblock %}</p>
+            <h2 class="text-3xl font-bold text-white mt-1">{% block heading %}{% endblock %}</h2>
+            <p class="text-slate-400 mt-1 text-sm">{% block subheading %}{% endblock %}</p>
+        </div>
+        <div class="flex flex-wrap gap-2 items-center">{% block actions %}{% endblock %}</div>
+    </div>
+    {% block body %}{% endblock %}
+</div>
+{% endblock %}

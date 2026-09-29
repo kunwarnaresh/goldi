@@ -1,0 +1,11 @@
+{% extends 'jobwork/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}Job work register{% endblock %}
+{% block heading %}Job work register{% endblock %}
+{% block body %}
+<form class="glass p-4 flex gap-2 text-sm"><label>From <input type="date" name="start" value="{{ start|date:'Y-m-d' }}"></label><label>To <input type="date" name="end" value="{{ end|date:'Y-m-d' }}"></label><button class="glass px-3 py-2 text-sky-700">Show</button></form>
+<section class="glass overflow-hidden"><div class="overflow-x-auto"><table class="w-full text-left text-sm min-w-[1300px]">
+    <thead class="text-xs uppercase text-slate-500 bg-white/5"><tr><th class="px-5 py-3">Challan</th><th>Date</th><th>Movement</th><th>Order / production</th><th>Job worker (GSTIN)</th><th>Material</th><th>HSN</th><th class="text-right">Qty</th><th class="text-right">Net g</th><th class="text-right">Value</th><th>E-way bill</th><th>Receipts</th><th>Due</th><th>Status</th><th class="px-5">ITC-04</th></tr></thead>
+    <tbody>{% for r in rows %}<tr class="border-b border-white/5"><td class="px-5 py-2"><a class="text-sky-700" href="{% url 'jobwork_challan' r.challan.pk %}">{{ r.challan.challan_no }}</a></td><td>{{ r.challan.challan_date }}</td><td class="text-xs">{{ r.movement }}</td><td><a class="text-sky-700" href="{% url 'jobwork_order_detail' r.order.pk %}">{{ r.order.order_no }}</a> <span class="text-xs">{{ r.challan.production_order_no }}</span></td><td>{{ r.job_worker.code }} <span class="text-xs">{{ r.job_worker.gstin }}</span></td><td>{{ r.line.item_no }}</td><td>{{ r.line.hsn_code }}</td><td class="text-right">{{ r.line.quantity|qty }}</td><td class="text-right">{{ r.line.net_weight|grams }}</td><td class="text-right">{{ r.line.value|inr }}</td><td class="text-xs">{{ r.eway_bill.ewb_no|default:'' }}</td><td class="text-xs">{{ r.receipts }}</td><td>{{ r.due_date|default:'' }}</td><td>{% badge r.order.status %}</td><td class="px-5 text-xs">{{ r.itc04 }}</td></tr>{% empty %}<tr><td colspan="15" class="px-5 py-10 text-center text-slate-500">No challans in this period.</td></tr>{% endfor %}</tbody>
+</table></div></section>
+{% endblock %}
