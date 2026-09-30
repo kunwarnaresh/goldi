@@ -179,7 +179,10 @@ class SchemePostingEngine:
                 return s.redemption_settlement_account
             if invoice is not None:
                 from erp import services as erp_services
-                group = erp_services._resolve_customer_posting_group(invoice.customer)
+                try:
+                    group = erp_services._resolve_customer_posting_group(invoice.customer)
+                except ValueError:
+                    return None
                 return getattr(group, 'receivable_account', None)
             return None
         return getattr(s, f'{role}_account', None)

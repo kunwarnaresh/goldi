@@ -11,7 +11,7 @@ services:
     plan: free
     branch: dev
     buildCommand: "pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py migrate"
-    startCommand: "gunicorn goldi.wsgi:application --workers 2"
+    startCommand: "gunicorn goldi.wsgi:application --workers 2 --bind 0.0.0.0:$PORT"
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.7

@@ -163,7 +163,8 @@ class ManufacturingPostingEngine:
                 'batch': self.batch}
 
     def order_wip(self):
-        return CostEntry.objects.filter(tenant=self.tenant, order=self.order).aggregate(v=Sum('amount'))['v'] or ZERO
+        # money(): SQLite sums decimals as floats, which would leave sub-paisa residue in a WIP that is really zero
+        return money(CostEntry.objects.filter(tenant=self.tenant, order=self.order).aggregate(v=Sum('amount'))['v'] or ZERO)
 
     def cost(self, cost_type, amount, *, source=None, description='', is_rework=False, reversal_of=None):
         amount = money(amount)
@@ -1108,9 +1109,9 @@ def cost_breakdown(order):
     rework = ZERO
     for row in entries.values('cost_type', 'is_rework').annotate(v=Sum('amount')):
         if row['is_rework'] and row['cost_type'] in ('MATERIAL', 'LABOUR', 'MACHINE', 'OVERHEAD', 'SUBCONTRACT'):
-            rework += row['v']
+            rework += money(row['v'])
         else:
-            actual[row['cost_type']] += row['v']
+            actual[row['cost_type']] += money(row['v'])
     factor = (order.produced_qty / order.planned_qty) if order.planned_qty else ZERO
     standard = {'MATERIAL': order.planned_material_cost, 'LABOUR': order.planned_labour_cost, 'MACHINE': order.planned_machine_cost,
                 'OVERHEAD': order.planned_overhead_cost, 'SUBCONTRACT': order.planned_subcontract_cost}
@@ -1474,6 +1475,7 @@ def reverse_qc(actor, qc, *, reason):
                 if qc.failed_qty:
                     write_off = CostEntry.objects.filter(tenant=actor.tenant, order=order, source_type='ProductionQC', source_id=qc.pk,
                                                          cost_type='SCRAP_WRITE_OFF').aggregate(v=Sum('amount'))['v'] or ZERO
+                    write_off = money(write_off)
                     engine.inventory.receive(transaction_type='REVERSAL', item=line.item, variant=line.variant, location=qc_location,
                                              bin=order.qc_bin, quantity=qc.failed_qty, unit_cost=(write_off / qc.failed_qty),
                                              into_state='QC', reason_code='REVERSAL')

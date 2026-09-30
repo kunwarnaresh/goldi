@@ -1,0 +1,93 @@
+{% extends 'erp/retail/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}{{ store.code }} · {{ store.name }}{% endblock %}
+{% block eyebrow %}Store card{% endblock %}
+{% block heading %}{{ store.name }}{% endblock %}
+{% block subheading %}Store code {{ store.code }} · {{ store.get_store_type_display }} · {% badge store.status|upper store.get_status_display %}{% endblock %}
+{% block actions %}
+{% if can_manage %}
+<a href="{% url 'retail_store_add_staff' store.pk %}" class="btn-gold px-3 py-2 rounded-lg text-sm"><i class="fas fa-user-plus mr-1"></i>Add Staff</a>
+<a href="{% url 'retail_store_add_terminal' store.pk %}" class="btn-gold px-3 py-2 rounded-lg text-sm"><i class="fas fa-cash-register mr-1"></i>Add POS Terminal</a>
+<a href="{% url 'retail_store_add_tender' store.pk %}" class="btn-gold px-3 py-2 rounded-lg text-sm"><i class="fas fa-wallet mr-1"></i>Add Tender</a>
+<a href="{% url 'retail_store_edit' store.pk %}" class="btn-ghost"><i class="fas fa-pen"></i>Edit store</a>
+{% endif %}
+{% endblock %}
+{% block body %}
+{% if not store.location %}
+<p class="glass p-3 text-rose-600 text-sm border-l-4 border-rose-500"><i class="fas fa-circle-exclamation mr-2"></i>This store has no location. Staff cannot log in to its POS terminals until a location is assigned. <a class="underline" href="{% url 'retail_store_edit' store.pk %}">Assign location</a></p>
+{% endif %}
+
+<section class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+    <div class="glass kpi"><p>Active staff</p><p>{{ kpis.active_staff }}<span class="text-sm text-slate-400"> / {{ kpis.total_staff }}</span></p></div>
+    <div class="glass kpi"><p>Active POS terminals</p><p>{{ kpis.active_terminals }}<span class="text-sm text-slate-400"> / {{ kpis.total_terminals }}</span></p></div>
+    <div class="glass kpi"><p>Active tenders</p><p>{{ kpis.active_tenders }}<span class="text-sm text-slate-400"> / {{ kpis.total_tenders }}</span></p></div>
+    <a href="{% url 'retail_sessions' %}?store={{ store.pk }}&status=active" class="glass kpi card-hover"><p>Open sessions</p><p>{{ kpis.open_sessions }}</p></a>
+    <div class="glass kpi"><p>Today's sales</p><p>₹{{ kpis.todays_sales|floatformat:2 }}</p></div>
+    <div class="glass kpi"><p>Today's bills</p><p>{{ kpis.todays_bills }}</p></div>
+    <div class="glass kpi"><p>Today's returns</p><p>{{ kpis.todays_returns }}</p></div>
+</section>
+
+<div class="grid lg:grid-cols-3 gap-5">
+    <section class="glass overflow-hidden">
+        <div class="panel-head"><h3><i class="fas fa-location-dot text-sky-600 mr-2"></i>Location</h3>{% if store.location %}<a href="{% url 'retail_location_card' store.location.pk %}" class="text-sm text-sky-700">View Location</a>{% endif %}</div>
+        <div class="p-4 text-sm space-y-2">
+            {% if store.location %}
+            <p><span class="text-slate-500">Location code</span><br><strong class="text-white">{{ store.location.location_code }}</strong></p>
+            <p><span class="text-slate-500">Location name</span><br><strong class="text-white">{{ store.location.location_name }}</strong></p>
+            <p><span class="text-slate-500">Status</span><br>{% badge store.location.status|upper store.location.get_status_display %}</p>
+            {% else %}<p class="text-slate-500">No location assigned.</p>{% endif %}
+        </div>
+    </section>
+    <section class="glass overflow-hidden lg:col-span-2">
+        <div class="panel-head"><h3><i class="fas fa-store text-sky-600 mr-2"></i>Store details</h3></div>
+        <dl class="p-4 grid sm:grid-cols-3 gap-3 text-sm">
+            <div><dt class="text-slate-500">Company</dt><dd class="text-white">{{ store.company.company_code }}</dd></div>
+            <div><dt class="text-slate-500">Manager</dt><dd class="text-white">{% if store.manager %}<a class="text-sky-700" href="{% url 'retail_staff_card' store.manager.pk %}">{{ store.manager.name }}</a>{% else %}—{% endif %}</dd></div>
+            <div><dt class="text-slate-500">GSTIN</dt><dd class="text-white">{{ store.gstin|default:'—' }}</dd></div>
+            <div class="sm:col-span-2"><dt class="text-slate-500">Address</dt><dd class="text-white">{{ store.address|default:'—' }}{% if store.city %}, {{ store.city }}{% endif %}{% if store.state %}, {{ store.state }}{% endif %} {{ store.pin_code }}</dd></div>
+            <div><dt class="text-slate-500">Contact</dt><dd class="text-white">{{ store.phone|default:'—' }}<br>{{ store.email }}</dd></div>
+            <div><dt class="text-slate-500">Opened</dt><dd class="text-white">{{ store.opening_date|default:'—' }}</dd></div>
+            <div><dt class="text-slate-500">Closed</dt><dd class="text-white">{{ store.closing_date|default:'—' }}</dd></div>
+        </dl>
+    </section>
+</div>
+
+<div class="grid lg:grid-cols-2 gap-5">
+    <section class="glass overflow-hidden">
+        <div class="panel-head"><h3><i class="fas fa-users text-sky-600 mr-2"></i>Staff · {{ staff_total }}</h3>
+            <div class="flex gap-3 text-sm"><a href="{% url 'retail_staff' %}?store={{ store.pk }}" class="text-sky-700">View Staff</a>{% if can_manage %}<a href="{% url 'retail_store_add_staff' store.pk %}" class="text-sky-700">+ Add Staff</a>{% endif %}</div></div>
+        <table class="rtable"><thead><tr><th>Staff</th><th>Name</th><th>Role</th><th>Login ID</th><th>Status</th></tr></thead><tbody>
+        {% for s in staff %}<tr><td><a class="text-sky-700" href="{% url 'retail_staff_card' s.pk %}">{{ s.employee_code }}</a></td><td>{{ s.name }}</td><td>{{ s.staff_role.name|default:s.get_role_display }}</td><td>{{ s.login_id|default:'—' }}</td>
+            <td>{% if s.is_blocked %}{% badge 'BLOCKED' 'Locked' %}{% elif s.is_active %}{% badge 'ACTIVE' %}{% else %}{% badge 'INACTIVE' %}{% endif %}</td></tr>
+        {% empty %}<tr><td colspan="5" class="text-slate-500">No staff yet.</td></tr>{% endfor %}
+        </tbody></table>
+    </section>
+    <section class="glass overflow-hidden">
+        <div class="panel-head"><h3><i class="fas fa-cash-register text-sky-600 mr-2"></i>POS Terminals · {{ terminals|length }}</h3>
+            <div class="flex gap-3 text-sm"><a href="{% url 'retail_terminals' %}?store={{ store.pk }}" class="text-sky-700">View Terminals</a>{% if can_manage %}<a href="{% url 'retail_store_add_terminal' store.pk %}" class="text-sky-700">+ Add Terminal</a>{% endif %}</div></div>
+        <table class="rtable"><thead><tr><th>Terminal</th><th>Name</th><th>Device</th><th>Default tender</th><th>Status</th></tr></thead><tbody>
+        {% for t in terminals %}<tr><td><a class="text-sky-700" href="{% url 'retail_terminal_card' t.pk %}">{{ t.code }}</a></td><td>{{ t.name }}</td><td>{{ t.device_id|default:'—' }}</td><td>{{ t.default_tender.name|default:'—' }}</td><td>{% badge t.status|upper t.get_status_display %}</td></tr>
+        {% empty %}<tr><td colspan="5" class="text-slate-500">No POS terminals yet.</td></tr>{% endfor %}
+        </tbody></table>
+    </section>
+</div>
+
+<div class="grid lg:grid-cols-2 gap-5">
+    <section class="glass overflow-hidden">
+        <div class="panel-head"><h3><i class="fas fa-wallet text-sky-600 mr-2"></i>Tenders · {{ tenders|length }}</h3>
+            <div class="flex gap-3 text-sm"><a href="{% url 'retail_store_tenders' %}?store={{ store.pk }}" class="text-sky-700">View Tenders</a>{% if can_manage %}<a href="{% url 'retail_store_add_tender' store.pk %}" class="text-sky-700">+ Add Tender</a>{% endif %}</div></div>
+        <table class="rtable"><thead><tr><th>Tender</th><th>Type</th><th>Default</th><th>Refund</th><th>Split</th><th>Status</th><th></th></tr></thead><tbody>
+        {% for st in tenders %}<tr><td>{{ st.tender.name }}</td><td>{{ st.tender.get_tender_type_display }}</td><td>{% if st.is_default %}Yes{% else %}No{% endif %}</td><td>{% if st.can_refund %}Yes{% endif %}</td><td>{% if st.can_split %}Yes{% endif %}</td>
+            <td>{% if st.is_effective %}{% badge 'ACTIVE' %}{% else %}{% badge 'INACTIVE' %}{% endif %}</td><td>{% if can_manage %}<a class="text-sky-700" href="{% url 'retail_store_tender_edit' st.pk %}">Edit</a>{% endif %}</td></tr>
+        {% empty %}<tr><td colspan="7" class="text-slate-500">No tenders assigned. POS cannot take payment until at least one is added.</td></tr>{% endfor %}
+        </tbody></table>
+    </section>
+    <section class="glass overflow-hidden">
+        <div class="panel-head"><h3><i class="fas fa-clock-rotate-left text-sky-600 mr-2"></i>Recent POS sessions</h3><a href="{% url 'retail_sessions' %}?store={{ store.pk }}" class="text-sm text-sky-700">View Sessions</a></div>
+        <table class="rtable"><thead><tr><th>Session</th><th>Staff</th><th>Terminal</th><th>Login</th><th>Status</th></tr></thead><tbody>
+        {% for s in sessions %}<tr><td>{{ s.session_no|default:s.pk }}</td><td>{{ s.staff_name_snapshot|default:s.staff.name }}</td><td>{{ s.terminal_code_snapshot|default:s.terminal.code }}</td><td>{{ s.login_time|date:'d M H:i' }}</td><td>{% if s.status == 'active' %}{% badge 'OPEN' 'Open' %}{% else %}{% badge s.status|upper s.get_status_display %}{% endif %}</td></tr>
+        {% empty %}<tr><td colspan="5" class="text-slate-500">No sessions yet.</td></tr>{% endfor %}
+        </tbody></table>
+    </section>
+</div>
+{% endblock %}

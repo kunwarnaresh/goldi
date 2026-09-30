@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% block title %}{% block page_title %}Stores & POS{% endblock %} | Goldi ERP{% endblock %}
+{% block extra_css %}
+<style>
+    .retail-subnav { display: flex; gap: .25rem; overflow-x: auto; padding-bottom: .25rem; }
+    .retail-subnav a { white-space: nowrap; padding: .4rem .75rem; font-size: .78rem; color: #4d6078; border-radius: 4px; border: 1px solid transparent; }
+    .retail-subnav a:hover { background: #eef4fb; color: #174a82; }
+    .retail-subnav a.on { background: #174a82; color: #fff; }
+    .retail-card input[type=checkbox], .retail-card input[type=radio] { width: auto; }
+    .retail-card ul.checks { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: .35rem .9rem; }
+    .retail-card ul.checks label { display: flex; gap: .5rem; align-items: center; font-size: .82rem; color: #172033; text-transform: none; letter-spacing: 0; }
+    .kpi { padding: 1rem; }
+    .kpi p:first-child { font-size: .68rem; text-transform: uppercase; letter-spacing: .08em; color: #718198; }
+    .kpi p:last-child { font-size: 1.4rem; font-weight: 700; color: #172033; margin-top: .15rem; }
+    .panel-head { display: flex; justify-content: space-between; align-items: center; gap: .75rem; padding: .85rem 1.1rem; border-bottom: 1px solid #e5eaf0; }
+    .panel-head h3 { font-weight: 600; color: #172033; }
+    .rtable { width: 100%; font-size: .82rem; text-align: left; }
+    .rtable th { font-size: .66rem; text-transform: uppercase; letter-spacing: .07em; color: #718198; font-weight: 600; padding: .55rem 1.1rem; background: #f7f9fc; white-space: nowrap; }
+    .rtable td { padding: .5rem 1.1rem; border-top: 1px solid #eef1f5; color: #172033; vertical-align: middle; }
+    .rtable tr:hover td { background: #fafcff; }
+    .btn-ghost { display: inline-flex; align-items: center; gap: .4rem; padding: .45rem .8rem; font-size: .8rem; border: 1px solid #d5dfeb; border-radius: 4px; color: #26405e; background: #fff; }
+    .btn-ghost:hover { border-color: #3b82d0; color: #174a82; }
+    .btn-danger { color: #b42318; border-color: #f3c7c3; }
+    .field-help { font-size: .72rem; color: #718198; margin-top: .25rem; }
+</style>
+{% block retail_css %}{% endblock %}
+{% endblock %}
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 space-y-5 animate-in pb-32 retail-card">
+    <nav class="retail-subnav" aria-label="Stores and POS">
+        {% for url, label, on in retail_nav %}<a href="{{ url }}" class="{% if on %}on{% endif %}">{{ label }}</a>{% endfor %}
+    </nav>
+    <div class="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
+        <div>
+            <p class="text-xs uppercase tracking-[0.25em] text-sky-600">{% block eyebrow %}Stores & POS{% endblock %}</p>
+            <h2 class="text-3xl font-bold text-white mt-1">{% block heading %}{% endblock %}</h2>
+            <p class="text-slate-400 mt-1 text-sm">{% block subheading %}{% endblock %}</p>
+        </div>
+        <div class="flex flex-wrap gap-2 items-center">{% block actions %}{% endblock %}</div>
+    </div>
+    {% block body %}{% endblock %}
+</div>
+{% endblock %}

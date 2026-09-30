@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block title %}Analytics Center | Goldio{% endblock %}
+{% block content %}
+<div class="max-w-7xl mx-auto px-6 space-y-6 animate-in pb-24">
+    <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+        <div><p class="text-xs uppercase tracking-[0.25em] text-sky-600">Analytics Center</p><h2 class="text-3xl font-bold text-white mt-1">Executive dashboard</h2><p class="text-slate-400 mt-1 text-sm">A tenant scoped view of sales, stock and operations.</p></div>
+        <a href="{% url 'analytics:explorer' %}" class="btn-gold px-4 py-2 rounded-lg text-sm"><i class="fas fa-table-columns mr-2"></i>Explore reports</a>
+    </div>
+
+    <form method="get" class="glass p-4 grid sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
+        <label><span class="text-xs text-slate-500">From</span><input type="date" name="date_from" value="{{ date_from }}"></label>
+        <label><span class="text-xs text-slate-500">To</span><input type="date" name="date_to" value="{{ date_to }}"></label>
+        <button class="btn-gold px-4 py-2 rounded-lg text-sm">Apply period</button>
+        <a class="text-sky-700 text-sm px-2 py-2" href="{% url 'analytics:explorer' %}">Open report builder <i class="fas fa-arrow-right ml-1"></i></a>
+    </form>
+
+    <section class="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <a href="{% url 'analytics:explorer' %}?dataset=sales&measure=sales&date_from={{ date_from }}&date_to={{ date_to }}" class="glass p-5 card-hover"><p class="text-xs uppercase tracking-wider text-slate-500">Net sales</p><p class="counter mt-2">₹{{ sales.sales|floatformat:2 }}</p><p class="text-xs text-slate-500 mt-2">Posted invoice lines · {{ date_from }} to {{ date_to }}</p></a>
+        <a href="{% url 'analytics:explorer' %}?dataset=sales&measure=discount&date_from={{ date_from }}&date_to={{ date_to }}" class="glass p-5 card-hover"><p class="text-xs uppercase tracking-wider text-slate-500">Discounts</p><p class="counter mt-2">₹{{ sales.discount|floatformat:2 }}</p><p class="text-xs text-slate-500 mt-2">Sales line discounts in period</p></a>
+        <a href="{% url 'analytics:explorer' %}?dataset=inventory&measure=quantity" class="glass p-5 card-hover"><p class="text-xs uppercase tracking-wider text-slate-500">Inventory on hand</p><p class="counter mt-2">{{ inventory.quantity|floatformat:3 }}</p><p class="text-xs text-slate-500 mt-2">Across {{ locations_count }} permitted locations</p></a>
+        <a href="{% url 'analytics:explorer' %}?dataset=inventory&measure=cost_value" class="glass p-5 card-hover"><p class="text-xs uppercase tracking-wider text-slate-500">Inventory cost value</p><p class="counter mt-2">₹{{ inventory.value|floatformat:2 }}</p><p class="text-xs text-slate-500 mt-2">Historical inventory cost</p></a>
+        <a href="{% url 'analytics:explorer' %}?dataset=sales&measure=invoices&date_from={{ date_from }}&date_to={{ date_to }}" class="glass p-5 card-hover"><p class="text-xs uppercase tracking-wider text-slate-500">Invoices</p><p class="counter mt-2">{{ sales.invoices }}</p><p class="text-xs text-slate-500 mt-2">Posted invoices in period</p></a>
+        <a href="{% url 'analytics:explorer' %}?dataset=production&measure=orders" class="glass p-5 card-hover"><p class="text-xs uppercase tracking-wider text-slate-500">Open production orders</p><p class="counter mt-2">{{ production_orders }}</p><p class="text-xs text-slate-500 mt-2">Active orders in permitted locations</p></a>
+        <a href="{% url 'analytics:explorer' %}?dataset=schemes&measure=amount" class="glass p-5 card-hover"><p class="text-xs uppercase tracking-wider text-slate-500">Scheme collections</p><p class="text-sm font-semibold text-sky-700 mt-3">Explore collections</p><p class="text-xs text-slate-500 mt-2">Posted contribution activity</p></a>
+        <div class="glass p-5"><p class="text-xs uppercase tracking-wider text-slate-500">Accessible locations</p><p class="counter mt-2">{{ locations_count }}</p><p class="text-xs text-slate-500 mt-2">Filtered by your workspace permissions</p></div>
+    </section>
+
+    <section class="grid lg:grid-cols-3 gap-5">
+        <div class="glass p-5 lg:col-span-2"><div class="flex items-center justify-between mb-4"><div><h3 class="font-bold text-lg">Explore a dataset</h3><p class="text-sm text-slate-500">Reuse dimensions and measures to build multiple views.</p></div></div>
+            <div class="grid sm:grid-cols-2 gap-3">{% for dataset in datasets %}<a href="{% url 'analytics:explorer' %}?dataset={{ dataset.key }}" class="border border-slate-200 rounded-lg p-4 hover:border-sky-500"><span class="font-semibold">{{ dataset.label }}</span><p class="text-xs text-slate-500 mt-1">{{ dataset.description }}</p></a>{% endfor %}</div>
+        </div>
+        <div class="glass p-5"><div class="flex items-center justify-between mb-4"><div><h3 class="font-bold text-lg">Saved analysis views</h3><p class="text-sm text-slate-500">Private and shared views for this workspace.</p></div></div>
+            {% for view in saved_views %}<a href="{% url 'analytics:explorer' %}?view_id={{ view.pk }}" class="block border-b border-slate-100 py-3"><span class="font-semibold text-sm">{{ view.name }}</span><span class="block text-xs text-slate-500">{{ view.get_dataset_display|default:view.dataset }} · v{{ view.version }}</span></a>{% empty %}<p class="text-sm text-slate-500">Save a report configuration from Report Explorer to see it here.</p>{% endfor %}
+        </div>
+    </section>
+    <p class="text-xs text-slate-500">Sales are restricted to POS stores linked to locations you can view. Inventory and operational records use the same tenant and location access rules. Profit is not inferred where source cost data is unavailable.</p>
+</div>
+{% endblock %}

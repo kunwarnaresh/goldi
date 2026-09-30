@@ -153,7 +153,8 @@ class POSCompletionTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username='pos-cashier', password='test-pass')
         company = Company.objects.create(company_code='POS-SALE', company_name='POS Sales Company')
-        store = Store.objects.create(company=company, code='SALE', name='Sales Store')
+        location = Location.objects.create(company=company, location_code='SALE-LOC', location_name='Sales Location', status='active')
+        store = Store.objects.create(company=company, code='SALE', name='Sales Store', location=location)
         terminal = POSTerminal.objects.create(store=store, code='POS-SALE-01', name='Sales Register')
         staff = POSStaff.objects.create(
             employee_code='EMP-SALE', name='POS Cashier', role='cashier', store=store,
@@ -205,7 +206,8 @@ class POSStaffSecurityTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username='pos-user', password='test-pass')
         self.company = Company.objects.create(company_code='POS-CO', company_name='POS Company')
-        self.store = Store.objects.create(company=self.company, code='DKG', name='DKG Store')
+        location = Location.objects.create(company=self.company, location_code='DKG-LOC', location_name='DKG', status='active')
+        self.store = Store.objects.create(company=self.company, code='DKG', name='DKG Store', location=location)
         self.terminal = POSTerminal.objects.create(store=self.store, code='POS-003', name='Register 3')
         self.staff = POSStaff.objects.create(
             employee_code='EMP1024', name='Amit Kumar', role='cashier', store=self.store,
@@ -422,7 +424,7 @@ class ERPPageAvailabilityTests(TestCase):
             status='completed',
         )
 
-        response = self.client.get(reverse('sales_receivables'), {'q': invoice.invoice_no, 'status': 'completed'})
+        response = self.client.get(reverse('invoice_list'), {'q': invoice.invoice_no, 'status': 'completed'})
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, invoice.invoice_no)

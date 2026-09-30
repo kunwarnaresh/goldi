@@ -59,15 +59,15 @@ def gross_benefit(rules, *, installment_amount, paid, eligible):
     if kind == 'ONE_INSTALLMENT':
         return money(installment_amount), f'One installment = ₹{money(installment_amount)}'
     if kind == 'PERCENT_CONTRIBUTION':
-        return money(paid * value / 100), f'{value.normalize()}% of contribution ₹{money(paid)}'
+        return money(paid * value / 100), f'{value.normalize():f}% of contribution ₹{money(paid)}'
     if kind == 'PERCENT_ELIGIBLE':
-        return money(eligible * value / 100), f'{value.normalize()}% of eligible contribution ₹{money(eligible)}'
+        return money(eligible * value / 100), f'{value.normalize():f}% of eligible contribution ₹{money(eligible)}'
     if kind == 'TIERED':
         for tier in rules.get('benefit_tiers') or []:
             low, high = d(tier.get('from')), tier.get('to')
             if eligible >= low and (high in (None, '') or eligible <= d(high)):
                 pct = d(tier.get('percent'))
-                return money(eligible * pct / 100), f'Tier ₹{money(low)}–{"∞" if high in (None, "") else f"₹{money(d(high))}"}: {pct.normalize()}% of ₹{money(eligible)}'
+                return money(eligible * pct / 100), f'Tier ₹{money(low)}–{"∞" if high in (None, "") else f"₹{money(d(high))}"}: {pct.normalize():f}% of ₹{money(eligible)}'
         return ZERO, 'No tier matches the eligible contribution'
     return ZERO, 'Scheme has no benefit'
 
@@ -144,7 +144,7 @@ def calculate(enrollment, installments, as_of=None):
             cut = d(rules.get('missed_reduction_percent')) * missed
             factor -= cut / 100
             eligibility = 'REDUCED'
-            notes.append(f'Reduced {cut.normalize()}% for {missed} missed installment(s)')
+            notes.append(f'Reduced {cut.normalize():f}% for {missed} missed installment(s)')
         else:
             factor, eligibility = ZERO, 'PENDING'
             notes.append(f'{missed} installment(s) still to be paid before the benefit is due')
@@ -162,7 +162,7 @@ def calculate(enrollment, installments, as_of=None):
                 cut = d(rules.get('late_payment_value')) * late
                 factor -= cut / 100
                 eligibility = 'REDUCED'
-                notes.append(f'Reduced {cut.normalize()}% for {late} late installment(s)')
+                notes.append(f'Reduced {cut.normalize():f}% for {late} late installment(s)')
             elif rules.get('benefit_eligibility') == 'ON_TIME' and rules.get('benefit_type') in ('FIXED', 'ONE_INSTALLMENT'):
                 factor, eligibility = ZERO, 'NOT_ELIGIBLE'
                 notes.append(f'{late} installment(s) paid after the grace period; benefit requires on-time payment')

@@ -7,6 +7,8 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.hashers import check_password
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.db.models import Count, Q, Sum
 from django.http import HttpResponse
 from django.forms import modelform_factory
@@ -22,6 +24,8 @@ from inventory.tenancy import create_tenant_for_user
 
 from .compliance import calculate_gst, estimate_income_tax, round_money
 from .excel_templates import build_template
+from .retail import services as retail_services
+from .retail.permissions import staff_permissions
 from .forms import (
     ConvertQuantityForm, CustomerForm, EmployeeForm, ExchangeTransactionForm, GSTSlabForm,
     InvoiceSettingForm, MetalRateForm, PaymentReceiptForm, POSSaleForm, ProductForm, PurchaseInvoiceFromReceiptForm,
@@ -57,8 +61,8 @@ from .services import (
     convert_receipt_to_purchase_invoice, convert_sales_order_to_invoice, create_payment_receipt,
     create_purchase_order, create_quotation, create_vendor_payment, get_next_customer_number, get_next_number,
     get_next_repair_number, get_related_documents, move_customer_ornament, post_payment_receipt,
-    post_purchase_invoice, post_sales_invoice, post_vendor_payment, receive_goods, submit_for_approval,
-    ManualPricingRule, ManualUnit, ProductWeightAsUnit, ResolvedRate, resolve_current_metal_rate,
+    post_purchase_invoice, post_sales_invoice, post_vendor_payment, receive_goods, render_invoice_pdf,
+    render_thermal_receipt, submit_for_approval, ManualPricingRule, ManualUnit, ProductWeightAsUnit, ResolvedRate, resolve_current_metal_rate,
 )
 
 
@@ -159,51 +163,64 @@ def register_view(request):
     return render(request, 'marketing/register.html')
 
 
+POS_TERMINAL_COOKIE = 'goldi_pos_terminal'
+
+
+def _device_terminal(request):
+    """The terminal this browser is bound to (signed cookie), or the only active terminal when there is just one."""
+    terminal_id = request.get_signed_cookie(POS_TERMINAL_COOKIE, default=None, salt='pos-terminal')
+    terminals = POSTerminal.objects.select_related('store__location')
+    if terminal_id:
+        terminal = terminals.filter(pk=terminal_id).first()
+        if terminal:
+            return terminal
+    active = list(terminals.filter(status='active')[:2])
+    return active[0] if len(active) == 1 else None
+
+
+def _pos_login_page(request, terminal, status=200):
+    choosing = terminal is None or request.GET.get('change') == 'terminal'
+    return render(request, 'erp/pos_login.html', {
+        'terminal': terminal, 'choosing_terminal': choosing,
+        'terminals': POSTerminal.objects.filter(status='active').select_related('store__location').order_by('store__code', 'code') if choosing else [],
+    }, status=status)
+
+
 @login_required(login_url='login')
 def pos_login(request):
-    terminal = POSTerminal.objects.filter(is_active=True, status='active').select_related('store').first()
+    terminal = _device_terminal(request)
     if request.method == 'POST':
-        staff_code = request.POST.get('staff_id', '').strip()
-        pin = request.POST.get('pin', '')
-        staff = POSStaff.objects.filter(employee_code__iexact=staff_code).select_related('store').first()
-        assignment = POSStaffAssignment.objects.filter(
-            staff=staff, terminal=terminal, active=True, role__in=['cashier', 'manager', 'sales_staff'],
-        ).first() if staff and terminal else None
-        if not terminal:
-            messages.error(request, 'This POS terminal is not configured.')
-        elif not staff or not staff.is_active or staff.is_blocked or not staff.pos_access:
-            messages.error(request, 'Access denied. Check your staff ID or account status.')
-        elif not check_password(pin, staff.pin_hash):
-            messages.error(request, 'Access denied. Invalid staff ID or PIN.')
-        elif not assignment or assignment.terminal.store_id != staff.store_id:
-            messages.error(request, 'Your staff account is not assigned to this POS terminal.')
-        else:
-            shift = POSShift.objects.filter(terminal=terminal, status='open').first()
-            if not shift:
-                shift = POSShift.objects.create(
-                    shift_code=f'SHIFT-{timezone.now():%Y%m%d%H%M%S}',
-                    store=terminal.store, terminal=terminal, opening_staff=staff,
-                )
-            if not request.session.session_key:
-                request.session.save()
-            request.session['pos_session_id'] = POSSession.objects.create(
-                session_key=request.session.session_key,
-                staff=staff, terminal=terminal, shift=shift,
-                ip_address=request.META.get('REMOTE_ADDR'), device_id=terminal.device_id,
-            ).pk
-            terminal.last_login = timezone.now()
-            terminal.save(update_fields=['last_login'])
-            return redirect('pos')
-    return render(request, 'erp/pos_login.html', {'terminal': terminal})
+        chosen = request.POST.get('terminal_id')
+        if chosen:
+            terminal = POSTerminal.objects.select_related('store__location').filter(pk=chosen).first()
+        if terminal is None:
+            identifier = request.POST.get('staff_id', '')
+            staff = retail_services.find_staff(identifier)
+            terminal = staff.default_terminal if staff and staff.default_terminal_id else None
+        if not request.session.session_key:
+            request.session.save()
+        try:
+            pos_session = retail_services.authenticate(
+                request.POST.get('staff_id', ''), request.POST.get('pin', ''), terminal,
+                request=request, django_session_key=request.session.session_key,
+            )
+        except retail_services.POSLoginError as exc:
+            messages.error(request, exc.message)
+            return _pos_login_page(request, terminal)
+        request.session['pos_session_id'] = pos_session.pk
+        response = redirect('pos')
+        response.set_signed_cookie(POS_TERMINAL_COOKIE, str(terminal.pk), salt='pos-terminal', max_age=60 * 60 * 24 * 365,
+                                   httponly=True, samesite='Lax')
+        return response
+    return _pos_login_page(request, terminal)
 
 
 @login_required(login_url='login')
 def pos_logout(request):
     pos_session = POSSession.objects.filter(id=request.session.get('pos_session_id'), status='active').first()
     if pos_session:
-        pos_session.status = 'logged_out'
-        pos_session.logout_time = timezone.now()
-        pos_session.save(update_fields=['status', 'logout_time'])
+        retail_services.close_session(pos_session, request=request)
+        messages.info(request, f'Logged out. {pos_session.sales_count} bill(s), ₹{pos_session.sales_amount} this session.')
     request.session.pop('pos_session_id', None)
     return redirect('pos_login')
 
@@ -1479,18 +1496,27 @@ def gst_management(request):
 
 
 @login_required(login_url='login')
+@transaction.atomic
 def pos(request):
     pos_session_id = request.session.get('pos_session_id')
     pos_session = POSSession.objects.select_related('staff', 'terminal__store', 'shift').filter(
         id=pos_session_id, status='active'
     ).first()
     if not pos_session:
-        return render(request, 'erp/pos_login.html', {
-            'terminal': POSTerminal.objects.filter(is_active=True, status='active').select_related('store').first(),
-        })
+        return _pos_login_page(request, _device_terminal(request))
+    # Re-validated on every request: deactivating staff, terminal, store or location takes effect immediately.
+    problem = retail_services.session_problem(pos_session)
+    if problem:
+        retail_services.close_session(pos_session, status='force_closed')
+        request.session.pop('pos_session_id', None)
+        messages.error(request, f'POS session closed: {problem[1]}')
+        return redirect('pos_login')
 
     pos_session.last_activity = timezone.now()
     pos_session.save(update_fields=['last_activity'])
+    pos_store = pos_session.terminal.store
+    pos_permissions = staff_permissions(pos_session.staff)
+    store_tenders = retail_services.active_store_tenders(pos_store)
     products = Product.objects.filter(is_active=True).order_by('name')
     customer_form = CustomerForm(prefix='customer')
     sales_staff = POSStaff.objects.filter(
@@ -1584,11 +1610,16 @@ def pos(request):
             invoice.invoice_no = invoice.invoice_no or get_next_number('sales_invoice')
             invoice.cashier_staff = pos_session.staff
             invoice.cashier_name_snapshot = pos_session.staff.name
+            invoice.cashier_code_snapshot = pos_session.staff.employee_code
             invoice.cashier_role_snapshot = pos_session.staff.role
             invoice.pos_terminal = pos_session.terminal
             invoice.pos_session = pos_session
-            invoice.store_code_snapshot = pos_session.terminal.store.code
+            invoice.store_code_snapshot = pos_store.code
+            invoice.store_name_snapshot = pos_store.name
+            invoice.location_code_snapshot = pos_store.location.location_code
+            invoice.location_name_snapshot = pos_store.location.location_name
             invoice.terminal_code_snapshot = pos_session.terminal.code
+            invoice.terminal_name_snapshot = pos_session.terminal.name
             terminal_print_setup = POSTerminalPrintSetup.objects.filter(terminal=pos_session.terminal, active=True).first()
             store_print_setup = StoreInvoicePrintSetup.objects.filter(store=pos_session.terminal.store, active=True).first()
             selected_print_type = terminal_print_setup.print_type if terminal_print_setup and terminal_print_setup.print_type else store_print_setup.invoice_print_type if store_print_setup else 'A4_INVOICE'
@@ -1615,7 +1646,45 @@ def pos(request):
                 invoice.gst_amount = gst
                 invoice.total_amount = total
             invoice.status = 'pending_approval'
+
+            def reject(message):
+                messages.error(request, message)
+                return render(request, 'erp/pos.html', {
+                    'form': form, 'products': products, 'customer_form': customer_form, 'pos_session': pos_session,
+                    'sales_staff': sales_staff, 'jewellery_units': jewellery_units, 'store_tenders': store_tenders,
+                    'pos_permissions': pos_permissions,
+                }, status=400)
+
+            if 'pos.sale.create' not in pos_permissions:
+                return reject('Your role is not allowed to create sales.')
+            if (invoice.discount_amount or discount_amount) > 0 and 'pos.discount.approve' not in pos_permissions:
+                approver = retail_services.authorize_override(
+                    pos_store, request.POST.get('approver_login', ''), request.POST.get('approver_password', ''), 'pos.discount.approve')
+                if approver is None:
+                    return reject('A discount needs approval: enter the login ID and password of a manager of this store.')
+                invoice.notes = (invoice.notes + '\n' if invoice.notes else '') + f'Discount approved by {approver.employee_code} ({approver.name}).'
+            tender_lines = []
+            store_tender_map = {str(st.pk): st for st in store_tenders}
+            for st_id, amount, reference in zip(request.POST.getlist('tender_store_tender'), request.POST.getlist('tender_amount'),
+                                                request.POST.getlist('tender_reference')):
+                store_tender = store_tender_map.get(st_id)
+                try:
+                    amount = Decimal(amount)
+                except (InvalidOperation, TypeError):
+                    return reject('Invalid tender amount.')
+                if store_tender is None:
+                    return reject('A selected tender is not available at this store.')
+                tender_lines.append(retail_services.TenderLine(store_tender, amount, reference or ''))
+            if tender_lines and 'pos.payment.receive' not in pos_permissions:
+                return reject('Your role is not allowed to receive payments.')
+            try:
+                change_due = retail_services.validate_tender_lines(pos_store, tender_lines, invoice.total_amount)
+            except ValidationError as exc:
+                return reject(' '.join(exc.messages))
             invoice.save()
+            retail_services.record_tender_lines(invoice, pos_session, tender_lines, change_due)
+            pos_session.terminal.last_transaction = timezone.now()
+            pos_session.terminal.save(update_fields=['last_transaction'])
 
             SalesInvoiceItem.objects.create(
                 invoice=invoice,
@@ -1655,7 +1724,7 @@ def pos(request):
     return render(request, 'erp/pos.html', {
         'form': form, 'products': products, 'customer_form': customer_form,
         'pos_session': pos_session, 'sales_staff': sales_staff,
-        'jewellery_units': jewellery_units,
+        'jewellery_units': jewellery_units, 'store_tenders': store_tenders, 'pos_permissions': pos_permissions,
     })
 
 

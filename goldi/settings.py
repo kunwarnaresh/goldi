@@ -30,6 +30,10 @@ DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS = [host.strip() for host in os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1,testserver').split(',') if host.strip()]
 
+PUBLIC_IP = os.environ.get('PUBLIC_IP', '').strip()
+if PUBLIC_IP and PUBLIC_IP not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(PUBLIC_IP)
+
 RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
 if RENDER_EXTERNAL_HOSTNAME:
     ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
@@ -50,6 +54,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'analytics.apps.AnalyticsConfig',
     'erp',
     'inventory',
     'manufacturing',
@@ -90,6 +95,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'erp.navigation.main_menu',
             ],
         },
     },

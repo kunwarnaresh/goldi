@@ -2,6 +2,7 @@
 cancellation/refund, controls and accounting (spec section 79)."""
 from datetime import date
 from decimal import Decimal
+from unittest import mock
 
 from django.contrib.auth.models import User
 from django.core.exceptions import PermissionDenied, ValidationError
@@ -25,8 +26,20 @@ D = Decimal
 TEN_K = D('10000')
 
 
+# Rule presets layered over the configurable 11+1 template.
+MAKING_CHARGE_PLAN = dict(benefit_application='MAKING_CHARGE', making_charge_eligible=True)
+TIERED_PLAN = dict(benefit_type='TIERED', benefit_tiers=[{'from': 0, 'to': 50000, 'percent': 5}, {'from': 50000, 'to': 100000, 'percent': 7},
+                                                         {'from': 100000, 'to': None, 'percent': 10}])
+SIX_PLUS_ONE_PLAN = dict(number_of_installments=6, benefit_type='PERCENT_ELIGIBLE', benefit_value=D('8'))
+TODAY = date(2026, 1, 1)
+
+
 class SavingsFixture(TestCase):
     def setUp(self):
+        # Pin "today" to the scenario start so installment status does not depend on the real calendar.
+        patcher = mock.patch('django.utils.timezone.localdate', return_value=TODAY)
+        patcher.start()
+        self.addCleanup(patcher.stop)
         self.owner = User.objects.create_user('owner@goldio.test', password='pw-12345678')
         self.tenant = create_tenant_for_user(self.owner, 'Goldio Savings')
         self.admin = Actor(self.tenant, self.owner)
@@ -45,14 +58,12 @@ class SavingsFixture(TestCase):
         SavingsRole.objects.create(tenant=self.tenant, user=user, role=role)
         return Actor(self.tenant, user)
 
-    def make_scheme(self, code='GJ11', template='11+1', product_rules=(), **rules):
-        scheme = svc.create_scheme(self.admin, code=code, name='Gold Jewellery 11+1 Plan', template=template, **rules)
-        version = scheme.versions.get()
+    def make_scheme(self, code='GJ11', product_rules=(), **rules):
+        scheme, version = svc.create_template_scheme(self.admin, code=code, **rules)
         if product_rules:
             svc.set_product_rules(self.admin, version, product_rules)
         svc.transition_version(self.admin, version, 'submit')
         svc.transition_version(self.manager, version, 'approve')
-        svc.transition_version(self.manager, version, 'activate')
         scheme.refresh_from_db()
         return scheme
 
@@ -65,7 +76,7 @@ class SavingsFixture(TestCase):
         return e
 
     def pay(self, e, amount, day, method=None, **kw):
-        return svc.collect_payment(self.operator, e, amount=amount, payment_method=method or self.cash, payment_date=day,
+        return svc.collect(self.operator, e, amount=amount, payment_method=method or self.cash, payment_date=day,
                                    location=kw.pop('location', self.delhi), confirm_duplicate=True, **kw)
 
     def pay_all(self, e, months=11):
@@ -75,8 +86,8 @@ class SavingsFixture(TestCase):
         return e
 
     def matured(self, e, day=date(2026, 12, 5), approved=None, reason=''):
-        calc = svc.mature(self.manager, e, as_of=day)
-        svc.approve_benefit(self.manager, calc, approved_benefit=approved, reason=reason)
+        calc = svc.mature(self.operator, e, as_of=day)  # maker-checker: operator matures, manager approves
+        svc.approve_benefit(self.manager, calc, approved_amount=approved, reason=reason)
         e.refresh_from_db()
         return e, calc
 
@@ -97,7 +108,7 @@ class GoldJewellery11Plus1Tests(SavingsFixture):
         e = self.enroll(scheme)
         # Enrolment, agreement, schedule (tests 1-5)
         self.assertEqual(e.account_no, 'GSP-000001')
-        self.assertEqual(e.status, 'ACTIVE')
+        self.assertEqual(e.status, 'PAYMENT_DUE')  # first installment due 01-05, inside the reminder window
         self.assertEqual((e.planned_contribution, e.expected_benefit, e.expected_entitlement), (D('110000'), TEN_K, D('120000')))
         self.assertEqual(e.installments.count(), 11)
         self.assertEqual(list(e.installments.values_list('due_date', flat=True)[:2]), [date(2026, 1, 5), date(2026, 2, 5)])
@@ -109,7 +120,7 @@ class GoldJewellery11Plus1Tests(SavingsFixture):
         self.assertEqual((e.contribution_paid, e.benefit_approved, e.available_entitlement), (D('110000'), 0, D('110000')))
         self.assertFalse(SchemeInstallment.objects.filter(enrollment=e).exclude(status='PAID').exists())
         # Maturity waits for the maturity date
-        with self.assertRaisesMessage(SchemeError, 'Maturity date is 2026-12-05'):
+        with self.assertRaisesMessage(SchemeError, 'matures on 2026-12-05'):
             svc.mature(self.manager, e, as_of=date(2026, 11, 20))
         e, calc = self.matured(e)
         # Benefit engine + approval (tests 17-18)
@@ -162,7 +173,7 @@ class GoldJewellery11Plus1Tests(SavingsFixture):
         self.assertEqual((invoice.paid_amount, invoice.payment_status), (D('100000'), 'paid'))
         e.refresh_from_db()
         # Only one redemption allowed: the ₹20,000 remainder is forfeited per the scheme rule, not refunded
-        self.assertEqual((e.status, e.available_entitlement, e.contribution_forfeited, e.benefit_forfeited), ('CLOSED', 0, D('10000'), TEN_K))
+        self.assertEqual((e.status, e.available_entitlement, e.contribution_forfeited, e.benefit_forfeited), ('REDEEMED', 0, D('10000'), TEN_K))
         other = self.matured(self.pay_all(self.enroll(self.make_scheme(code='GJ12'))))[0]
         with self.assertRaisesMessage(SchemeError, 'different customer'):
             invoice2 = SalesInvoice.objects.create(invoice_no='SI-2', customer=Customer.objects.create(name='X'), total_amount=D('5000'))
@@ -173,7 +184,7 @@ class GoldJewellery11Plus1Tests(SavingsFixture):
             svc.redeem(self.operator, other, lines=self.jewellery(5000), sales_invoice=invoice3)
 
     def test_product_eligibility_and_making_charge_benefit(self):
-        scheme = self.make_scheme(template='MAKING', code='MK', product_rules=[{'rule_type': 'EXCLUDE', 'scope': 'TAG', 'value': 'coin'}])
+        scheme = self.make_scheme(**MAKING_CHARGE_PLAN, code='MK', product_rules=[{'rule_type': 'EXCLUDE', 'scope': 'TAG', 'value': 'coin'}])
         self.assertEqual(scheme.current_version().benefit_application, 'MAKING_CHARGE')
         e = self.enroll(scheme, installment_amount=5000)
         self.assertEqual(e.rules['product_rules'], [{'rule_type': 'EXCLUDE', 'scope': 'TAG', 'value': 'coin'}])
@@ -193,9 +204,11 @@ class InstallmentRuleTests(SavingsFixture):
         insts = list(e.installments.order_by('installment_no'))
         for i in (0, 1, 3):
             self.pay(e, TEN_K, insts[i].due_date)
-        svc.run_daily(self.admin, date(2026, 4, 20))
+        svc.run_daily_jobs(self.tenant, date(2026, 4, 20))
+        # Payments settle the oldest open installment first, so the gap moves to installment 4
         insts[2].refresh_from_db()
-        self.assertEqual(insts[2].status, 'OVERDUE')
+        insts[3].refresh_from_db()
+        self.assertEqual((insts[2].status, insts[3].status), ('PAID', 'OVERDUE'))
         e.refresh_from_db()
         self.assertEqual(e.status, 'OVERDUE')  # never auto-cancelled (test 12)
         result = svc.calculate_benefit(e, date(2026, 12, 5))
@@ -246,7 +259,7 @@ class InstallmentRuleTests(SavingsFixture):
         self.pay(e, D('7000'), insts[10].due_date)  # test 10
         insts[10].refresh_from_db()
         self.assertEqual((insts[10].status, insts[10].outstanding), ('PARTIALLY_PAID', D('3000')))
-        with self.assertRaisesMessage(SchemeError, 'must be paid first'):
+        with self.assertRaisesMessage(SchemeError, 'must be paid (or waived) before maturity'):
             svc.mature(self.manager, e, as_of=date(2026, 12, 5))
         self.pay(e, D('3000'), date(2026, 12, 1))
         e, calc = self.matured(e)
@@ -270,8 +283,8 @@ class InstallmentRuleTests(SavingsFixture):
         p = self.pay(e, D('25000'), date(2026, 1, 5))
         e.refresh_from_db()
         self.assertEqual((p.advance_amount, e.unallocated_advance, e.contribution_paid), (D('15000'), D('15000'), D('25000')))
-        svc.run_daily(self.admin, date(2026, 2, 1))
-        svc.run_daily(self.admin, date(2026, 2, 1))  # idempotent
+        svc.run_daily_jobs(self.tenant, date(2026, 2, 1))
+        svc.run_daily_jobs(self.tenant, date(2026, 2, 1))  # idempotent
         e.refresh_from_db()
         self.assertEqual(e.unallocated_advance, D('5000'))
         self.assertEqual(e.installments.get(installment_no=2).status, 'PAID')
@@ -304,12 +317,11 @@ class ControlTests(SavingsFixture):
             version.save()
         e = self.enroll(scheme)
         v2 = svc.new_version(self.admin, scheme, change_note='Percentage benefit')
-        svc.save_version(self.admin, v2, benefit_type='PERCENT_ELIGIBLE', benefit_value=D('5'))
+        svc.update_version(self.admin, v2, benefit_type='PERCENT_ELIGIBLE', benefit_value=D('5'))
         svc.transition_version(self.admin, v2, 'submit')
         with self.assertRaisesMessage(SchemeError, 'Maker-checker'):
             svc.transition_version(self.admin, v2, 'approve')
         svc.transition_version(self.manager, v2, 'approve')
-        svc.transition_version(self.manager, v2, 'activate')
         self.assertEqual(scheme.current_version(), v2)
         e.refresh_from_db()
         self.assertEqual((e.version.version_no, e.rules['benefit_type']), (1, 'ONE_INSTALLMENT'))
@@ -318,12 +330,12 @@ class ControlTests(SavingsFixture):
         e = self.pay_all(self.enroll(self.make_scheme(max_override_percent=D('10'))))
         calc = svc.mature(self.operator, e, as_of=date(2026, 12, 5))
         with self.assertRaises(PermissionDenied):  # test 31
-            svc.approve_benefit(self.operator, calc, approved_benefit=D('9500'), reason='Goodwill')
+            svc.approve_benefit(self.operator, calc, approved_amount=D('9500'), reason='Goodwill')
         with self.assertRaisesMessage(SchemeError, 'reason is required'):
-            svc.approve_benefit(self.manager, calc, approved_benefit=D('9500'))
-        with self.assertRaisesMessage(SchemeError, 'above the allowed'):
-            svc.approve_benefit(self.manager, calc, approved_benefit=D('5000'), reason='Too much')
-        svc.approve_benefit(self.manager, calc, approved_benefit=D('9500'), reason='Late KYC')
+            svc.approve_benefit(self.manager, calc, approved_amount=D('9500'))
+        with self.assertRaisesMessage(SchemeError, 'at most 10%'):
+            svc.approve_benefit(self.manager, calc, approved_amount=D('5000'), reason='Too much')
+        svc.approve_benefit(self.manager, calc, approved_amount=D('9500'), reason='Late KYC')
         calc.refresh_from_db()
         e.refresh_from_db()
         self.assertEqual((calc.calculated_benefit, calc.approved_benefit, e.benefit_approved), (TEN_K, D('9500'), D('9500')))
@@ -338,20 +350,20 @@ class ControlTests(SavingsFixture):
 
     def test_duplicate_payment_and_idempotency(self):
         e = self.enroll(self.make_scheme())
-        svc.collect_payment(self.operator, e, amount=TEN_K, payment_method=self.upi, reference_no='UPI-777', payment_date=date(2026, 1, 5))
+        svc.collect(self.operator, e, amount=TEN_K, payment_method=self.upi, reference_no='UPI-777', payment_date=date(2026, 1, 5))
         with self.assertRaisesMessage(SchemeError, 'duplicate payment'):  # test 33
-            svc.collect_payment(self.operator, e, amount=TEN_K, payment_method=self.upi, reference_no='UPI-777', payment_date=date(2026, 1, 6))
+            svc.collect(self.operator, e, amount=TEN_K, payment_method=self.upi, reference_no='UPI-777', payment_date=date(2026, 1, 6))
         with self.assertRaises(ConfirmationRequired):
-            svc.collect_payment(self.operator, e, amount=TEN_K, payment_method=self.cash, payment_date=date(2026, 1, 5))
-        first = svc.collect_payment(self.operator, e, amount=TEN_K, payment_method=self.cash, payment_date=date(2026, 2, 5), idempotency_key='k-1')
-        again = svc.collect_payment(self.operator, e, amount=TEN_K, payment_method=self.cash, payment_date=date(2026, 2, 5), idempotency_key='k-1')
+            svc.collect(self.operator, e, amount=TEN_K, payment_method=self.cash, payment_date=date(2026, 1, 5))
+        first = svc.collect(self.operator, e, amount=TEN_K, payment_method=self.cash, payment_date=date(2026, 2, 5), idempotency_key='k-1')
+        again = svc.collect(self.operator, e, amount=TEN_K, payment_method=self.cash, payment_date=date(2026, 2, 5), idempotency_key='k-1')
         self.assertEqual(first.pk, again.pk)
         self.assertEqual(SchemePayment.objects.filter(enrollment=e).count(), 2)
 
     def test_duplicate_customer_warning_and_limits(self):
         scheme = self.make_scheme()
         self.enroll(scheme)
-        with self.assertRaisesMessage(ConfirmationRequired, 'already has 1 active scheme'):
+        with self.assertRaisesMessage(ConfirmationRequired, 'Customer already has scheme GSP-000001'):
             svc.enroll(self.operator, scheme=scheme, customer=self.rahul)
         setup = get_setup(self.tenant)
         setup.allow_multiple_active_schemes = False
@@ -361,7 +373,7 @@ class ControlTests(SavingsFixture):
 
     def test_enrollment_maker_checker_and_kyc(self):
         scheme = self.make_scheme(kyc_required=True)
-        with self.assertRaisesMessage(SchemeError, 'KYC is required'):
+        with self.assertRaisesMessage(SchemeError, 'KYC required'):
             svc.enroll(self.operator, scheme=scheme, customer=Customer.objects.create(name='No PAN'))
         e = svc.enroll(self.manager, scheme=scheme, customer=self.rahul)
         self.assertEqual(e.kyc_reference, '••••••234F')
@@ -375,10 +387,10 @@ class ControlTests(SavingsFixture):
         e = self.enroll(self.make_scheme())
         stranger = User.objects.create_user('other@shop.test', password='pw-12345678')
         other = Actor(create_tenant_for_user(stranger, 'Other Jeweller'), stranger)
-        with self.assertRaises(SchemeEnrollment.DoesNotExist):  # test 35
-            svc.collect_payment(other, e, amount=TEN_K, payment_method=self.cash)
-        self.assertFalse(svc.find_accounts(other, e.account_no))
-        self.assertEqual(svc.find_accounts(self.admin, e.account_no)[0], e)
+        with self.assertRaisesMessage(SchemeError, 'Not found'):  # test 35
+            svc.collect(other, e, amount=TEN_K, payment_method=self.cash)
+        self.assertFalse(svc.find_enrollments(other, e.account_no))
+        self.assertEqual(svc.find_enrollments(self.admin, e.account_no)[0], e)
 
 
 class CancellationRefundTests(SavingsFixture):
@@ -390,8 +402,8 @@ class CancellationRefundTests(SavingsFixture):
         cancellation = svc.request_cancellation(self.operator, e, reason='Customer relocating')  # test 26
         self.assertEqual((cancellation.cancellation_charge, cancellation.refundable_amount), (D('1000'), D('49000')))  # test 27
         with self.assertRaises(PermissionDenied):
-            svc.decide_cancellation(self.operator, cancellation)
-        svc.decide_cancellation(self.manager, cancellation)
+            svc.decide_cancellation(self.operator, cancellation, approve=True)
+        svc.decide_cancellation(self.manager, cancellation, approve=True)
         e.refresh_from_db()
         self.assertEqual(e.status, 'CANCELLED')
         self.assertTrue(e.installments.filter(status='CANCELLED').exists())
@@ -400,7 +412,7 @@ class CancellationRefundTests(SavingsFixture):
             svc.pay_refund(self.operator, refund, payment_method=self.cash)
         with self.assertRaisesMessage(SchemeError, 'must be approved'):
             svc.pay_refund(self.finance, refund, payment_method=self.cash)
-        svc.decide_refund(self.manager, refund)  # test 28
+        svc.decide_refund(self.finance, refund, approve=True)  # test 28 - the manager raised the refund, so a checker approves
         svc.pay_refund(self.finance, refund, payment_method=self.cash)  # test 29
         e.refresh_from_db()
         self.assertEqual((e.status, e.contribution_refunded, e.contribution_forfeited, e.available_entitlement), ('REFUNDED', D('49000'), D('1000'), 0))
@@ -410,10 +422,11 @@ class CancellationRefundTests(SavingsFixture):
         e, _ = self.matured(self.pay_all(self.enroll(self.make_scheme())))
         cancellation = svc.request_cancellation(self.operator, e, reason='Changed mind')
         self.assertEqual((cancellation.refundable_amount, cancellation.benefit_forfeited), (D('110000'), TEN_K))
-        svc.decide_cancellation(self.manager, cancellation)
+        svc.decide_cancellation(self.manager, cancellation, approve=True)
         refund = e.refunds.get()
-        self.assertEqual((refund.contribution_refund, refund.benefit_reversal, refund.refund_amount), (D('110000'), TEN_K, D('110000')))
-        svc.decide_refund(self.finance, refund)
+        # The benefit was already forfeited by the cancellation, so the refund carries contribution only
+        self.assertEqual((refund.contribution_refund, refund.benefit_reversal, refund.refund_amount), (D('110000'), 0, D('110000')))
+        svc.decide_refund(self.finance, refund, approve=True)
         svc.pay_refund(self.finance, refund, payment_method=self.cash)
         e.refresh_from_db()
         self.assertEqual((e.contribution_refunded, e.benefit_forfeited, e.available_entitlement), (D('110000'), TEN_K, 0))
@@ -423,8 +436,8 @@ class CancellationRefundTests(SavingsFixture):
         adj = svc.create_adjustment(self.manager, e, adjustment_type='WAIVER', reason='Hospitalised', reference='MGR-1',
                                     installment=e.installments.get(installment_no=1))
         with self.assertRaisesMessage(SchemeError, 'Maker-checker'):
-            svc.decide_adjustment(self.manager, adj)
-        svc.decide_adjustment(self.finance, adj)
+            svc.decide_adjustment(self.manager, adj, approve=True)
+        svc.decide_adjustment(self.finance, adj, approve=True)
         self.assertEqual(e.installments.get(installment_no=1).status, 'WAIVED')
 
 
@@ -451,7 +464,7 @@ class AccountingTests(SavingsFixture):
         return (t['d'] or 0) - (t['c'] or 0)
 
     def test_postings_for_payment_benefit_redemption_refund(self):
-        e = self.pay_all(self.enroll(self.make_scheme()))
+        e = self.pay_all(self.enroll(self.make_scheme(remaining_balance_rule='REFUND')))
         s = self.accounts
         self.assertEqual(self.balance(s.cash_account), D('110000'))  # test 36
         self.assertEqual(self.balance(s.contribution_liability_account), D('-110000'))
@@ -460,12 +473,11 @@ class AccountingTests(SavingsFixture):
         self.assertEqual(self.balance(s.benefit_liability_account), -TEN_K)
         svc.redeem(self.operator, e, lines=self.jewellery(100000))  # test 38
         self.assertEqual(self.balance(s.contribution_liability_account), -TEN_K)
-        self.assertEqual(self.balance(s.benefit_liability_account), -TEN_K)
+        self.assertEqual(self.balance(s.benefit_liability_account), 0)  # unused benefit lapses under the REFUND rule
         self.assertEqual(self.balance(s.redemption_settlement_account), D('-100000'))
         e.refresh_from_db()
-        svc.close_enrollment(self.manager, e, disposition='REFUND', reason='Customer wants the rest back')
-        refund = e.refunds.get()
-        svc.decide_refund(self.manager, refund)
+        refund = e.refunds.get()  # remaining contribution queued for refund by the redemption
+        svc.decide_refund(self.manager, refund, approve=True)
         svc.pay_refund(self.finance, refund, payment_method=self.cash)  # test 39
         self.assertEqual(self.balance(s.contribution_liability_account), 0)
         self.assertEqual(self.balance(s.benefit_liability_account), 0)
@@ -487,12 +499,12 @@ class AccountingTests(SavingsFixture):
 
 class BenefitEngineTests(SavingsFixture):
     def test_tiered_and_percentage_benefits(self):
-        tiered = self.make_scheme(template='TIERED', code='TIER')
+        tiered = self.make_scheme(**TIERED_PLAN, code='TIER')
         e = self.pay_all(self.enroll(tiered, installment_amount=10000))
         self.assertEqual(svc.calculate_benefit(e, date(2026, 12, 5)).benefit, D('11000.00'))  # ₹1,10,000 -> 10% tier
         e2 = self.pay_all(self.enroll(tiered, customer=Customer.objects.create(name='Asha'), installment_amount=5000))
         self.assertEqual(svc.calculate_benefit(e2, date(2026, 12, 5)).benefit, D('3850.00'))  # ₹55,000 -> 7% tier
-        pct = self.make_scheme(template='6+1', code='SIX')
+        pct = self.make_scheme(**SIX_PLUS_ONE_PLAN, code='SIX')
         e3 = self.pay_all(self.enroll(pct, customer=Customer.objects.create(name='Neha'), installment_amount=5000), months=6)
         self.assertEqual(e3.installments.count(), 6)
         result = svc.calculate_benefit(e3, date(2026, 7, 5))

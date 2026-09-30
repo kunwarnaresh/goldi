@@ -784,6 +784,7 @@ def release_order(actor, order, *, override_shortage=False):
         order.shortage_override_by = actor.user
     old = order.status
     order.status, order.released_by, order.released_at, order.released_qty = 'RELEASED', actor.user, dj_timezone.now(), order.planned_qty
+    eng.derive_status(order, setup)  # material reserved before release keeps the order at MATERIAL_RESERVED
     order.save()
     for operation in order.operations.filter(status='NOT_STARTED').order_by('sequence')[:1]:
         operation.status = 'READY'

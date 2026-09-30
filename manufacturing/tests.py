@@ -25,7 +25,8 @@ D = Decimal
 
 
 def wip(order):
-    return CostEntry.objects.filter(order=order).aggregate(v=Sum('amount'))['v'] or D('0')
+    # Summed in Python: SQLite aggregates decimals as floats
+    return sum((entry.amount for entry in CostEntry.objects.filter(order=order)), D('0'))
 
 
 def on_hand(tenant, item, location, bin=None):
@@ -146,12 +147,12 @@ class ManufacturingFixture(TestCase):
         version.refresh_from_db()
         return routing, version
 
-    def released_order(self, qty=100, item=None):
+    def released_order(self, qty=100, item=None, override_shortage=False):
         self.certified_bom(item)
         self.certified_routing(item)
         order = svc.create_order(self.manager, item=item or self.ring, quantity=qty)
         svc.approve_order(self.manager, order)
-        svc.release_order(self.manager, order)
+        svc.release_order(self.manager, order, override_shortage=override_shortage)
         order.refresh_from_db()
         return order
 
@@ -439,7 +440,7 @@ class AcceptanceTests(ManufacturingFixture):
             entry.delete()
 
     def test_29_multi_location_material_moves_through_a_transfer(self):
-        order = self.released_order(qty=150)  # needs 1364.25 g gold; only 1000 g at the factory
+        order = self.released_order(qty=150, override_shortage=True)  # needs 1364.25 g gold; only 1000 g at the factory
         rows = {r['component'].item.item_no: r for r in svc.material_availability(order)}
         self.assertEqual(rows['GOLD-22K']['shortage'], D('364.250'))
         self.assertEqual(rows['GOLD-22K']['elsewhere'][0]['location__code'], 'WH')
@@ -577,7 +578,7 @@ class AcceptanceTests(ManufacturingFixture):
     def test_planning_suggests_production_and_components(self):
         self.certified_bom()
         self.certified_routing()
-        ring_sku = SKU.objects.get(tenant=self.tenant, item=self.ring, location=self.fact)
+        ring_sku = eng.ensure_sku(self.actor, self.ring, None, self.fact)  # stocking record at the factory for reorder planning
         ring_sku.reorder_point, ring_sku.maximum_stock = D('50'), D('200')
         ring_sku.save()
         run = svc.run_planning(self.manager, horizon_days=30)

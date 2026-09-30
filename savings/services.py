@@ -551,7 +551,7 @@ def approve_benefit(actor, calculation, *, approved_amount=None, reason=''):
         if limit:
             base = calc.calculated_benefit
             if not base or abs(amount - base) * 100 / base > limit:
-                raise SchemeError(f'Override may change the calculated benefit by at most {limit.normalize()}%.')
+                raise SchemeError(f'Override may change the calculated benefit by at most {limit.normalize():f}%.')
         maximum = d(e.rules.get('max_benefit'))
         if maximum and amount > maximum:
             raise SchemeError(f'Maximum benefit is ₹{money(maximum)}.')

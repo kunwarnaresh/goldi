@@ -1,0 +1,32 @@
+{% extends 'erp/retail/base.html' %}
+{% block page_title %}{{ title }}{% endblock %}
+{% block eyebrow %}{{ eyebrow }}{% endblock %}
+{% block heading %}{{ title }}{% endblock %}
+{% block subheading %}{{ subtitle }}{% endblock %}
+{% block actions %}{% for url, label, icon in actions %}<a href="{{ url }}" class="btn-ghost"><i class="fas {{ icon }}"></i>{{ label }}</a>{% endfor %}<a href="{{ back_url }}" class="btn-ghost"><i class="fas fa-arrow-left"></i>Back</a>{% endblock %}
+{% block body %}
+<form method="post" class="space-y-5" id="retail-form" novalidate>{% csrf_token %}
+    {% for error in form.non_field_errors %}<p class="glass p-3 text-rose-600 text-sm"><i class="fas fa-circle-exclamation mr-2"></i>{{ error }}</p>{% endfor %}
+    {% for field in form.hidden_fields %}{{ field }}{% endfor %}
+    {% block before_sections %}{% endblock %}
+    {% for section_title, fields in sections %}{% if fields %}
+    <section class="glass p-5">
+        <h3 class="font-semibold text-white mb-4">{{ section_title }}</h3>
+        <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">{% for field in fields %}{% include 'erp/retail/_field.html' %}{% endfor %}</div>
+    </section>
+    {% endif %}{% endfor %}
+    {% if can_manage %}<div class="flex justify-end gap-2"><a href="{{ back_url }}" class="btn-ghost">Cancel</a><button class="btn-gold px-6 py-2.5 rounded-lg"><i class="fas fa-save mr-2"></i>{{ submit }}</button></div>
+    {% else %}<p class="text-sm text-slate-500">Read-only: only administrators can change store and POS setup.</p>{% endif %}
+</form>
+{% if panels %}
+<div class="grid lg:grid-cols-3 gap-5">
+    {% for panel in panels %}
+    <section class="glass overflow-hidden">
+        <div class="panel-head"><h3>{{ panel.title }}</h3>{% if panel.more %}<a href="{{ panel.more.0 }}" class="text-sm text-sky-700">{{ panel.more.1 }}</a>{% endif %}</div>
+        <table class="rtable"><tbody>{% for row in panel.rows %}<tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>{% empty %}<tr><td class="text-slate-500">{{ panel.empty|default:'None.' }}</td></tr>{% endfor %}</tbody></table>
+    </section>
+    {% endfor %}
+</div>
+{% endif %}
+{% block after %}{% endblock %}
+{% endblock %}

@@ -1,0 +1,104 @@
+{% extends 'erp/retail/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}{{ staff.employee_code }} · {{ staff.name }}{% endblock %}
+{% block eyebrow %}Staff card{% endblock %}
+{% block heading %}{{ staff.name }}{% endblock %}
+{% block subheading %}{{ staff.employee_code }} · {{ staff.staff_role.name|default:staff.get_role_display }} ·
+{% if staff.is_blocked %}{% badge 'BLOCKED' 'Account locked' %}{% elif staff.is_active %}{% badge 'ACTIVE' %}{% else %}{% badge 'INACTIVE' %}{% endif %}{% endblock %}
+{% block actions %}
+{% if can_manage %}
+<a href="{% url 'retail_staff_edit' staff.pk %}" class="btn-gold px-3 py-2 rounded-lg text-sm"><i class="fas fa-pen mr-1"></i>Edit</a>
+<a href="{% url 'retail_staff_reset_password' staff.pk %}" class="btn-ghost"><i class="fas fa-key"></i>Reset Password</a>
+<form method="post" class="flex gap-2">{% csrf_token %}
+    {% if staff.is_active %}<button name="action" value="deactivate" class="btn-ghost btn-danger"><i class="fas fa-user-slash"></i>Deactivate</button>
+    {% else %}<button name="action" value="activate" class="btn-ghost"><i class="fas fa-user-check"></i>Activate</button>{% endif %}
+    {% if staff.is_blocked %}<button name="action" value="unlock" class="btn-ghost"><i class="fas fa-lock-open"></i>Unlock Account</button>
+    {% else %}<button name="action" value="lock" class="btn-ghost btn-danger"><i class="fas fa-lock"></i>Lock Account</button>{% endif %}
+    {% if staff.pos_access %}<button name="action" value="disable_pos" class="btn-ghost">Disable POS login</button>
+    {% else %}<button name="action" value="enable_pos" class="btn-ghost">Enable POS login</button>{% endif %}
+</form>
+{% endif %}
+{% endblock %}
+{% block body %}
+<div class="grid lg:grid-cols-4 gap-5">
+    <section class="glass overflow-hidden">
+        <div class="panel-head"><h3>General</h3></div>
+        <dl class="p-4 text-sm space-y-2">
+            <div><dt class="text-slate-500">Staff ID / employee code</dt><dd class="text-white">{{ staff.employee_code }}</dd></div>
+            <div><dt class="text-slate-500">Name</dt><dd class="text-white">{{ staff.name }}</dd></div>
+            <div><dt class="text-slate-500">Mobile</dt><dd class="text-white">{{ staff.mobile|default:'—' }}</dd></div>
+            <div><dt class="text-slate-500">Email</dt><dd class="text-white">{{ staff.email|default:'—' }}</dd></div>
+            <div><dt class="text-slate-500">Designation</dt><dd class="text-white">{{ staff.designation|default:'—' }}</dd></div>
+            <div><dt class="text-slate-500">Joined / left</dt><dd class="text-white">{{ staff.joining_date|default:'—' }} / {{ staff.leaving_date|default:'—' }}</dd></div>
+        </dl>
+    </section>
+    <section class="glass overflow-hidden">
+        <div class="panel-head"><h3>Organization</h3></div>
+        <dl class="p-4 text-sm space-y-2">
+            <div><dt class="text-slate-500">Store</dt><dd><a class="text-sky-700" href="{% url 'retail_store_card' staff.store.pk %}">{{ staff.store.code }} · {{ staff.store.name }}</a></dd></div>
+            <div><dt class="text-slate-500">Location</dt><dd>{% if staff.store.location %}<a class="text-sky-700" href="{% url 'retail_location_card' staff.store.location.pk %}">{{ staff.store.location.location_code }} · {{ staff.store.location.location_name }}</a>{% else %}<span class="text-rose-600">Store has no location</span>{% endif %}</dd></div>
+            <div><dt class="text-slate-500">Role</dt><dd class="text-white">{% if staff.staff_role %}<a class="text-sky-700" href="{% url 'retail_role_card' staff.staff_role.pk %}">{{ staff.staff_role.name }}</a>{% else %}{{ staff.get_role_display }} <span class="text-slate-500">(legacy)</span>{% endif %}</dd></div>
+        </dl>
+    </section>
+    <section class="glass overflow-hidden">
+        <div class="panel-head"><h3>POS access</h3></div>
+        <dl class="p-4 text-sm space-y-2">
+            <div><dt class="text-slate-500">POS login</dt><dd>{% if staff.pos_access %}{% badge 'ACTIVE' 'Enabled' %}{% else %}{% badge 'INACTIVE' 'Disabled' %}{% endif %}</dd></div>
+            <div><dt class="text-slate-500">Login ID</dt><dd class="text-white font-mono">{{ staff.login_id|default:'—' }}</dd></div>
+            <div><dt class="text-slate-500">Password</dt><dd class="text-white">{% if staff.password_changed_at %}Set {{ staff.password_changed_at|date:'d M Y' }}{% else %}Set{% endif %}{% if staff.password_change_required %} · change required{% endif %}</dd></div>
+            <div><dt class="text-slate-500">Default terminal</dt><dd class="text-white">{{ staff.default_terminal.code|default:'—' }}</dd></div>
+        </dl>
+    </section>
+    <section class="glass overflow-hidden">
+        <div class="panel-head"><h3>Security</h3></div>
+        <dl class="p-4 text-sm space-y-2">
+            <div><dt class="text-slate-500">Failed attempts</dt><dd class="text-white">{{ staff.failed_login_attempts }} / {{ max_attempts }}</dd></div>
+            <div><dt class="text-slate-500">Locked</dt><dd class="text-white">{% if staff.is_blocked %}Yes{% if staff.locked_at %}, {{ staff.locked_at|date:'d M Y H:i' }}{% endif %}{% else %}No{% endif %}</dd></div>
+            <div><dt class="text-slate-500">Last login</dt><dd class="text-white">{{ staff.last_login|date:'d M Y H:i'|default:'Never' }}</dd></div>
+            <div><dt class="text-slate-500">Password last changed</dt><dd class="text-white">{{ staff.password_changed_at|date:'d M Y H:i'|default:'—' }}</dd></div>
+        </dl>
+    </section>
+</div>
+
+<div class="grid lg:grid-cols-2 gap-5">
+    <section class="glass overflow-hidden">
+        <div class="panel-head"><h3>POS assignment</h3>{% if can_manage %}<a href="{% url 'retail_assignment_new' staff.pk %}" class="text-sm text-sky-700">+ Assign terminal</a>{% endif %}</div>
+        <p class="px-4 pt-3 text-xs text-slate-500">{% if assignments %}Restricted to the assigned terminals below.{% else %}No assignments: may use any active terminal of {{ staff.store.code }}.{% endif %}</p>
+        <table class="rtable"><thead><tr><th>Terminal</th><th>Role</th><th>Default</th><th>From</th><th>To</th><th>Status</th><th></th></tr></thead><tbody>
+        {% for a in assignments %}<tr><td><a class="text-sky-700" href="{% url 'retail_terminal_card' a.terminal.pk %}">{{ a.terminal.code }}</a></td><td>{{ a.get_role_display }}</td><td>{% if a.primary_terminal %}Yes{% endif %}</td><td>{{ a.effective_from }}</td><td>{{ a.effective_to|default:'' }}</td>
+            <td>{% if a.is_effective %}{% badge 'ACTIVE' %}{% else %}{% badge 'INACTIVE' %}{% endif %}</td><td>{% if can_manage %}<a class="text-sky-700" href="{% url 'retail_assignment_edit' a.pk %}">Edit</a>{% endif %}</td></tr>
+        {% empty %}<tr><td colspan="7" class="text-slate-500">No terminal restrictions.</td></tr>{% endfor %}
+        </tbody></table>
+        <div class="px-4 py-3 text-sm border-t border-slate-100"><span class="text-slate-500">Allowed POS terminals now:</span> {% for t in allowed %}<a class="text-sky-700" href="{% url 'retail_terminal_card' t.pk %}">{{ t.code }}</a>{% if not forloop.last %}, {% endif %}{% empty %}<span class="text-rose-600">none</span>{% endfor %}</div>
+    </section>
+    <section class="glass overflow-hidden">
+        <div class="panel-head"><h3>Permissions</h3></div>
+        <div class="p-4 flex flex-wrap gap-2">{% for p in permissions %}<span class="px-2 py-0.5 rounded text-xs bg-sky-100 text-sky-800">{{ p }}</span>{% empty %}<span class="text-sm text-slate-500">No POS permissions.</span>{% endfor %}</div>
+    </section>
+</div>
+
+<div class="grid lg:grid-cols-2 gap-5">
+    <section class="glass overflow-hidden">
+        <div class="panel-head"><h3>POS sessions</h3><a href="{% url 'retail_sessions' %}?staff={{ staff.pk }}" class="text-sm text-sky-700">View POS Sessions</a></div>
+        <table class="rtable"><thead><tr><th>Session</th><th>Store</th><th>Terminal</th><th>Login</th><th>Logout</th><th>Status</th></tr></thead><tbody>
+        {% for s in sessions %}<tr><td>{{ s.session_no|default:s.pk }}</td><td>{{ s.store_code_snapshot }}</td><td>{{ s.terminal_code_snapshot|default:s.terminal.code }}</td><td>{{ s.login_time|date:'d M H:i' }}</td><td>{{ s.logout_time|date:'d M H:i'|default:'—' }}</td><td>{% if s.status == 'active' %}{% badge 'OPEN' 'Open' %}{% else %}{% badge s.status|upper s.get_status_display %}{% endif %}</td></tr>
+        {% empty %}<tr><td colspan="6" class="text-slate-500">No sessions.</td></tr>{% endfor %}
+        </tbody></table>
+    </section>
+    <section class="glass overflow-hidden">
+        <div class="panel-head"><h3>Sales</h3><a href="{% url 'invoice_list' %}" class="text-sm text-sky-700">View Sales</a></div>
+        <table class="rtable"><thead><tr><th>Bill</th><th>Date</th><th>Store</th><th>Terminal</th><th class="text-right">Amount</th></tr></thead><tbody>
+        {% for inv in sales %}<tr><td><a class="text-sky-700" href="{% url 'invoice_detail' inv.pk %}">{{ inv.invoice_no }}</a></td><td>{{ inv.sales_date|date:'d M Y' }}</td><td>{{ inv.store_code_snapshot }}</td><td>{{ inv.terminal_code_snapshot }}</td><td class="text-right">₹{{ inv.total_amount }}</td></tr>
+        {% empty %}<tr><td colspan="5" class="text-slate-500">No sales.</td></tr>{% endfor %}
+        </tbody></table>
+    </section>
+</div>
+
+<section class="glass overflow-hidden">
+    <div class="panel-head"><h3>Audit trail</h3></div>
+    <table class="rtable"><thead><tr><th>When</th><th>User</th><th>Action</th><th>Description</th><th>IP</th></tr></thead><tbody>
+    {% for a in audit_rows %}<tr><td>{{ a.created_at|date:'d M Y H:i' }}</td><td>{{ a.actor.username|default:'system' }}</td><td>{{ a.get_action_display }}</td><td>{{ a.description }}</td><td>{{ a.ip_address|default:'' }}</td></tr>
+    {% empty %}<tr><td colspan="5" class="text-slate-500">No audit entries.</td></tr>{% endfor %}
+    </tbody></table>
+</section>
+{% endblock %}
