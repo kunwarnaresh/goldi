@@ -1,0 +1,63 @@
+{% extends 'jobwork/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}Job work dashboard{% endblock %}
+{% block heading %}Job work dashboard{% endblock %}
+{% block subheading %}Material, WIP and compliance at job workers{% if not setup.enabled %} · <span class="text-rose-600">job work is disabled in setup</span>{% endif %}{% endblock %}
+{% block actions %}
+{% if perms_jw.create %}<a href="{% url 'jobwork_order_new' %}" class="btn-gold px-4 py-2 rounded-lg text-sm whitespace-nowrap"><i class="fas fa-plus mr-2"></i>New job work order</a>{% endif %}
+<a href="{% url 'jobwork_worksheet' %}" class="glass px-4 py-2 rounded-lg text-sm text-sky-700">Subcontracting worksheet</a>
+{% endblock %}
+{% block body %}
+{% with o=data.operations i=data.inventory c=data.compliance f=data.finance %}
+<h3 class="text-xs uppercase tracking-widest text-slate-500">Operations</h3>
+<section class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
+    <a href="{% url 'jobwork_orders' %}?status=open" class="glass p-4 card-hover"><p class="text-xs uppercase text-slate-500">Open orders</p><p class="text-2xl font-bold text-white">{{ o.open }}</p></a>
+    <a href="{% url 'jobwork_orders' %}?status=PENDING_APPROVAL" class="glass p-4 card-hover"><p class="text-xs uppercase text-slate-500">Pending approval</p><p class="text-2xl font-bold text-white">{{ o.pending_approval }}</p></a>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Pending dispatch</p><p class="text-2xl font-bold text-white">{{ o.pending_dispatch }}</p></div>
+    <a href="{% url 'jobwork_dispatches' %}" class="glass p-4 card-hover"><p class="text-xs uppercase text-slate-500">In transit</p><p class="text-2xl font-bold text-white">{{ o.in_transit }}</p></a>
+    <a href="{% url 'jobwork_board' %}" class="glass p-4 card-hover"><p class="text-xs uppercase text-slate-500">At job workers</p><p class="text-2xl font-bold text-white">{{ o.at_job_workers }}</p></a>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Pending receipt</p><p class="text-2xl font-bold text-white">{{ o.pending_receipt }}</p></div>
+    <a href="{% url 'jobwork_orders' %}?status=QC_PENDING" class="glass p-4 card-hover"><p class="text-xs uppercase text-slate-500">Pending QC</p><p class="text-2xl font-bold {% if o.pending_qc %}text-amber-600{% else %}text-white{% endif %}">{{ o.pending_qc }}</p></a>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Overdue (SLA)</p><p class="text-2xl font-bold {% if o.overdue %}text-rose-600{% else %}text-white{% endif %}">{{ o.overdue }}</p></div>
+</section>
+<div class="grid lg:grid-cols-3 gap-6">
+    <section class="glass p-5 space-y-2 text-sm">
+        <h3 class="font-semibold text-white">Inventory at job workers</h3>
+        <p class="flex justify-between"><span class="text-slate-500">Gold (net / fine g)</span><span>{{ i.gold_net|grams }} / {{ i.gold_fine|grams }}</span></p>
+        <p class="flex justify-between"><span class="text-slate-500">Silver net g</span><span>{{ i.silver_net|grams }}</span></p>
+        <p class="flex justify-between"><span class="text-slate-500">Platinum net g</span><span>{{ i.platinum_net|grams }}</span></p>
+        <p class="flex justify-between"><span class="text-slate-500">Stones ct</span><span>{{ i.stones_ct|qty }}</span></p>
+        <p class="flex justify-between"><span class="text-slate-500">Jewellery units</span><span>{{ i.units }}</span></p>
+        <p class="flex justify-between border-t border-white/10 pt-2"><span class="text-slate-500">Value (historical cost)</span><span class="font-semibold">{{ i.value|inr }}</span></p>
+        <a href="{% url 'jobwork_material' %}" class="text-sky-700 text-xs">Material at job workers →</a>
+    </section>
+    <section class="glass p-5 space-y-2 text-sm">
+        <h3 class="font-semibold text-white">Compliance</h3>
+        <p class="flex justify-between"><span class="text-slate-500">Statutory due soon</span><span class="{% if c.due_soon %}text-amber-600 font-semibold{% endif %}">{{ c.due_soon }}</span></p>
+        <p class="flex justify-between"><span class="text-slate-500">Overdue (Section 143)</span><span class="{% if c.overdue %}text-rose-600 font-semibold{% endif %}">{{ c.overdue }}</span></p>
+        <p class="flex justify-between"><span class="text-slate-500">No approved due-date rule</span><span class="{% if c.no_rule %}text-rose-600{% endif %}">{{ c.no_rule }}</span></p>
+        <p class="flex justify-between"><span class="text-slate-500">E-way bills pending</span><span>{{ c.eway_pending }}</span></p>
+        <p class="flex justify-between"><span class="text-slate-500">DC / GSTIN / HSN exceptions</span><span>{{ c.dc_exceptions }}</span></p>
+        <a href="{% url 'jobwork_itc04' %}" class="text-sky-700 text-xs">ITC-04 preparation →</a>
+    </section>
+    <section class="glass p-5 space-y-2 text-sm">
+        <h3 class="font-semibold text-white">Finance</h3>
+        <p class="flex justify-between"><span class="text-slate-500">Uninvoiced orders</span><span>{{ f.uninvoiced }} · {{ f.uninvoiced_value|inr }}</span></p>
+        <p class="flex justify-between"><span class="text-slate-500">Invoiced (taxable)</span><span>{{ f.invoiced|inr }}</span></p>
+        <p class="flex justify-between"><span class="text-slate-500">Loss value</span><span>{{ f.loss_value|neg|inr }}</span></p>
+        <p class="flex justify-between"><span class="text-slate-500">Open exceptions (blocking)</span><span class="{% if f.blocking %}text-rose-600 font-semibold{% endif %}">{{ f.exceptions }} ({{ f.blocking }})</span></p>
+        <a href="{% url 'jobwork_exceptions' %}" class="text-sky-700 text-xs">Exceptions & approvals →</a>
+    </section>
+</div>
+{% endwith %}
+<div class="grid lg:grid-cols-2 gap-6">
+    <section class="glass overflow-hidden">
+        <div class="px-5 py-4 border-b border-white/10 flex justify-between"><h3 class="font-semibold text-white">Recent orders</h3><a href="{% url 'jobwork_orders' %}" class="text-sm text-sky-700">All →</a></div>
+        <table class="w-full text-left text-sm"><tbody>{% for o in recent %}<tr class="border-b border-white/5"><td class="px-5 py-2"><a class="text-sky-700 font-semibold" href="{% url 'jobwork_order_detail' o.pk %}">{{ o.order_no }}</a></td><td>{{ o.job_worker.code }}</td><td>{{ o.get_transaction_type_display }}</td><td class="text-right px-5">{% badge o.status %}</td></tr>{% empty %}<tr><td class="px-5 py-6 text-slate-500">No job work yet.</td></tr>{% endfor %}</tbody></table>
+    </section>
+    <section class="glass overflow-hidden">
+        <div class="px-5 py-4 border-b border-white/10"><h3 class="font-semibold text-white">Open exceptions</h3></div>
+        <table class="w-full text-left text-sm"><tbody>{% for e in exceptions %}<tr class="border-b border-white/5"><td class="px-5 py-2 font-semibold">{{ e.exception_no }}</td><td>{{ e.get_exception_type_display }}</td><td>{% if e.order %}<a class="text-sky-700" href="{% url 'jobwork_order_detail' e.order.pk %}">{{ e.order.order_no }}</a>{% endif %}</td><td class="text-right px-5">{% if e.blocking %}<span class="text-rose-600 text-xs">blocking</span>{% endif %}</td></tr>{% empty %}<tr><td class="px-5 py-6 text-slate-500">No open exceptions.</td></tr>{% endfor %}</tbody></table>
+    </section>
+</div>
+{% endblock %}

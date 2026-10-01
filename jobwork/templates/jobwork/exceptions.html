@@ -1,0 +1,27 @@
+{% extends 'jobwork/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}Job work exceptions{% endblock %}
+{% block heading %}Exceptions & approvals{% endblock %}
+{% block subheading %}Loss, differences, shortages and mismatches. Approval follows the approval matrix; the maker never approves.{% endblock %}
+{% block body %}
+<form class="glass p-4 flex gap-2 text-sm"><select name="status"><option value="open" {% if status == 'open' %}selected{% endif %}>Open</option><option value="APPROVED">Approved</option><option value="RESOLVED">Resolved</option><option value="CLOSED">Closed</option><option value="">All</option></select><button class="glass px-3 py-2 text-sky-700">Filter</button></form>
+<section class="glass overflow-hidden"><div class="overflow-x-auto"><table class="w-full text-left text-sm min-w-[1100px]">
+    <thead class="text-xs uppercase text-slate-500 bg-white/5"><tr><th class="px-5 py-3">Exception</th><th>Type / description</th><th>Order</th><th class="text-right">Expected / actual</th><th class="text-right">Weight / value</th><th>Needs</th><th>Status</th><th class="px-5">Action</th></tr></thead>
+    <tbody>{% for e in exceptions %}<tr class="border-b border-white/5 align-top">
+        <td class="px-5 py-2 font-semibold">{{ e.exception_no }}{% if e.blocking %}<span class="block text-xs text-rose-600">blocking</span>{% endif %}</td>
+        <td>{{ e.get_exception_type_display }}<p class="text-xs text-slate-500 max-w-md">{{ e.description }}</p>{% if e.reason %}<p class="text-xs">Reason: {{ e.reason }} {% if e.resolution %}· {{ e.get_resolution_display }}{% endif %}</p>{% endif %}</td>
+        <td>{% if e.order %}<a class="text-sky-700" href="{% url 'jobwork_order_detail' e.order.pk %}">{{ e.order.order_no }}</a>{% endif %}</td>
+        <td class="text-right">{{ e.expected_value|qty }} / {{ e.actual_value|qty }}</td><td class="text-right">{{ e.weight|grams }} / {{ e.value|inr }}</td>
+        <td class="text-xs">{{ e.required_role|lower|default:'any reviewer' }}</td><td>{% badge e.status %}</td>
+        <td class="px-5 text-xs">{% if perms_jw.exception %}
+            {% if e.status in 'OPEN,UNDER_REVIEW' %}<form method="post" class="space-y-1">{% csrf_token %}<input type="hidden" name="exception" value="{{ e.pk }}">
+                <select name="resolution">{% for v, l in resolutions %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select>
+                <select name="loss_class"><option value="">loss class…</option>{% for v, l in loss_classes %}{% if v %}<option value="{{ v }}">{{ l }}</option>{% endif %}{% endfor %}</select>
+                <input name="recovery_amount" placeholder="Recovery ₹"><input name="reason" placeholder="Reason (required)">
+                <div class="flex gap-2"><button name="action" value="approve" class="text-emerald-700">Approve</button><button name="action" value="reject" class="text-rose-600">Reject</button>{% if e.status == 'OPEN' %}<button name="action" value="review" class="text-sky-700">Review</button>{% endif %}<button name="action" value="resolve" class="text-slate-600">Resolve</button></div></form>
+            {% elif e.status == 'APPROVED' %}<form method="post" class="flex gap-2">{% csrf_token %}<input type="hidden" name="exception" value="{{ e.pk }}">{% if e.exception_type == 'WEIGHT_DIFFERENCE' %}<button name="action" value="write_off" class="text-amber-700">Write off difference</button>{% endif %}<button name="action" value="close" class="text-slate-600">Close</button></form>
+            {% elif e.status == 'RESOLVED' %}<form method="post">{% csrf_token %}<input type="hidden" name="exception" value="{{ e.pk }}"><button name="action" value="close" class="text-slate-600">Close</button></form>{% endif %}
+        {% endif %}</td>
+    </tr>{% empty %}<tr><td colspan="8" class="px-5 py-10 text-center text-slate-500">No exceptions.</td></tr>{% endfor %}</tbody>
+</table></div></section>
+{% endblock %}

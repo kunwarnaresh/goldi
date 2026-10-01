@@ -1,0 +1,21 @@
+{% extends 'inventory/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}Stock card {{ sku.code }}{% endblock %}
+{% block eyebrow %}Location stock card{% endblock %}
+{% block heading %}{{ sku.code }} at {{ sku.location.code }}{% endblock %}
+{% block subheading %}{{ sku.item.description }}{% endblock %}
+{% block actions %}<a href="{% url 'inventory_sku_card' sku.pk %}" class="glass px-3 py-2 text-slate-300 text-sm">SKU card</a>{% endblock %}
+{% block body %}
+<form method="get" class="glass p-4 flex gap-3 items-end"><div><label class="text-xs uppercase text-slate-500">From</label><input type="date" name="from" value="{{ date_from|date:'Y-m-d' }}"></div><div><label class="text-xs uppercase text-slate-500">To</label><input type="date" name="to" value="{{ date_to|date:'Y-m-d' }}"></div><button class="btn-gold px-5 py-3 rounded-lg text-sm">Show</button></form>
+<section class="glass overflow-x-auto"><table class="w-full text-left text-sm min-w-[900px]">
+    <thead class="text-xs uppercase text-slate-500 bg-white/5"><tr><th class="px-5 py-3">Date</th><th>Document</th><th>Transaction</th><th class="text-right">In</th><th class="text-right">Out</th><th class="text-right">Balance</th><th class="text-right">Gross g</th><th class="text-right">Net g</th><th class="text-right px-5">Value</th></tr></thead>
+    <tbody>
+        <tr class="border-b border-white/5 text-slate-500"><td class="px-5 py-2" colspan="5">Opening</td><td class="text-right">{{ card.opening.qty|qty }}</td><td class="text-right">{{ card.opening.gross|grams }}</td><td class="text-right">{{ card.opening.net|grams }}</td><td class="text-right px-5">{{ card.opening.value|inr }}</td></tr>
+        {% for r in card.rows %}<tr class="border-b border-white/5"><td class="px-5 py-2">{{ r.entry.posting_date|date:'d M Y' }}</td><td>{{ r.entry.document_no }}</td><td>{{ r.entry.get_transaction_type_display }}</td><td class="text-right text-emerald-700">{{ r.qty_in|qty }}</td><td class="text-right text-rose-600">{{ r.qty_out|qty }}</td><td class="text-right font-semibold">{{ r.balance_qty|qty }}</td><td class="text-right">{{ r.balance_gross|grams }}</td><td class="text-right">{{ r.balance_net|grams }}</td><td class="text-right px-5">{{ r.balance_value|inr }}</td></tr>{% endfor %}
+    </tbody>
+    <tfoot class="font-semibold text-white"><tr><td class="px-5 py-3" colspan="5">Closing</td><td class="text-right">{{ card.closing.qty|qty }}</td><td class="text-right">{{ card.closing.gross|grams }}</td><td class="text-right">{{ card.closing.net|grams }}</td><td class="text-right px-5">{{ card.closing.value|inr }}</td></tr></tfoot>
+</table></section>
+<section class="glass p-5"><h3 class="font-semibold text-white mb-2">Stock investigation</h3>
+    <table class="w-full text-sm max-w-xl"><tbody>{% for l in investigation.lines %}<tr class="border-b border-white/5"><td class="py-1">{{ l.label }}</td><td class="text-right {% if l.qty < 0 %}text-rose-600{% else %}text-emerald-700{% endif %}">{% if l.qty > 0 %}+{% endif %}{{ l.qty|qty }}</td></tr>{% endfor %}</tbody>
+    <tfoot class="font-semibold"><tr><td class="py-2">= Current stock</td><td class="text-right">{{ investigation.ledger_total|qty }} {% if investigation.reconciled %}<i class="fas fa-circle-check text-emerald-600"></i>{% else %}<span class="text-rose-600">(balance {{ investigation.balance_total|qty }})</span>{% endif %}</td></tr></tfoot></table></section>
+{% endblock %}

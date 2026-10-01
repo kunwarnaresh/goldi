@@ -12,19 +12,23 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
     <style>
         :root {
-            --sapphire-300: #b8d8ff;
-            --sapphire-400: #73b5f5;
-            --sapphire-500: #3b82d0;
-            --sapphire-600: #2463a6;
-            --sapphire-700: #174a82;
-            --sapphire-900: #10243d;
-            --dark-bg: #111c2c;
-            --dark-bg-2: #172942;
-            --card-bg: #1a2a40;
-            --card-border: rgba(168, 193, 221, 0.17);
-            --text-soft: #e6edf7;
-            --text-muted: #aabbd0;
-            --shadow-glow: rgba(31, 91, 153, 0.24);
+            --gold-300: #ffe4a1;
+            --gold-400: #f6c453;
+            --gold-500: #e0a52d;
+            --gold-600: #c1861a;
+            --gold-700: #966711;
+            --navy-900: #070d1a;
+            --navy-800: #0e1930;
+            --navy-700: #16233f;
+            --navy-600: #203051;
+            --dark-bg: linear-gradient(160deg, var(--navy-900) 0%, var(--navy-800) 55%, var(--navy-700) 100%);
+            --card-border: #e2e6ef;
+            --ink: #10182a;
+            --ink-soft: #40495e;
+            --ink-faint: #6b7488;
+            --text-on-dark: #f3f6ff;
+            --text-on-dark-muted: #a9b6d4;
+            --shadow-glow: rgba(224, 165, 45, 0.28);
             --ai-ink: #071522;
             --ai-surface: #0d2232;
             --ai-cyan: #65e6e0;
@@ -46,39 +50,58 @@
         body {
             position: relative;
             overflow-x: hidden;
-            background: #eef2f7;
-            color: var(--text-soft);
+            background: #f3f5fb;
+            color: var(--ink);
             font-family: 'DM Sans', 'Segoe UI', sans-serif;
             min-height: 100vh;
         }
 
-        body::before,
+        body::before {
+            content: '';
+            position: fixed;
+            inset: -10% -10% auto auto;
+            width: 42vw;
+            height: 42vw;
+            background: radial-gradient(circle, rgba(224, 165, 45, 0.16) 0%, rgba(224, 165, 45, 0) 70%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
         body::after {
-            display: none;
+            content: '';
+            position: fixed;
+            inset: auto auto -15% -5%;
+            width: 38vw;
+            height: 38vw;
+            background: radial-gradient(circle, rgba(32, 48, 81, 0.12) 0%, rgba(32, 48, 81, 0) 70%);
+            pointer-events: none;
+            z-index: 0;
         }
 
         .glass {
             background: #ffffff;
+            color: var(--ink);
             border: 1px solid var(--card-border);
-            border-radius: 6px;
-            box-shadow: 0 2px 8px rgba(32, 52, 76, 0.08);
+            border-radius: 10px;
+            box-shadow: 0 4px 16px rgba(16, 24, 42, 0.06);
         }
 
         .glass-glow {
             background: var(--dark-bg);
+            color: var(--text-on-dark);
             border: 0;
-            border-radius: 0;
-            box-shadow: 0 2px 8px rgba(10, 25, 45, 0.2);
+            border-right: 1px solid rgba(246, 196, 83, 0.12);
+            box-shadow: 4px 0 24px rgba(7, 13, 26, 0.35);
         }
 
         .gold-text {
-            color: var(--sapphire-400);
+            color: var(--gold-500);
             text-shadow: none;
         }
 
         .gold-border {
-            border-color: var(--sapphire-500);
-            box-shadow: 0 0 0 1px rgba(59, 130, 208, 0.12);
+            border-color: var(--gold-500);
+            box-shadow: 0 0 0 1px rgba(224, 165, 45, 0.18);
         }
 
         @keyframes fadeInUp {
@@ -105,16 +128,22 @@
 
         @keyframes glowPulse {
             0%, 100% {
-                box-shadow: 0 0 18px rgba(56, 189, 248, 0.14);
+                box-shadow: 0 0 18px rgba(224, 165, 45, 0.18);
             }
             50% {
-                box-shadow: 0 0 30px rgba(56, 189, 248, 0.36);
+                box-shadow: 0 0 32px rgba(224, 165, 45, 0.42);
             }
         }
 
         @keyframes shimmer {
             0% { background-position: -1000px 0; }
             100% { background-position: 1000px 0; }
+        }
+
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
         }
 
         @keyframes spin {
@@ -137,30 +166,32 @@
             display: flex;
             align-items: center;
             gap: 0.65rem;
-            color: #b8c8dc;
+            color: var(--text-on-dark-muted);
             padding: 0.65rem 0.8rem;
             border-left: 3px solid transparent;
+            border-radius: 0 6px 6px 0;
             transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
         }
 
         .nav-item:hover {
             color: #ffffff;
-            background: rgba(115, 181, 245, 0.12);
-            border-left-color: var(--sapphire-400);
+            background: rgba(246, 196, 83, 0.14);
+            border-left-color: var(--gold-400);
         }
 
         .btn-gold {
-            background: var(--sapphire-600);
-            color: #ffffff;
+            background: linear-gradient(135deg, var(--gold-400), var(--gold-600));
+            color: var(--navy-900);
             font-weight: 700;
             transition: all 0.3s ease;
-            box-shadow: 0 2px 5px rgba(23, 74, 130, 0.22);
-            border: 1px solid var(--sapphire-700);
+            box-shadow: 0 3px 10px rgba(224, 165, 45, 0.35);
+            border: 1px solid var(--gold-700);
         }
 
         .btn-gold:hover {
-            background: var(--sapphire-700);
-            box-shadow: 0 3px 8px rgba(23, 74, 130, 0.28);
+            background: linear-gradient(135deg, var(--gold-300), var(--gold-500));
+            box-shadow: 0 5px 18px rgba(224, 165, 45, 0.5);
+            transform: translateY(-1px);
         }
 
         .btn-gold:active {
@@ -172,34 +203,36 @@
         }
 
         .card-hover:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 14px rgba(32, 52, 76, 0.14);
-            border-color: var(--sapphire-500);
+            transform: translateY(-3px);
+            box-shadow: 0 10px 26px rgba(16, 24, 42, 0.14);
+            border-color: var(--gold-500);
         }
 
         .loader {
             width: 52px;
             height: 52px;
-            border: 4px solid rgba(56, 189, 248, 0.2);
-            border-top-color: var(--sapphire-500);
+            border: 4px solid rgba(224, 165, 45, 0.2);
+            border-top-color: var(--gold-500);
             border-radius: 50%;
             animation: spin 0.8s linear infinite;
-            box-shadow: 0 0 15px rgba(56, 189, 248, 0.25);
+            box-shadow: 0 0 15px rgba(224, 165, 45, 0.25);
         }
 
         .counter {
             font-size: 2rem;
             font-weight: 700;
-            color: var(--sapphire-600);
+            color: var(--gold-600);
             text-shadow: none;
         }
 
         .gradient-text {
-            background: linear-gradient(135deg, #d5e8ff 0%, #8fc4f5 100%);
+            background: linear-gradient(90deg, var(--gold-300), var(--gold-500), var(--text-on-dark), var(--gold-400));
+            background-size: 300% auto;
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
             text-shadow: none;
+            animation: gradientShift 6s ease-in-out infinite;
         }
 
         h1, h2, h3, h4, .nav-item { font-family: 'Space Grotesk', 'DM Sans', sans-serif; }
@@ -210,40 +243,53 @@
 
         .nav-active {
             color: #ffffff;
-            background: rgba(115, 181, 245, 0.16);
-            border-left-color: #ffffff;
+            background: rgba(246, 196, 83, 0.18);
+            border-left-color: var(--gold-400);
         }
+
+        .menu-filter { padding: 0.45rem 0.6rem 0.45rem 2rem; font-size: 0.8rem; background: rgba(255,255,255,0.08); color: var(--text-on-dark); border-color: rgba(246, 196, 83, 0.22); }
+        .menu-filter::placeholder { color: #7f8cab; }
+        .menu-node > summary { cursor: pointer; list-style: none; user-select: none; }
+        .menu-node > summary::-webkit-details-marker { display: none; }
+        .menu-caret { transition: transform 0.2s ease; opacity: 0.6; }
+        .menu-node[open] > summary .menu-caret { transform: rotate(90deg); }
+        .nav-open { color: #ffffff; }
+        .menu-children { margin: 0.15rem 0 0.4rem 1.35rem; padding-left: 0.6rem; border-left: 1px solid rgba(246, 196, 83, 0.2); }
+        .menu-group { font-size: 9px; text-transform: uppercase; letter-spacing: 0.12em; color: #8b96b5; padding: 0.55rem 0.5rem 0.2rem; }
+        .menu-link { display: block; font-size: 0.8rem; color: var(--text-on-dark-muted); padding: 0.3rem 0.5rem; border-left: 2px solid transparent; border-radius: 0 4px 4px 0; transition: background 0.15s ease, color 0.15s ease; }
+        .menu-link:hover { color: #ffffff; background: rgba(246, 196, 83, 0.14); }
+        .menu-link.nav-active { border-left-color: var(--gold-400); }
 
         input, select, textarea {
             width: 100%;
-            border: 1px solid rgba(139, 211, 255, 0.18);
-            border-radius: 4px;
+            border: 1px solid #d7dbe6;
+            border-radius: 6px;
             background: #ffffff;
-            color: #172033;
+            color: var(--ink);
             padding: 0.65rem 0.75rem;
         }
 
         input:focus, select:focus, textarea:focus {
             outline: none;
-            border-color: var(--sapphire-500);
-            box-shadow: 0 0 0 3px rgba(59, 130, 208, 0.12);
+            border-color: var(--gold-500);
+            box-shadow: 0 0 0 3px rgba(224, 165, 45, 0.18);
         }
 
-        .glass .text-white, .glass-glow .text-white { color: #172033 !important; }
-        .glass .text-slate-400 { color: #5f7188 !important; }
-        .glass .text-slate-500 { color: #718198 !important; }
+        .glass .text-white, .glass-glow .text-white { color: var(--ink) !important; }
+        .glass .text-slate-400 { color: var(--ink-soft) !important; }
+        .glass .text-slate-500 { color: var(--ink-faint) !important; }
         .glass .border-white\/5, .glass .border-white\/10 { border-color: #e5eaf0 !important; }
-        .workspace-main { margin-left: 15rem; }
+        .workspace-main { position: relative; z-index: 1; margin-left: 15rem; }
         .workspace-nav { width: 15rem; }
         .workspace-footer { margin-left: 15rem; left: 15rem; }
-        .workspace-main .text-white { color: #172033 !important; }
-        .workspace-main .text-slate-400 { color: #5f7188 !important; }
-        .workspace-main .text-slate-500 { color: #718198 !important; }
+        .workspace-main .text-white { color: var(--ink) !important; }
+        .workspace-main .text-slate-400 { color: var(--ink-soft) !important; }
+        .workspace-main .text-slate-500 { color: var(--ink-faint) !important; }
         @media (max-width: 767px) {
             .workspace-main, .workspace-footer { margin-left: 0; left: 0; }
             .workspace-nav { width: 100%; height: auto; }
             .workspace-links { display: none; }
-            .workspace-nav.open .workspace-links { display: grid; grid-template-columns: 1fr 1fr; }
+            .workspace-nav.open .workspace-links { display: flex; max-height: 75vh; }
         }
     </style>
     {% block extra_css %}{% endblock %}
@@ -258,24 +304,29 @@
                 <div><h1 class="gradient-text text-xl font-bold">Goldi ERP</h1><p class="text-[10px] uppercase tracking-widest text-slate-400">Business workspace</p></div>
             </div>
             <button type="button" class="md:hidden text-left text-slate-300 py-4" onclick="document.querySelector('.workspace-nav').classList.toggle('open')"><i class="fas fa-bars mr-2"></i>Menu</button>
-            <div class="workspace-links flex flex-col gap-1 mt-6 overflow-y-auto">
-                <p class="text-[10px] uppercase tracking-widest text-slate-500 px-3 mb-2">Workspace</p>
-                <a href="{% url 'dashboard' %}" class="nav-item">Dashboard</a>
-                <a href="{% url 'master_catalog' %}" class="nav-item">Masters</a>
-                <a href="{% url 'import_center' %}" class="nav-item">Imports</a>
-                <p class="text-[10px] uppercase tracking-widest text-slate-500 px-3 mt-5 mb-2">Operations</p>
-                <a href="{% url 'finance_management' %}" class="nav-item">Finance</a>
-                <a href="{% url 'sales_receivables' %}" class="nav-item">Sales & Receivables</a>
-                <a href="{% url 'purchase_payables' %}" class="nav-item">Purchase & Payables</a>
-                <a href="{% url 'wms_hub' %}" class="nav-item">AWMS</a>
-                <a href="{% url 'wms_reports' %}" class="nav-item">Reports</a>
-                <a href="{% url 'gst_control_center' %}" class="nav-item">GST</a>
-                <a href="{% url 'pos' %}" class="nav-item">POS</a>
-                <a href="{% url 'sales_approval' %}" class="nav-item">Approvals</a>
-                <a href="{% url 'exchange' %}" class="nav-item">Exchange</a>
-                <a href="{% url 'customer_list' %}" class="nav-item">Customers</a>
-                <a href="{% url 'stock_ledger' %}" class="nav-item">Stock</a>
-                <a href="{% url 'metal_rate_list' %}" class="nav-item">Metal Rates</a>
+            <div class="workspace-links flex flex-col gap-1 mt-4 overflow-y-auto pr-1">
+                <div class="relative mb-3">
+                    <i class="fas fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                    <input type="search" id="menu-filter" placeholder="Find a menu…" autocomplete="off" class="menu-filter">
+                </div>
+                {% for section in main_menu %}
+                <p class="menu-section text-[10px] uppercase tracking-widest text-slate-500 px-3 {% if not forloop.first %}mt-4{% endif %} mb-1">{{ section.title }}</p>
+                {% for item in section.items %}
+                {% if item.groups %}
+                <details class="menu-node" {% if item.open %}open{% endif %}>
+                    <summary class="nav-item {% if item.open %}nav-open{% endif %}"><i class="fas {{ item.icon }} w-4 text-center"></i>{% if item.url %}<a href="{{ item.url }}" class="nav-item">{{ item.label }}</a>{% else %}<span class="flex-1">{{ item.label }}</span>{% endif %}<i class="fas fa-chevron-right menu-caret text-[10px]"></i></summary>
+                    <div class="menu-children">
+                        {% for group in item.groups %}
+                        {% if group.label %}<p class="menu-group">{{ group.label }}</p>{% endif %}
+                        {% for link in group.links %}<a href="{{ link.url }}" class="menu-link {% if link.active %}nav-active{% endif %}">{{ link.label }}</a>{% endfor %}
+                        {% endfor %}
+                    </div>
+                </details>
+                {% else %}
+                <a href="{{ item.url }}" class="nav-item {% if item.active %}nav-active{% endif %}"><i class="fas {{ item.icon }} w-4 text-center"></i><span>{{ item.label }}</span></a>
+                {% endif %}
+                {% endfor %}
+                {% endfor %}
             </div>
             <div class="mt-auto pt-5 border-t border-white/10 flex items-center justify-between">
                 <a href="/admin/" class="hover:gold-text transition">
@@ -290,6 +341,16 @@
 
     <!-- Main Content -->
     <main class="workspace-main min-h-screen pt-8 pb-16">
+        {% if messages %}
+        <div class="max-w-7xl mx-auto px-6 mb-6 space-y-3">
+            {% for message in messages %}
+            <div class="glass px-5 py-4 rounded-lg text-sm flex items-start gap-3 {% if message.tags == 'error' %}border-l-4 border-red-500 text-red-700{% elif message.tags == 'warning' %}border-l-4 border-amber-500 text-amber-700{% elif message.tags == 'success' %}border-l-4 border-emerald-500 text-emerald-700{% else %}border-l-4 border-sky-500 text-sky-700{% endif %}">
+                <i class="fas {% if message.tags == 'error' %}fa-circle-exclamation{% elif message.tags == 'warning' %}fa-triangle-exclamation{% elif message.tags == 'success' %}fa-circle-check{% else %}fa-circle-info{% endif %} mt-0.5"></i>
+                <span>{{ message }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
         {% block content %}{% endblock %}
     </main>
 
@@ -336,18 +397,36 @@
             }, 16);
         }
 
-        // Activate nav based on current page
-        document.querySelectorAll('.nav-item').forEach(item => {
-            if (item.href === window.location.href || 
-                (window.location.pathname.includes(item.getAttribute('href').replace('https://{{ request.get_host }}', '')))) {
-                item.classList.add('nav-active');
-            }
-        });
+        // Sidebar menu filter: show matching sub-menu links and open their parents
+        const menuFilter = document.getElementById('menu-filter');
+        if (menuFilter) {
+            const nodes = [...document.querySelectorAll('.workspace-links .menu-node')];
+            const initiallyOpen = new Set(nodes.filter(n => n.open));
+            menuFilter.addEventListener('input', () => {
+                const q = menuFilter.value.trim().toLowerCase();
+                document.querySelectorAll('.workspace-links .menu-section').forEach(el => el.style.display = q ? 'none' : '');
+                document.querySelectorAll('.workspace-links > a.nav-item').forEach(el => {
+                    el.style.display = !q || el.textContent.toLowerCase().includes(q) ? '' : 'none';
+                });
+                nodes.forEach(node => {
+                    const labelHit = node.querySelector('summary').textContent.toLowerCase().includes(q);
+                    let hits = 0;
+                    node.querySelectorAll('.menu-link').forEach(link => {
+                        const show = !q || labelHit || link.textContent.toLowerCase().includes(q);
+                        link.style.display = show ? '' : 'none';
+                        if (show) hits++;
+                    });
+                    node.querySelectorAll('.menu-group').forEach(g => g.style.display = q && !labelHit ? 'none' : '');
+                    node.style.display = !q || hits ? '' : 'none';
+                    node.open = q ? hits > 0 : initiallyOpen.has(node);
+                });
+            });
+        }
 
         const templateLink = (slug, label = 'Download template') => {
             const link = document.createElement('a');
             link.href = `/imports/template/${slug}/`;
-            link.className = 'glass px-3 py-2 text-emerald-300 text-xs';
+            link.className = 'glass px-3 py-2 text-emerald-700 text-xs';
             link.innerHTML = '<i class="fas fa-download mr-2"></i>' + label;
             return link;
         };
@@ -384,7 +463,7 @@
                     link.href = `/imports/template/${slug}/`;
                     link.innerHTML = '<i class="fas fa-download mr-1"></i>Download template';
                     link.classList.remove('text-slate-300');
-                    link.classList.add('text-emerald-300');
+                    link.classList.add('text-emerald-700');
                 }
             });
         }

@@ -20,9 +20,12 @@
                 <tr class="border-b border-white/10">
                     <th class="px-4 py-3 text-left text-gray-400">SKU</th>
                     <th class="px-4 py-3 text-left text-gray-400">Name</th>
+                    <th class="px-4 py-3 text-left text-gray-400">Category / Subcategory</th>
+                    <th class="px-4 py-3 text-left text-gray-400">Variant</th>
+                    <th class="px-4 py-3 text-left text-gray-400">Barcode</th>
                     <th class="px-4 py-3 text-left text-gray-400">Metal</th>
                     <th class="px-4 py-3 text-left text-gray-400">Stock</th>
-                    <th class="px-4 py-3 text-left text-gray-400">Sale Price</th>
+                    <th class="px-4 py-3 text-left text-gray-400">MRP</th>
                     <th class="px-4 py-3 text-left text-gray-400">Actions</th>
                 </tr>
             </thead>
@@ -31,9 +34,12 @@
                 <tr class="border-b border-white/5 hover:bg-white/5 transition">
                     <td class="px-4 py-3 font-mono text-sm">{{ product.sku }}</td>
                     <td class="px-4 py-3">{{ product.name }}</td>
+                    <td class="px-4 py-3">{{ product.item_category|default:'—' }}<div class="text-xs text-gray-400">{{ product.subcategory|default:'—' }}</div></td>
+                    <td class="px-4 py-3">{{ product.variant|default:'—' }}</td>
+                    <td class="px-4 py-3 font-mono text-xs">{{ product.barcode|default:'—' }}</td>
                     <td class="px-4 py-3">{{ product.metal_type|title }} {{ product.purity }}</td>
                     <td class="px-4 py-3"><span class="px-2 py-1 bg-amber-500/15 text-amber-300 rounded text-sm">{{ product.stock_quantity }}</span></td>
-                    <td class="px-4 py-3 gold-text font-semibold">₹{{ product.sale_price }}</td>
+                    <td class="px-4 py-3 gold-text font-semibold">₹{{ product.mrp }}</td>
                     <td class="px-4 py-3 text-sm">
                         <a href="{% url 'product_detail' product.pk %}" class="text-blue-400 hover:text-blue-300 mr-3">View</a>
                         <a href="{% url 'product_edit' product.pk %}" class="text-amber-400 hover:text-amber-300 mr-3">Edit</a>
@@ -41,7 +47,7 @@
                     </td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="6" class="px-4 py-8 text-center text-gray-400">No products found.</td></tr>
+                <tr><td colspan="9" class="px-4 py-8 text-center text-gray-400">No products found.</td></tr>
                 {% endfor %}
             </tbody>
         </table>

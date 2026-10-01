@@ -1,0 +1,28 @@
+{% extends 'erp/retail/base.html' %}
+{% block page_title %}Stores & POS{% endblock %}
+{% block heading %}Stores & POS setup{% endblock %}
+{% block subheading %}Location → Store → Staff / POS terminals / Tenders{% endblock %}
+{% block actions %}{% if can_manage %}<a href="{% url 'retail_store_new' %}" class="btn-gold px-4 py-2 rounded-lg text-sm"><i class="fas fa-plus mr-1"></i>New store</a>{% endif %}{% endblock %}
+{% block body %}
+<section class="grid grid-cols-2 md:grid-cols-6 gap-3">
+    <a href="{% url 'retail_locations' %}" class="glass kpi card-hover"><p>Locations</p><p>{{ counts.locations }}</p></a>
+    <a href="{% url 'retail_stores' %}" class="glass kpi card-hover"><p>Stores</p><p>{{ counts.stores }}</p></a>
+    <a href="{% url 'retail_staff' %}" class="glass kpi card-hover"><p>Active staff</p><p>{{ counts.staff }}</p></a>
+    <a href="{% url 'retail_terminals' %}" class="glass kpi card-hover"><p>Active terminals</p><p>{{ counts.terminals }}</p></a>
+    <a href="{% url 'retail_tenders' %}" class="glass kpi card-hover"><p>Active tenders</p><p>{{ counts.tenders }}</p></a>
+    <a href="{% url 'retail_sessions' %}?status=active" class="glass kpi card-hover"><p>Open sessions</p><p>{{ counts.sessions }}</p></a>
+</section>
+{% if issues %}
+<section class="glass p-4 border-l-4 border-amber-500">
+    <h3 class="font-semibold text-white mb-2"><i class="fas fa-triangle-exclamation text-amber-500 mr-2"></i>Setup needs attention</h3>
+    <ul class="text-sm space-y-1">{% for store, issue in issues %}<li><a class="text-sky-700" href="{% url 'retail_store_card' store.pk %}">{{ store.code }} · {{ store.name }}</a> — {{ issue }}</li>{% endfor %}</ul>
+</section>
+{% endif %}
+<section class="glass overflow-x-auto">
+    <div class="panel-head"><h3>Stores</h3><a href="{% url 'retail_stores' %}" class="text-sm text-sky-700">All stores</a></div>
+    <table class="rtable"><thead><tr><th>Store</th><th>Location</th><th>Staff</th><th>Terminals</th><th>Tenders</th><th>Status</th></tr></thead><tbody>
+    {% for s in stores %}<tr><td><a class="text-sky-700" href="{% url 'retail_store_card' s.pk %}">{{ s.code }} · {{ s.name }}</a></td><td>{{ s.location.location_code|default:'—' }}</td><td>{{ s.staff_count }}</td><td>{{ s.terminal_count }}</td><td>{{ s.tender_count }}</td><td>{{ s.get_status_display }}</td></tr>
+    {% empty %}<tr><td colspan="6" class="text-slate-500 text-center py-6">No stores yet. Create a location, then a store for it.</td></tr>{% endfor %}
+    </tbody></table>
+</section>
+{% endblock %}

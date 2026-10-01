@@ -1,0 +1,31 @@
+{% extends 'inventory/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}Inventory ledger{% endblock %}
+{% block eyebrow %}Stock{% endblock %}
+{% block heading %}Inventory ledger &amp; movement report{% endblock %}
+{% block subheading %}Immutable. Corrections are posted as new entries, never edits.{% endblock %}
+{% block actions %}
+<a href="?{{ request.GET.urlencode }}&export=xlsx" class="glass px-3 py-2 text-slate-300 text-sm"><i class="fas fa-file-excel mr-1"></i>Excel</a>
+<a href="?{{ request.GET.urlencode }}&export=csv" class="glass px-3 py-2 text-slate-300 text-sm">CSV</a>
+<a href="?{{ request.GET.urlencode }}&export=pdf" class="glass px-3 py-2 text-slate-300 text-sm">PDF</a>
+{% endblock %}
+{% block body %}
+<form method="get" class="glass p-4 grid grid-cols-2 md:grid-cols-6 gap-3 items-end text-sm">
+    <div><label class="text-xs uppercase text-slate-500">From</label><input type="date" name="date_from" value="{{ filters.date_from }}"></div>
+    <div><label class="text-xs uppercase text-slate-500">To</label><input type="date" name="date_to" value="{{ filters.date_to }}"></div>
+    <div><label class="text-xs uppercase text-slate-500">Location</label><select name="location"><option value="">All</option>{% for l in locations %}<option value="{{ l.pk }}" {% if filters.location == l.pk|stringformat:'s' %}selected{% endif %}>{{ l.code }}</option>{% endfor %}</select></div>
+    <div><label class="text-xs uppercase text-slate-500">Transaction</label><select name="transaction_type"><option value="">All</option>{% for code, label in transaction_types %}<option value="{{ code }}" {% if filters.transaction_type == code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+    <div><label class="text-xs uppercase text-slate-500">SKU</label><input name="sku" value="{{ filters.sku }}"></div>
+    <div><label class="text-xs uppercase text-slate-500">Document</label><input name="document" value="{{ filters.document }}"></div>
+    <div><label class="text-xs uppercase text-slate-500">Metal</label><select name="metal"><option value="">All</option><option value="GOLD">Gold</option><option value="SILVER">Silver</option><option value="PLATINUM">Platinum</option><option value="DIAMOND">Diamond</option></select></div>
+    <div><label class="text-xs uppercase text-slate-500">Purity</label><input name="purity" value="{{ filters.purity }}"></div>
+    <div><label class="text-xs uppercase text-slate-500">Category</label><input name="category" value="{{ filters.category }}"></div>
+    <div><label class="text-xs uppercase text-slate-500">Barcode</label><input name="barcode" value="{{ filters.barcode }}"></div>
+    <div><label class="text-xs uppercase text-slate-500">HUID</label><input name="huid" value="{{ filters.huid }}"></div>
+    <div><label class="text-xs uppercase text-slate-500">User</label><input name="user" value="{{ filters.user }}"></div>
+    {% if filters.item %}<input type="hidden" name="item" value="{{ filters.item }}">{% endif %}
+    <button class="btn-gold px-5 py-3 rounded-lg col-span-2 md:col-span-1">Filter</button>
+</form>
+<section class="glass p-4 flex flex-wrap gap-6 text-sm"><span>Qty in <b class="text-emerald-700">{{ totals.qty_in|qty|default:'0' }}</b></span><span>Qty out <b class="text-rose-600">{{ totals.qty_out|neg|qty|default:'0' }}</b></span><span>Net weight change <b>{{ totals.weight|grams|default:'0' }} g</b></span><span>Net value <b>{{ totals.value|inr|default:'₹0' }}</b></span><span class="text-slate-500">showing latest 300 entries; export for all</span></section>
+<section class="glass overflow-x-auto">{% include 'inventory/_ledger_rows.html' %}</section>
+{% endblock %}

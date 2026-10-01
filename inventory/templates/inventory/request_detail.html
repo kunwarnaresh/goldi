@@ -1,0 +1,26 @@
+{% extends 'inventory/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}{{ req.request_no }}{% endblock %}
+{% block eyebrow %}Stock transfer request{% endblock %}
+{% block heading %}{{ req.request_no }} {% badge req.status %}{% endblock %}
+{% block subheading %}To {{ req.to_location.code }} · requested by {{ req.requested_by.username }} on {{ req.request_date|date:'d M Y' }} · {{ req.get_priority_display }} priority{% if req.reason %} · {{ req.reason }}{% endif %}{% endblock %}
+{% block actions %}{% if req.transfer_order %}<a href="{% url 'inventory_transfer_detail' req.transfer_order.pk %}" class="btn-gold px-4 py-2 rounded-lg text-sm">Transfer {{ req.transfer_order.transfer_no }}</a>{% endif %}{% endblock %}
+{% block body %}
+<form method="post" class="space-y-6">{% csrf_token %}
+<section class="glass overflow-x-auto"><table class="w-full text-left text-sm min-w-[800px]">
+    <thead class="text-xs uppercase text-slate-500 bg-white/5"><tr><th class="px-5 py-3">Item</th><th class="text-right">Requested</th><th class="text-right">Approved</th><th>Available at your locations</th></tr></thead>
+    <tbody>{% for line, stock in lines %}<tr class="border-b border-white/5 align-top">
+        <td class="px-5 py-3">{{ line.item.item_no }} <span class="text-slate-500">{{ line.item.description }}</span></td><td class="text-right">{{ line.requested_qty|qty }}</td>
+        <td class="text-right">{% if req.status == 'REQUESTED' %}<input name="approve_{{ line.pk }}" value="{{ line.requested_qty|qty }}" class="w-24 text-right">{% else %}{{ line.approved_qty|qty }}{% endif %}</td>
+        <td class="text-xs">{% for s in stock %}{% if s.available %}<span class="inline-block mr-3">{{ s.location.code }}: <b>{{ s.available|qty }}</b></span>{% endif %}{% empty %}–{% endfor %}</td></tr>{% endfor %}</tbody>
+</table></section>
+{% if req.status == 'REQUESTED' %}
+<section class="glass p-5 flex flex-wrap gap-3 items-end">
+    <div class="w-64"><label class="text-xs uppercase text-slate-500">Supply from</label><select name="from_location">{% for l in sources %}<option value="{{ l.pk }}" {% if req.from_location_id == l.pk %}selected{% endif %}>{{ l.code }} – {{ l.name }}</option>{% empty %}<option value="">You cannot approve from any location</option>{% endfor %}</select></div>
+    <button name="action" value="approve" class="btn-gold px-5 py-3 rounded-lg">Approve &amp; create transfer</button>
+    <input name="reason" placeholder="Rejection reason" class="w-64"><button name="action" value="reject" class="glass px-4 py-3 text-rose-600">Reject</button>
+    <button name="action" value="cancel" class="glass px-4 py-3 text-slate-500">Cancel request</button>
+</section>{% endif %}
+</form>
+{% if req.remarks %}<p class="glass p-4 text-sm whitespace-pre-line">{{ req.remarks }}</p>{% endif %}
+{% endblock %}

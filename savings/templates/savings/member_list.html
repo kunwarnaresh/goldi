@@ -1,0 +1,31 @@
+{% extends 'savings/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}Scheme members{% endblock %}
+{% block heading %}Scheme members{% endblock %}
+{% block subheading %}{{ members|length }} scheme account{{ members|length|pluralize }}{% endblock %}
+{% block actions %}{% if perms_sav.enroll %}<a href="{% url 'savings_member_new' %}" class="btn-gold px-4 py-2 rounded-lg text-sm whitespace-nowrap"><i class="fas fa-user-plus mr-2"></i>Enrol new member</a>{% endif %}{% endblock %}
+{% block body %}
+<form method="get" class="glass p-4 flex flex-wrap gap-3 text-sm items-end">
+    <label><span class="text-slate-500 text-xs uppercase">Search</span><input name="q" value="{{ q }}" placeholder="Account, name or mobile"></label>
+    <label><span class="text-slate-500 text-xs uppercase">Status</span>
+        <select name="status"><option value="">All</option><option value="open" {% if status == 'open' %}selected{% endif %}>All open</option>
+            {% for code, label in statuses %}<option value="{{ code }}" {% if status == code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+    <label><span class="text-slate-500 text-xs uppercase">Scheme</span>
+        <select name="scheme"><option value="">All</option>{% for s in schemes %}<option value="{{ s.pk }}" {% if scheme_id == s.pk|stringformat:'s' %}selected{% endif %}>{{ s.code }}</option>{% endfor %}</select></label>
+    <button class="px-4 py-2 rounded-lg bg-slate-700 text-white">Filter</button>
+</form>
+<section class="glass overflow-x-auto">
+    <table class="w-full text-left text-sm">
+        <thead class="text-xs uppercase text-slate-500"><tr><th class="px-5 py-3">Account</th><th>Customer</th><th>Mobile</th><th>Scheme</th><th>Enrolled</th><th class="text-right">Monthly</th><th class="text-right">Paid</th><th class="text-right">Available</th><th>Maturity</th><th class="px-5">Status</th></tr></thead>
+        <tbody>{% for e in members %}
+            <tr class="border-t border-white/5">
+                <td class="px-5 py-2"><a class="text-sky-700 font-semibold" href="{% url 'savings_member_detail' e.pk %}">{{ e.account_no }}</a></td>
+                <td><a class="hover:underline" href="{% url 'savings_customer_detail' e.customer_id %}">{{ e.customer_name }}</a></td><td>{{ e.mobile }}</td>
+                <td>{{ e.scheme.code }}</td><td>{{ e.enrollment_date|date:'d-M-Y' }}</td><td class="text-right">{{ e.installment_amount|inr }}</td>
+                <td class="text-right">{{ e.contribution_paid|inr }}</td><td class="text-right">{{ e.available_entitlement|inr }}</td>
+                <td>{{ e.expected_maturity_date|date:'d-M-Y' }}</td><td class="px-5">{% badge e.status e.get_status_display %}</td>
+            </tr>
+        {% empty %}<tr><td colspan="10" class="px-5 py-6 text-slate-500">No members found.</td></tr>{% endfor %}</tbody>
+    </table>
+</section>
+{% endblock %}

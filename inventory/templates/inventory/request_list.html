@@ -1,0 +1,29 @@
+{% extends 'inventory/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}Stock transfer requests{% endblock %}
+{% block eyebrow %}Transfers{% endblock %}
+{% block heading %}Stock transfer requests{% endblock %}
+{% block subheading %}A store asks for stock; the supplying location approves (possibly less) and it becomes a transfer order.{% endblock %}
+{% block actions %}<a href="?{{ request.GET.urlencode }}&export=xlsx" class="glass px-3 py-2 text-slate-300 text-sm"><i class="fas fa-file-excel mr-1"></i>Export</a>{% endblock %}
+{% block body %}
+<div class="grid lg:grid-cols-3 gap-6">
+<section class="glass overflow-x-auto lg:col-span-2">
+    <div class="px-5 py-3 border-b border-white/10 flex gap-2 text-sm">{% for code, label in statuses %}<a href="?status={{ code }}" class="px-3 py-1 rounded {% if request.GET.status == code %}bg-sky-100 text-sky-800{% else %}text-slate-500{% endif %}">{{ label }}</a>{% endfor %}<a href="?" class="px-3 py-1 text-slate-500">All</a></div>
+    <table class="w-full text-left text-sm min-w-[700px]"><thead class="text-xs uppercase text-slate-500 bg-white/5"><tr><th class="px-5 py-3">Request</th><th>Date</th><th>From</th><th>To</th><th>Requested by</th><th>Priority</th><th class="text-right">Items</th><th class="text-right">Qty</th><th class="px-5">Status</th></tr></thead>
+    <tbody>{% for r in requests %}<tr class="border-b border-white/5"><td class="px-5 py-2"><a class="text-sky-700 font-semibold" href="{% url 'inventory_request_detail' r.pk %}">{{ r.request_no }}</a></td><td>{{ r.request_date|date:'d M' }}</td><td>{{ r.from_location.code|default:'–' }}</td><td>{{ r.to_location.code }}</td><td>{{ r.requested_by.username }}</td><td>{{ r.get_priority_display }}</td><td class="text-right">{{ r.item_count }}</td><td class="text-right">{{ r.qty|qty }}</td><td class="px-5">{% badge r.status %}</td></tr>
+    {% empty %}<tr><td colspan="9" class="px-5 py-8 text-center text-slate-500">No requests.</td></tr>{% endfor %}</tbody></table>
+</section>
+<section class="glass p-5">
+    <h3 class="font-semibold text-white mb-3">New request</h3>
+    {% if my_locations %}
+    <form method="post" class="space-y-3 text-sm">{% csrf_token %}
+        <div><label class="text-xs uppercase text-slate-500">Deliver to</label><select name="to_location" required>{% for l in my_locations %}{% if l.location_type != 'TRANSIT' %}<option value="{{ l.pk }}">{{ l.code }} – {{ l.name }}</option>{% endif %}{% endfor %}</select></div>
+        <div><label class="text-xs uppercase text-slate-500">Preferred source (optional)</label><select name="from_location"><option value="">Let the warehouse decide</option>{% for l in locations %}<option value="{{ l.pk }}">{{ l.code }} – {{ l.name }}</option>{% endfor %}</select></div>
+        <div><label class="text-xs uppercase text-slate-500">Items — one per line: <code>ITEM-NO, qty</code></label><textarea name="lines" rows="5" required placeholder="GOLD-RING-001, 10"></textarea></div>
+        <div class="grid grid-cols-2 gap-2"><div><label class="text-xs uppercase text-slate-500">Priority</label><select name="priority"><option>NORMAL</option><option>HIGH</option><option>URGENT</option><option>LOW</option></select></div><div><label class="text-xs uppercase text-slate-500">Reason</label><input name="reason"></div></div>
+        <button class="btn-gold px-5 py-3 rounded-lg w-full">Create request</button>
+    </form>
+    {% else %}<p class="text-sm text-slate-500">You are not allowed to request transfers for any location.</p>{% endif %}
+</section>
+</div>
+{% endblock %}

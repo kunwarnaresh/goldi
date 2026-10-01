@@ -1,0 +1,16 @@
+{% extends 'erp/retail/form.html' %}
+{% block after %}
+{{ tender_rules|json_script:'tender-rules' }}
+<script>
+(() => {
+    // Start the store rules from the tender master's rules when a tender is picked.
+    const rules = JSON.parse(document.getElementById('tender-rules').textContent);
+    const tender = document.getElementById('id_tender');
+    if (!tender || tender.disabled) return;
+    tender.addEventListener('change', () => {
+        const r = rules[tender.value]; if (!r) return;
+        Object.entries(r).forEach(([name, value]) => { const box = document.getElementById('id_' + name); if (box) box.checked = value; });
+    });
+})();
+</script>
+{% endblock %}

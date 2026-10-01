@@ -1,4 +1,4 @@
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from io import BytesIO
 from datetime import date
 
@@ -6,6 +6,9 @@ from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.hashers import check_password
+from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.db.models import Count, Q, Sum
 from django.http import HttpResponse
 from django.forms import modelform_factory
@@ -17,8 +20,12 @@ from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Spacer, Table, TableStyle, Paragraph
 from reportlab.lib.styles import getSampleStyleSheet
 
+from inventory.tenancy import create_tenant_for_user
+
 from .compliance import calculate_gst, estimate_income_tax, round_money
 from .excel_templates import build_template
+from .retail import services as retail_services
+from .retail.permissions import staff_permissions
 from .forms import (
     ConvertQuantityForm, CustomerForm, EmployeeForm, ExchangeTransactionForm, GSTSlabForm,
     InvoiceSettingForm, MetalRateForm, PaymentReceiptForm, POSSaleForm, ProductForm, PurchaseInvoiceFromReceiptForm,
@@ -54,7 +61,8 @@ from .services import (
     convert_receipt_to_purchase_invoice, convert_sales_order_to_invoice, create_payment_receipt,
     create_purchase_order, create_quotation, create_vendor_payment, get_next_customer_number, get_next_number,
     get_next_repair_number, get_related_documents, move_customer_ornament, post_payment_receipt,
-    post_purchase_invoice, post_sales_invoice, post_vendor_payment, receive_goods, submit_for_approval,
+    post_purchase_invoice, post_sales_invoice, post_vendor_payment, receive_goods, render_invoice_pdf,
+    render_thermal_receipt, submit_for_approval, ManualPricingRule, ManualUnit, ProductWeightAsUnit, ResolvedRate, resolve_current_metal_rate,
 )
 
 
@@ -75,51 +83,144 @@ def logout_view(request):
     return redirect('login')
 
 
+def index(request):
+    if request.user.is_authenticated:
+        return dashboard(request)
+    context = {
+        'features': [
+            {'icon': 'fa-cash-register', 'title': 'POS', 'desc': 'Fast jewellery billing.'},
+            {'icon': 'fa-coins', 'title': 'Gold & Silver Pricing', 'desc': 'Price jewellery using applicable metal rates.'},
+            {'icon': 'fa-boxes-stacked', 'title': 'Inventory', 'desc': 'Track weight, quantity, purity and serialized jewellery.'},
+            {'icon': 'fa-users', 'title': 'Customers', 'desc': 'Know every customer and every transaction.'},
+            {'icon': 'fa-file-invoice', 'title': 'Sales', 'desc': 'Quotes → Orders → Delivery → Invoice → Payment.'},
+            {'icon': 'fa-truck-fast', 'title': 'Purchases', 'desc': 'Vendor → Purchase Order → Receipt → Invoice → Payment.'},
+            {'icon': 'fa-scale-balanced', 'title': 'Finance', 'desc': 'Double-entry accounting and financial reporting.'},
+            {'icon': 'fa-chart-line', 'title': 'Reports', 'desc': 'Turn business data into decisions.'},
+            {'icon': 'fa-store', 'title': 'Multi-Store', 'desc': 'Manage multiple jewellery stores from one environment.'},
+        ],
+        'trust_items': [
+            'Tenant Isolation', 'Secure Authentication', 'Role-Based Access',
+            'Audit Trail', 'Cloud Backup', 'Scalable Architecture',
+        ],
+        'industries': [
+            'Gold Retail', 'Diamond Retail', 'Silver Retail', 'Multi-Store Jewellers',
+            'Independent Jewellers', 'Jewellery Startups', 'Bullion Businesses', 'Jewellery Brands',
+        ],
+        'faqs': [
+            ('Is Goldio really free?', 'Yes. The initial Goldio Free plan provides access to the complete platform. Goldio may introduce additional plans and limits in the future.'),
+            ('Do I need a credit card?', 'No credit card is required to create the Free workspace.'),
+            ('Can I create my own business workspace?', 'Yes. Every registration creates an independent business workspace.'),
+            ('Can two jewellery businesses use Goldio?', 'Yes. Goldio is designed as a multi-tenant SaaS platform where multiple businesses can operate independently.'),
+            ('Will my data be visible to another jewellery business?', 'No. Tenant data is logically isolated and protected by authorization and data-access controls.'),
+            ('What is the $2 plan?', 'The $2 Goldio Supporter option is a voluntary way to support the continued development of Goldio. It does not currently remove functionality from the Free plan.'),
+        ],
+    }
+    return render(request, 'marketing/home.html', context)
+
+
+def register_view(request):
+    if request.user.is_authenticated:
+        return redirect('dashboard')
+
+    if request.method == 'POST':
+        first_name = request.POST.get('first_name', '').strip()
+        last_name = request.POST.get('last_name', '').strip()
+        email = request.POST.get('email', '').strip().lower()
+        mobile = request.POST.get('mobile', '').strip()
+        business_name = request.POST.get('business_name', '').strip()
+        password = request.POST.get('password', '')
+        confirm_password = request.POST.get('confirm_password', '')
+
+        errors = []
+        if not first_name:
+            errors.append('Please tell us your name.')
+        if not email:
+            errors.append('Please enter your email address.')
+        elif User.objects.filter(username__iexact=email).exists():
+            errors.append('An account already exists with this email. Try logging in instead.')
+        if not business_name:
+            errors.append('Please enter your business name.')
+        if not password or len(password) < 8:
+            errors.append('Password must be at least 8 characters.')
+        elif password != confirm_password:
+            errors.append('Passwords do not match.')
+
+        if errors:
+            for error in errors:
+                messages.error(request, error)
+            return render(request, 'marketing/register.html', {'form_data': request.POST})
+
+        user = User.objects.create_user(
+            username=email, email=email, password=password,
+            first_name=first_name, last_name=last_name,
+        )
+        UserProfile.objects.create(user=user, phone=mobile)
+        create_tenant_for_user(user, business_name)
+        login(request, user)
+        messages.success(request, f'Welcome to Goldio, {first_name}! Your workspace for {business_name} is ready.')
+        return redirect('dashboard')
+
+    return render(request, 'marketing/register.html')
+
+
+POS_TERMINAL_COOKIE = 'goldi_pos_terminal'
+
+
+def _device_terminal(request):
+    """The terminal this browser is bound to (signed cookie), or the only active terminal when there is just one."""
+    terminal_id = request.get_signed_cookie(POS_TERMINAL_COOKIE, default=None, salt='pos-terminal')
+    terminals = POSTerminal.objects.select_related('store__location')
+    if terminal_id:
+        terminal = terminals.filter(pk=terminal_id).first()
+        if terminal:
+            return terminal
+    active = list(terminals.filter(status='active')[:2])
+    return active[0] if len(active) == 1 else None
+
+
+def _pos_login_page(request, terminal, status=200):
+    choosing = terminal is None or request.GET.get('change') == 'terminal'
+    return render(request, 'erp/pos_login.html', {
+        'terminal': terminal, 'choosing_terminal': choosing,
+        'terminals': POSTerminal.objects.filter(status='active').select_related('store__location').order_by('store__code', 'code') if choosing else [],
+    }, status=status)
+
+
 @login_required(login_url='login')
 def pos_login(request):
-    terminal = POSTerminal.objects.filter(is_active=True, status='active').select_related('store').first()
+    terminal = _device_terminal(request)
     if request.method == 'POST':
-        staff_code = request.POST.get('staff_id', '').strip()
-        pin = request.POST.get('pin', '')
-        staff = POSStaff.objects.filter(employee_code__iexact=staff_code).select_related('store').first()
-        assignment = POSStaffAssignment.objects.filter(
-            staff=staff, terminal=terminal, active=True, role__in=['cashier', 'manager', 'sales_staff'],
-        ).first() if staff and terminal else None
-        if not terminal:
-            messages.error(request, 'This POS terminal is not configured.')
-        elif not staff or not staff.is_active or staff.is_blocked or not staff.pos_access:
-            messages.error(request, 'Access denied. Check your staff ID or account status.')
-        elif not check_password(pin, staff.pin_hash):
-            messages.error(request, 'Access denied. Invalid staff ID or PIN.')
-        elif not assignment or assignment.terminal.store_id != staff.store_id:
-            messages.error(request, 'Your staff account is not assigned to this POS terminal.')
-        else:
-            shift = POSShift.objects.filter(terminal=terminal, status='open').first()
-            if not shift:
-                shift = POSShift.objects.create(
-                    shift_code=f'SHIFT-{timezone.now():%Y%m%d%H%M%S}',
-                    store=terminal.store, terminal=terminal, opening_staff=staff,
-                )
-            if not request.session.session_key:
-                request.session.save()
-            request.session['pos_session_id'] = POSSession.objects.create(
-                session_key=request.session.session_key,
-                staff=staff, terminal=terminal, shift=shift,
-                ip_address=request.META.get('REMOTE_ADDR'), device_id=terminal.device_id,
-            ).pk
-            terminal.last_login = timezone.now()
-            terminal.save(update_fields=['last_login'])
-            return redirect('pos')
-    return render(request, 'erp/pos_login.html', {'terminal': terminal})
+        chosen = request.POST.get('terminal_id')
+        if chosen:
+            terminal = POSTerminal.objects.select_related('store__location').filter(pk=chosen).first()
+        if terminal is None:
+            identifier = request.POST.get('staff_id', '')
+            staff = retail_services.find_staff(identifier)
+            terminal = staff.default_terminal if staff and staff.default_terminal_id else None
+        if not request.session.session_key:
+            request.session.save()
+        try:
+            pos_session = retail_services.authenticate(
+                request.POST.get('staff_id', ''), request.POST.get('pin', ''), terminal,
+                request=request, django_session_key=request.session.session_key,
+            )
+        except retail_services.POSLoginError as exc:
+            messages.error(request, exc.message)
+            return _pos_login_page(request, terminal)
+        request.session['pos_session_id'] = pos_session.pk
+        response = redirect('pos')
+        response.set_signed_cookie(POS_TERMINAL_COOKIE, str(terminal.pk), salt='pos-terminal', max_age=60 * 60 * 24 * 365,
+                                   httponly=True, samesite='Lax')
+        return response
+    return _pos_login_page(request, terminal)
 
 
 @login_required(login_url='login')
 def pos_logout(request):
     pos_session = POSSession.objects.filter(id=request.session.get('pos_session_id'), status='active').first()
     if pos_session:
-        pos_session.status = 'logged_out'
-        pos_session.logout_time = timezone.now()
-        pos_session.save(update_fields=['status', 'logout_time'])
+        retail_services.close_session(pos_session, request=request)
+        messages.info(request, f'Logged out. {pos_session.sales_count} bill(s), ₹{pos_session.sales_amount} this session.')
     request.session.pop('pos_session_id', None)
     return redirect('pos_login')
 
@@ -1035,6 +1136,64 @@ def metal_rate_fetch_live(request):
 
 
 @login_required(login_url='login')
+def metal_price_simulator(request):
+    """Quote a jewellery price using the exact same pricing engine as POS billing, without creating any transaction."""
+    products = Product.objects.filter(is_active=True).order_by('name')
+    stores = Store.objects.filter(is_active=True).order_by('name')
+    result = None
+
+    if request.GET.get('simulate'):
+        try:
+            product = Product.objects.filter(pk=request.GET.get('product')).first() if request.GET.get('product') else None
+            jewellery_rule = getattr(product, 'jewellery_pricing_rule', None) if product else None
+            store = Store.objects.filter(pk=request.GET.get('store')).first() if request.GET.get('store') else None
+
+            metal_type = request.GET.get('metal_type') or (product.metal_type if product else 'gold')
+            purity = (request.GET.get('purity') or (product.purity if product else '') or '').strip()
+            gross_weight = Decimal(request.GET.get('gross_weight') or (str(product.weight_grams) if product else '0') or '0')
+            stone_weight = Decimal(request.GET.get('stone_weight') or '0')
+            other_weight = Decimal(request.GET.get('other_weight') or '0')
+            discount = Decimal(request.GET.get('discount') or '0')
+
+            if not purity:
+                raise ValueError('Enter a purity (e.g. 22K, 999) or select a saved jewellery product.')
+
+            if jewellery_rule:
+                pricing_rule = jewellery_rule
+            else:
+                pricing_rule = ManualPricingRule(
+                    making_method=request.GET.get('making_method', 'per_gram'),
+                    making_rate=Decimal(request.GET.get('making_rate') or '0'),
+                    wastage_method=request.GET.get('wastage_method', 'weight'),
+                    wastage_percent=Decimal(request.GET.get('wastage_percent') or '0'),
+                    tax_rate_code=request.GET.get('tax_rate_code') or 'GST-3',
+                )
+
+            unit = ManualUnit(gross_weight=gross_weight, stone_weight=stone_weight, other_weight=other_weight)
+            rate_resolution = resolve_current_metal_rate(metal_type=metal_type, purity=purity, store=store)
+            if rate_resolution['resolved']:
+                breakdown = calculate_jewellery_price(
+                    unit=unit, metal_rate=ResolvedRate(rate_resolution['rate_per_gram']), pricing_rule=pricing_rule,
+                    tax_rate_code=pricing_rule.tax_rate_code, discount=discount,
+                )
+                result = {'breakdown': breakdown, 'rate_resolution': rate_resolution, 'metal_type': metal_type, 'purity': purity}
+                if rate_resolution['is_purity_converted']:
+                    messages.info(request, f"No {purity} rate configured; derived from the {rate_resolution['purity_used']} rate.")
+                if rate_resolution['is_stale']:
+                    messages.warning(request, f"This rate is {rate_resolution['age_minutes']:.0f} minutes old.")
+            else:
+                messages.warning(request, f'No current {metal_type} {purity} rate is configured.')
+        except GSTRate.DoesNotExist:
+            messages.error(request, f'No active GST rate is configured for tax code "{request.GET.get("tax_rate_code") or "GST-3"}".')
+        except (InvalidOperation, ValueError) as exc:
+            messages.error(request, f'Could not simulate this price: {exc}')
+
+    return render(request, 'erp/metal_price_simulator.html', {
+        'products': products, 'stores': stores, 'result': result, 'query': request.GET,
+    })
+
+
+@login_required(login_url='login')
 def posted_voucher_detail(request, pk):
     posted = get_object_or_404(FinancePostedVoucher.objects.prefetch_related('lines'), pk=pk)
     return render(request, 'erp/posted_voucher_detail.html', {'posted': posted})
@@ -1337,18 +1496,27 @@ def gst_management(request):
 
 
 @login_required(login_url='login')
+@transaction.atomic
 def pos(request):
     pos_session_id = request.session.get('pos_session_id')
     pos_session = POSSession.objects.select_related('staff', 'terminal__store', 'shift').filter(
         id=pos_session_id, status='active'
     ).first()
     if not pos_session:
-        return render(request, 'erp/pos_login.html', {
-            'terminal': POSTerminal.objects.filter(is_active=True, status='active').select_related('store').first(),
-        })
+        return _pos_login_page(request, _device_terminal(request))
+    # Re-validated on every request: deactivating staff, terminal, store or location takes effect immediately.
+    problem = retail_services.session_problem(pos_session)
+    if problem:
+        retail_services.close_session(pos_session, status='force_closed')
+        request.session.pop('pos_session_id', None)
+        messages.error(request, f'POS session closed: {problem[1]}')
+        return redirect('pos_login')
 
     pos_session.last_activity = timezone.now()
     pos_session.save(update_fields=['last_activity'])
+    pos_store = pos_session.terminal.store
+    pos_permissions = staff_permissions(pos_session.staff)
+    store_tenders = retail_services.active_store_tenders(pos_store)
     products = Product.objects.filter(is_active=True).order_by('name')
     customer_form = CustomerForm(prefix='customer')
     sales_staff = POSStaff.objects.filter(
@@ -1407,30 +1575,51 @@ def pos(request):
 
             pricing_breakdown = None
             jewellery_rule = getattr(product, 'jewellery_pricing_rule', None)
-            metal_rate = JewelleryMetalRate.objects.filter(
-                metal_type=jewellery_unit.metal_type if jewellery_unit else product.metal_type,
-                purity=jewellery_unit.purity if jewellery_unit else product.purity,
-                store=pos_session.terminal.store, is_active=True,
-                effective_from__lte=timezone.now(),
-            ).filter(Q(effective_to__isnull=True) | Q(effective_to__gte=timezone.now())).first()
-            if jewellery_unit and jewellery_rule and metal_rate:
+            pricing_unit = jewellery_unit or (ProductWeightAsUnit(product) if jewellery_rule else None)
+            rate_resolution = None
+            if pricing_unit and jewellery_rule:
+                requested_metal = jewellery_unit.metal_type if jewellery_unit else product.metal_type
+                requested_purity = jewellery_unit.purity if jewellery_unit else product.purity
+                rate_resolution = resolve_current_metal_rate(
+                    metal_type=requested_metal, purity=requested_purity, store=pos_session.terminal.store,
+                )
+            if rate_resolution and rate_resolution['resolved']:
                 pricing_breakdown = calculate_jewellery_price(
-                    unit=jewellery_unit, metal_rate=metal_rate, pricing_rule=jewellery_rule,
+                    unit=pricing_unit, metal_rate=ResolvedRate(rate_resolution['rate_per_gram']), pricing_rule=jewellery_rule,
                     tax_rate_code=jewellery_rule.tax_rate_code, discount=discount_amount,
                 )
+                pricing_breakdown['rate_resolution'] = {
+                    'requested_purity': requested_purity, 'purity_used': rate_resolution['purity_used'],
+                    'is_purity_converted': rate_resolution['is_purity_converted'],
+                    'is_store_fallback': rate_resolution['is_store_fallback'],
+                    'is_stale': rate_resolution['is_stale'], 'age_minutes': rate_resolution['age_minutes'],
+                }
                 unit_price = pricing_breakdown['metal_value']
                 line_total = pricing_breakdown['final_amount']
+                if rate_resolution['is_purity_converted']:
+                    messages.info(request, f"No {requested_purity} rate configured; derived from the {rate_resolution['purity_used']} rate.")
+                elif rate_resolution['is_store_fallback']:
+                    messages.info(request, f"No store-specific {requested_purity} rate configured; used the company-wide rate.")
+                if rate_resolution['is_stale']:
+                    messages.warning(request, f"This {requested_metal} {requested_purity} rate is {rate_resolution['age_minutes']:.0f} minutes old — consider refreshing metal rates.")
             else:
                 unit_price = product.sale_price or product.mrp or Decimal('0')
                 line_total = (unit_price * quantity) + making_charge + stone_value - discount_amount
+                if jewellery_rule:
+                    messages.warning(request, f"No current metal rate available for {product.name} — sold at the flat listed price instead of a live metal rate.")
             invoice.invoice_no = invoice.invoice_no or get_next_number('sales_invoice')
             invoice.cashier_staff = pos_session.staff
             invoice.cashier_name_snapshot = pos_session.staff.name
+            invoice.cashier_code_snapshot = pos_session.staff.employee_code
             invoice.cashier_role_snapshot = pos_session.staff.role
             invoice.pos_terminal = pos_session.terminal
             invoice.pos_session = pos_session
-            invoice.store_code_snapshot = pos_session.terminal.store.code
+            invoice.store_code_snapshot = pos_store.code
+            invoice.store_name_snapshot = pos_store.name
+            invoice.location_code_snapshot = pos_store.location.location_code
+            invoice.location_name_snapshot = pos_store.location.location_name
             invoice.terminal_code_snapshot = pos_session.terminal.code
+            invoice.terminal_name_snapshot = pos_session.terminal.name
             terminal_print_setup = POSTerminalPrintSetup.objects.filter(terminal=pos_session.terminal, active=True).first()
             store_print_setup = StoreInvoicePrintSetup.objects.filter(store=pos_session.terminal.store, active=True).first()
             selected_print_type = terminal_print_setup.print_type if terminal_print_setup and terminal_print_setup.print_type else store_print_setup.invoice_print_type if store_print_setup else 'A4_INVOICE'
@@ -1457,7 +1646,45 @@ def pos(request):
                 invoice.gst_amount = gst
                 invoice.total_amount = total
             invoice.status = 'pending_approval'
+
+            def reject(message):
+                messages.error(request, message)
+                return render(request, 'erp/pos.html', {
+                    'form': form, 'products': products, 'customer_form': customer_form, 'pos_session': pos_session,
+                    'sales_staff': sales_staff, 'jewellery_units': jewellery_units, 'store_tenders': store_tenders,
+                    'pos_permissions': pos_permissions,
+                }, status=400)
+
+            if 'pos.sale.create' not in pos_permissions:
+                return reject('Your role is not allowed to create sales.')
+            if (invoice.discount_amount or discount_amount) > 0 and 'pos.discount.approve' not in pos_permissions:
+                approver = retail_services.authorize_override(
+                    pos_store, request.POST.get('approver_login', ''), request.POST.get('approver_password', ''), 'pos.discount.approve')
+                if approver is None:
+                    return reject('A discount needs approval: enter the login ID and password of a manager of this store.')
+                invoice.notes = (invoice.notes + '\n' if invoice.notes else '') + f'Discount approved by {approver.employee_code} ({approver.name}).'
+            tender_lines = []
+            store_tender_map = {str(st.pk): st for st in store_tenders}
+            for st_id, amount, reference in zip(request.POST.getlist('tender_store_tender'), request.POST.getlist('tender_amount'),
+                                                request.POST.getlist('tender_reference')):
+                store_tender = store_tender_map.get(st_id)
+                try:
+                    amount = Decimal(amount)
+                except (InvalidOperation, TypeError):
+                    return reject('Invalid tender amount.')
+                if store_tender is None:
+                    return reject('A selected tender is not available at this store.')
+                tender_lines.append(retail_services.TenderLine(store_tender, amount, reference or ''))
+            if tender_lines and 'pos.payment.receive' not in pos_permissions:
+                return reject('Your role is not allowed to receive payments.')
+            try:
+                change_due = retail_services.validate_tender_lines(pos_store, tender_lines, invoice.total_amount)
+            except ValidationError as exc:
+                return reject(' '.join(exc.messages))
             invoice.save()
+            retail_services.record_tender_lines(invoice, pos_session, tender_lines, change_due)
+            pos_session.terminal.last_transaction = timezone.now()
+            pos_session.terminal.save(update_fields=['last_transaction'])
 
             SalesInvoiceItem.objects.create(
                 invoice=invoice,
@@ -1497,7 +1724,7 @@ def pos(request):
     return render(request, 'erp/pos.html', {
         'form': form, 'products': products, 'customer_form': customer_form,
         'pos_session': pos_session, 'sales_staff': sales_staff,
-        'jewellery_units': jewellery_units,
+        'jewellery_units': jewellery_units, 'store_tenders': store_tenders, 'pos_permissions': pos_permissions,
     })
 
 

@@ -1,0 +1,13 @@
+{% extends 'manufacturing/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}Production BOMs{% endblock %}
+{% block heading %}Production BOMs{% endblock %}
+{% block subheading %}What materials go into each product · versioned with maker-checker certification{% endblock %}
+{% block actions %}<form method="get"><input name="q" value="{{ q }}" placeholder="BOM, name, item…" class="text-sm w-56"></form>{% endblock %}
+{% block body %}
+<section class="glass overflow-hidden"><div class="overflow-x-auto"><table class="w-full text-left text-sm min-w-[760px]">
+    <thead class="text-xs uppercase text-slate-500 bg-white/5"><tr><th class="px-5 py-3">BOM</th><th>Name</th><th>Item</th><th>Type</th><th class="text-right">Versions</th><th class="text-right px-5">Status</th></tr></thead>
+    <tbody>{% for b in boms %}<tr class="border-b border-white/5"><td class="px-5 py-3"><a class="text-sky-700 font-semibold" href="{% url 'manufacturing_bom_detail' b.pk %}">{{ b.bom_no }}</a></td><td>{{ b.bom_name }}</td><td>{{ b.item.item_no }}</td><td>{{ b.get_manufacturing_type_display }}</td><td class="text-right">{{ b.version_count }}</td><td class="text-right px-5">{% badge b.status %}</td></tr>
+    {% empty %}<tr><td colspan="6" class="px-5 py-10 text-center text-slate-500">No production BOMs yet.</td></tr>{% endfor %}</tbody>
+</table></div></section>
+{% endblock %}

@@ -1,0 +1,37 @@
+{% extends 'savings/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}Enrolment report{% endblock %}
+{% block heading %}Enrolment report{% endblock %}
+{% block subheading %}How many customers have enrolled, in which schemes and when{% endblock %}
+{% block body %}
+<form method="get" class="glass p-4 flex flex-wrap gap-3 text-sm items-end">
+    <label><span class="text-slate-500 text-xs uppercase">Enrolled from</span><input type="date" name="start" value="{{ start|date:'Y-m-d' }}"></label>
+    <label><span class="text-slate-500 text-xs uppercase">To</span><input type="date" name="end" value="{{ end|date:'Y-m-d' }}"></label>
+    <label><span class="text-slate-500 text-xs uppercase">Scheme</span><select name="scheme"><option value="">All</option>{% for s in schemes %}<option value="{{ s.pk }}" {% if scheme.pk == s.pk %}selected{% endif %}>{{ s.code }}</option>{% endfor %}</select></label>
+    <button class="px-4 py-2 rounded-lg bg-slate-700 text-white">Show</button>
+</form>
+<section class="grid grid-cols-2 gap-4 max-w-xl">
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Scheme accounts</p><p class="text-3xl font-bold text-white">{{ data.total }}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Distinct customers</p><p class="text-3xl font-bold text-white">{{ data.members }}</p></div>
+</section>
+<div class="grid lg:grid-cols-3 gap-6">
+    <section class="glass overflow-x-auto">
+        <div class="px-5 py-4 border-b border-white/10"><h3 class="font-semibold text-white">By status</h3></div>
+        <table class="w-full text-left text-sm"><thead class="text-xs uppercase text-slate-500"><tr><th class="px-5 py-2">Status</th><th class="text-right">Accounts</th><th class="text-right px-5">Planned</th></tr></thead>
+            <tbody>{% for r in data.by_status %}<tr class="border-t border-white/5"><td class="px-5 py-1.5"><a class="text-sky-700" href="{% url 'savings_members' %}?status={{ r.status }}">{{ r.label }}</a></td><td class="text-right">{{ r.count }}</td><td class="text-right px-5">{{ r.planned|inr }}</td></tr>
+            {% empty %}<tr><td class="px-5 py-6 text-slate-500" colspan="3">No enrolments.</td></tr>{% endfor %}</tbody></table>
+    </section>
+    <section class="glass overflow-x-auto">
+        <div class="px-5 py-4 border-b border-white/10"><h3 class="font-semibold text-white">By scheme</h3></div>
+        <table class="w-full text-left text-sm"><thead class="text-xs uppercase text-slate-500"><tr><th class="px-5 py-2">Scheme</th><th class="text-right">Accounts</th><th class="text-right">Customers</th><th class="text-right px-5">Paid so far</th></tr></thead>
+            <tbody>{% for r in data.by_scheme %}<tr class="border-t border-white/5"><td class="px-5 py-1.5">{{ r.code }}</td><td class="text-right">{{ r.count }}</td><td class="text-right">{{ r.members }}</td><td class="text-right px-5">{{ r.paid|inr }}</td></tr>
+            {% empty %}<tr><td class="px-5 py-6 text-slate-500" colspan="4">—</td></tr>{% endfor %}</tbody></table>
+    </section>
+    <section class="glass overflow-x-auto">
+        <div class="px-5 py-4 border-b border-white/10"><h3 class="font-semibold text-white">By month enrolled</h3></div>
+        <table class="w-full text-left text-sm"><thead class="text-xs uppercase text-slate-500"><tr><th class="px-5 py-2">Month</th><th class="text-right">New accounts</th><th class="text-right px-5">Planned</th></tr></thead>
+            <tbody>{% for r in data.by_month %}<tr class="border-t border-white/5"><td class="px-5 py-1.5">{{ r.month|date:'M Y' }}</td><td class="text-right">{{ r.count }}</td><td class="text-right px-5">{{ r.planned|inr }}</td></tr>
+            {% empty %}<tr><td class="px-5 py-6 text-slate-500" colspan="3">—</td></tr>{% endfor %}</tbody></table>
+    </section>
+</div>
+{% endblock %}

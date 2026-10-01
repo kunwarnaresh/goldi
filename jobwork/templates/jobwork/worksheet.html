@@ -1,0 +1,14 @@
+{% extends 'jobwork/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}Subcontracting worksheet{% endblock %}
+{% block heading %}Subcontracting worksheet{% endblock %}
+{% block subheading %}Released production operations that are subcontracted and have no subcontract order yet{% endblock %}
+{% block body %}
+<form method="post" class="glass overflow-hidden">{% csrf_token %}<div class="overflow-x-auto"><table class="w-full text-left text-sm min-w-[1000px]">
+    <thead class="text-xs uppercase text-slate-500 bg-white/5"><tr><th class="px-5 py-3"></th><th>Production order</th><th>Item</th><th>Operation</th><th>Job worker</th><th>Material ready</th><th>Required</th><th>Expected return</th><th class="text-right">Qty</th><th class="text-right">Estimated cost</th><th class="px-5">Status</th></tr></thead>
+    <tbody>{% for r in rows %}<tr class="border-b border-white/5"><td class="px-5 py-2"><input type="checkbox" name="operation" value="{{ r.operation.pk }}" class="w-auto"></td>
+        <td><a class="text-sky-700" href="{% url 'manufacturing_order_detail' r.order.pk %}">{{ r.order.order_no }}</a></td><td>{{ r.order.item.item_no }}</td><td>{{ r.operation.operation_no }} {{ r.operation.description }}</td>
+        <td><select name="worker_{{ r.operation.pk }}" class="text-xs">{% if r.job_worker %}<option value="{{ r.job_worker.pk }}">{{ r.job_worker }} (routing)</option>{% else %}<option value="">select…</option>{% endif %}{% for w in workers %}{% if w != r.job_worker %}<option value="{{ w.pk }}">{{ w }}</option>{% endif %}{% endfor %}</select></td>
+        <td>{% if r.material_ready %}yes{% else %}<span class="text-amber-600">issue material first</span>{% endif %}</td><td>{{ r.required_date|default:'' }}</td><td>{{ r.expected_return|default:'' }}</td><td class="text-right">{{ r.quantity|qty }}</td><td class="text-right">{{ r.estimated_cost|inr|default:'no price' }}</td><td class="px-5">{% badge r.status %}</td></tr>{% empty %}<tr><td colspan="11" class="px-5 py-10 text-center text-slate-500">No subcontract operations are waiting.</td></tr>{% endfor %}</tbody>
+</table></div>{% if rows and perms_jw.create %}<div class="p-4"><button class="btn-gold px-4 py-2 rounded-lg text-sm">Create subcontract orders for selected</button></div>{% endif %}</form>
+{% endblock %}

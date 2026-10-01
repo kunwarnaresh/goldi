@@ -1,0 +1,27 @@
+{% extends 'inventory/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}Transfer dashboard{% endblock %}
+{% block eyebrow %}Transfers{% endblock %}
+{% block heading %}Transfer dashboard{% endblock %}
+{% block actions %}<a href="{% url 'inventory_transfers' %}" class="glass px-4 py-2 text-slate-300 text-sm">Transfer orders</a><a href="{% url 'inventory_transfer_new' %}" class="btn-gold px-4 py-2 rounded-lg text-sm">New transfer</a>{% endblock %}
+{% block body %}
+<section class="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Transfers today</p><p class="text-2xl font-bold text-white">{{ kpis.today }}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Pending approval</p><p class="text-2xl font-bold text-amber-600">{{ kpis.pending_approval }}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Ready to ship</p><p class="text-2xl font-bold text-white">{{ kpis.ready_to_ship }}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">In transit</p><p class="text-2xl font-bold text-sky-700">{{ kpis.in_transit }}</p><p class="text-xs text-slate-500">{{ kpis.transit_value|inr }} · {{ kpis.transit_weight|grams }} g</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Partially received</p><p class="text-2xl font-bold text-white">{{ kpis.partially_received }}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Overdue</p><p class="text-2xl font-bold {% if kpis.overdue %}text-rose-600{% else %}text-white{% endif %}">{{ kpis.overdue }}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Completed</p><p class="text-2xl font-bold text-emerald-700">{{ kpis.completed }}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Average transfer time</p><p class="text-2xl font-bold text-white">{% if average_days is not None %}{{ average_days|floatformat:1 }} days{% else %}–{% endif %}</p></div>
+</section>
+<div class="grid lg:grid-cols-2 gap-6">
+    <section class="glass overflow-hidden"><div class="px-5 py-4 border-b border-white/10"><h3 class="font-semibold text-white">Transfers by source location</h3></div>
+        <table class="w-full text-left text-sm"><thead class="text-xs uppercase text-slate-500"><tr><th class="px-5 py-2">From</th><th class="text-right">Transfers</th><th class="text-right">Qty</th><th class="text-right px-5">Gross g</th></tr></thead>
+        <tbody>{% for r in by_location %}<tr class="border-b border-white/5"><td class="px-5 py-2">{{ r.from_location__code }}</td><td class="text-right">{{ r.n }}</td><td class="text-right">{{ r.qty|qty }}</td><td class="text-right px-5">{{ r.weight|grams }}</td></tr>{% empty %}<tr><td colspan="4" class="px-5 py-6 text-slate-500">No transfers.</td></tr>{% endfor %}</tbody></table></section>
+    <section class="glass overflow-hidden"><div class="px-5 py-4 border-b border-white/10"><h3 class="font-semibold text-white">Transfer weight by metal</h3></div>
+        <table class="w-full text-left text-sm"><tbody>{% for r in by_metal %}{% if r.lines__item__metal %}<tr class="border-b border-white/5"><td class="px-5 py-2">{{ r.lines__item__metal|title }}</td><td class="text-right">{{ r.qty|qty }} pcs</td><td class="text-right px-5">{{ r.weight|grams }} g</td></tr>{% endif %}{% empty %}<tr><td class="px-5 py-6 text-slate-500">No transfers.</td></tr>{% endfor %}</tbody></table></section>
+</div>
+<section class="glass overflow-hidden"><div class="px-5 py-4 border-b border-white/10"><h3 class="font-semibold text-white">Overdue in transit</h3></div>
+    <table class="w-full text-left text-sm"><tbody>{% for r in overdue %}<tr class="border-b border-white/5"><td class="px-5 py-2"><a class="text-sky-700 font-semibold" href="{% url 'inventory_transfer_detail' r.order.pk %}">{{ r.order.transfer_no }}</a></td><td>{{ r.order.from_location.code }} → {{ r.order.to_location.code }}</td><td>{{ r.line.item.item_no }}</td><td class="text-right">{{ r.qty|qty }}</td><td class="text-right px-5 text-rose-600">{{ r.days }} days (due {{ r.order.expected_receipt_date|date:'d M' }})</td></tr>{% empty %}<tr><td class="px-5 py-6 text-slate-500">Nothing overdue.</td></tr>{% endfor %}</tbody></table></section>
+{% endblock %}

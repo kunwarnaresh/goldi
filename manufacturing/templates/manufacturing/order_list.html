@@ -1,0 +1,25 @@
+{% extends 'manufacturing/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}Production orders{% endblock %}
+{% block heading %}Production orders{% endblock %}
+{% block actions %}
+<form method="get" class="flex gap-2 items-center">
+    <input name="q" value="{{ q }}" placeholder="Order, item, source…" class="text-sm w-48">
+    <select name="status" onchange="this.form.submit()" class="text-sm w-44"><option value="">All statuses</option><option value="open" {% if status == 'open' %}selected{% endif %}>All open</option>{% for code, label in statuses %}<option value="{{ code }}" {% if status == code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+</form>
+{% if perms_mfg.create_order %}<a href="{% url 'manufacturing_order_new' %}" class="btn-gold px-4 py-2 rounded-lg text-sm whitespace-nowrap"><i class="fas fa-plus mr-2"></i>New</a>{% endif %}
+{% endblock %}
+{% block body %}
+<section class="glass overflow-hidden"><div class="overflow-x-auto"><table class="w-full text-left text-sm min-w-[900px]">
+    <thead class="text-xs uppercase text-slate-500 bg-white/5"><tr><th class="px-5 py-3">Order</th><th>Item</th><th>Location</th><th>Priority</th><th class="text-right">Produced / planned</th><th>Due</th><th class="text-right">Planned cost</th><th class="text-right px-5">Status</th></tr></thead>
+    <tbody>{% for o in orders %}<tr class="border-b border-white/5">
+        <td class="px-5 py-3"><a class="text-sky-700 font-semibold" href="{% url 'manufacturing_order_detail' o.pk %}">{{ o.order_no }}</a><div class="text-xs text-slate-500">{{ o.get_source_type_display }} {{ o.source_no }}</div></td>
+        <td>{{ o.item.item_no }} <span class="text-slate-500">{{ o.item.description|truncatechars:30 }}</span></td>
+        <td>{{ o.location.code }}</td><td>{{ o.get_priority_display }}</td>
+        <td class="text-right">{{ o.produced_qty|qty }} / {{ o.planned_qty|qty }}</td>
+        <td class="{% if o.is_late %}text-rose-600 font-semibold{% endif %}">{{ o.due_date|default:'' }}</td>
+        <td class="text-right">{{ o.planned_total_cost|inr }}</td>
+        <td class="text-right px-5">{% badge o.status %}</td>
+    </tr>{% empty %}<tr><td colspan="8" class="px-5 py-10 text-center text-slate-500">No production orders match.</td></tr>{% endfor %}</tbody>
+</table></div></section>
+{% endblock %}

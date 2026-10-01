@@ -1,0 +1,33 @@
+{% extends 'manufacturing/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}Manufacturing dashboard{% endblock %}
+{% block heading %}Manufacturing dashboard{% endblock %}
+{% block subheading %}BOM · routing · production orders · shop floor{% if not setup.manufacturing_enabled %} · <span class="text-rose-600">manufacturing is disabled in setup</span>{% endif %}{% endblock %}
+{% block actions %}
+{% if perms_mfg.create_order %}<a href="{% url 'manufacturing_order_new' %}" class="btn-gold px-4 py-2 rounded-lg text-sm whitespace-nowrap"><i class="fas fa-plus mr-2"></i>New production order</a>{% endif %}
+{% endblock %}
+{% block body %}
+<section class="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <a href="{% url 'manufacturing_orders' %}?status=open" class="glass p-4 card-hover"><p class="text-xs uppercase text-slate-500">In planning</p><p class="text-2xl font-bold text-white">{{ kpis.planning }}</p></a>
+    <a href="{% url 'manufacturing_orders' %}?status=open" class="glass p-4 card-hover"><p class="text-xs uppercase text-slate-500">In production</p><p class="text-2xl font-bold text-white">{{ kpis.in_progress }}</p></a>
+    <a href="{% url 'manufacturing_orders' %}?status=QC_PENDING" class="glass p-4 card-hover"><p class="text-xs uppercase text-slate-500">QC pending</p><p class="text-2xl font-bold {% if kpis.qc_pending %}text-amber-600{% else %}text-white{% endif %}">{{ kpis.qc_pending }}</p></a>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Late orders</p><p class="text-2xl font-bold {% if kpis.late %}text-rose-600{% else %}text-white{% endif %}">{{ kpis.late }}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Open qty produced / planned</p><p class="text-2xl font-bold text-white">{{ kpis.produced_qty|qty }} / {{ kpis.planned_qty|qty }}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Planned cost in execution</p><p class="text-2xl font-bold text-white">{{ kpis.wip_cost|inr }}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Finished / closed</p><p class="text-2xl font-bold text-white">{{ kpis.finished }}</p></div>
+    <a href="{% url 'manufacturing_subcontracts' %}" class="glass p-4 card-hover"><p class="text-xs uppercase text-slate-500">At subcontractors</p><p class="text-2xl font-bold text-white">{{ kpis.subcontract_open }}</p></a>
+    <a href="{% url 'manufacturing_boms' %}" class="glass p-4 card-hover"><p class="text-xs uppercase text-slate-500">Active BOMs</p><p class="text-2xl font-bold text-white">{{ kpis.boms }}</p></a>
+    <a href="{% url 'manufacturing_work_centers' %}" class="glass p-4 card-hover"><p class="text-xs uppercase text-slate-500">Work centres</p><p class="text-2xl font-bold text-white">{{ kpis.work_centers }}</p></a>
+</section>
+
+<div class="grid lg:grid-cols-2 gap-6">
+    <section class="glass overflow-hidden">
+        <div class="px-5 py-4 border-b border-white/10 flex justify-between"><h3 class="font-semibold text-white">Recent production orders</h3><a href="{% url 'manufacturing_orders' %}" class="text-sm text-sky-700">All orders →</a></div>
+        <table class="w-full text-left text-sm"><tbody>{% for o in recent %}<tr class="border-b border-white/5"><td class="px-5 py-2"><a class="text-sky-700 font-semibold" href="{% url 'manufacturing_order_detail' o.pk %}">{{ o.order_no }}</a></td><td>{{ o.item.item_no }}</td><td class="text-right">{{ o.produced_qty|qty }} / {{ o.planned_qty|qty }}</td><td class="text-right px-5">{% badge o.status %}</td></tr>{% empty %}<tr><td class="px-5 py-6 text-slate-500">No production orders yet.</td></tr>{% endfor %}</tbody></table>
+    </section>
+    <section class="glass overflow-hidden">
+        <div class="px-5 py-4 border-b border-white/10"><h3 class="font-semibold text-white">Due in the next 7 days</h3></div>
+        <table class="w-full text-left text-sm"><tbody>{% for o in due_soon %}<tr class="border-b border-white/5"><td class="px-5 py-2"><a class="text-sky-700 font-semibold" href="{% url 'manufacturing_order_detail' o.pk %}">{{ o.order_no }}</a></td><td>{{ o.item.item_no }}</td><td class="{% if o.is_late %}text-rose-600{% endif %}">{{ o.due_date }}</td><td class="text-right px-5">{% badge o.status %}</td></tr>{% empty %}<tr><td class="px-5 py-6 text-slate-500">Nothing due this week.</td></tr>{% endfor %}</tbody></table>
+    </section>
+</div>
+{% endblock %}

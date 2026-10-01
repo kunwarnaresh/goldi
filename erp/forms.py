@@ -13,12 +13,14 @@ class ProductForm(forms.ModelForm):
     class Meta:
         model = Product
         fields = [
-            'item_category', 'sku', 'name', 'metal_type', 'purity', 'weight_grams',
+            'item_category', 'subcategory', 'variant', 'sku', 'name', 'metal_type', 'purity', 'weight_grams',
             'making_charge', 'purchase_price', 'sale_price', 'mrp', 'barcode',
             'hsn_code', 'stock_quantity', 'is_active',
         ]
         widgets = {
             'item_category': forms.Select(attrs={'class': 'form-select'}),
+            'subcategory': forms.TextInput(attrs={'class': 'form-control'}),
+            'variant': forms.TextInput(attrs={'class': 'form-control'}),
             'sku': forms.TextInput(attrs={'class': 'form-control'}),
             'name': forms.TextInput(attrs={'class': 'form-control'}),
             'metal_type': forms.Select(attrs={'class': 'form-select'}),

@@ -1,0 +1,18 @@
+{% extends 'inventory/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}Items{% endblock %}
+{% block eyebrow %}Items{% endblock %}
+{% block heading %}Items{% endblock %}
+{% block subheading %}One item definition; location-specific setup lives on its SKUs.{% endblock %}
+{% block actions %}<a href="{% url 'inventory_setup' 'variants' %}" class="glass px-3 py-2 text-slate-300 text-sm">Variants</a><a href="{% url 'inventory_setup' 'item-uoms' %}" class="glass px-3 py-2 text-slate-300 text-sm">Units of measure</a><a href="{% url 'inventory_setup_new' 'items' %}" class="btn-gold px-4 py-2 rounded-lg text-sm"><i class="fas fa-plus mr-1"></i>New item</a>{% endblock %}
+{% block body %}
+<form method="get" class="glass p-4 flex gap-3 items-end"><div class="flex-1"><label class="text-xs uppercase text-slate-500">Search</label><input name="q" value="{{ request.GET.q }}" placeholder="Item no, description or category"></div><button class="btn-gold px-5 py-3 rounded-lg text-sm">Filter</button></form>
+<section class="glass overflow-x-auto"><table class="w-full text-left text-sm min-w-[900px]">
+    <thead class="text-xs uppercase text-slate-500 bg-white/5"><tr><th class="px-5 py-3">Item</th><th>Description</th><th>Type</th><th>Metal / purity</th><th>Tracking</th><th class="text-right">SKUs</th><th class="text-right">On hand</th><th class="text-right">Available</th><th class="text-right px-5">Gross g</th></tr></thead>
+    <tbody>{% for item, stock in rows %}<tr class="border-b border-white/5 hover:bg-white/5">
+        <td class="px-5 py-3"><a class="text-sky-700 font-semibold" href="{% url 'inventory_item_card' item.pk %}">{{ item.item_no }}</a></td><td class="text-white">{{ item.description }}</td><td>{{ item.get_item_type_display }}</td>
+        <td>{{ item.get_metal_display }} {{ item.purity }}</td><td>{% if item.serial_tracking %}Serialized{% elif item.lot_tracking %}Lot{% else %}Quantity{% endif %}</td>
+        <td class="text-right">{{ item.sku_count }}</td><td class="text-right">{{ stock.qty|qty }}</td><td class="text-right">{{ stock.available|qty }}</td><td class="text-right px-5">{{ stock.gross|grams }}</td></tr>
+    {% empty %}<tr><td colspan="9" class="px-5 py-10 text-center text-slate-500">No items yet.</td></tr>{% endfor %}</tbody>
+</table></section>
+{% endblock %}

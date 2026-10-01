@@ -1,0 +1,25 @@
+{% extends 'inventory/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}Inventory valuation{% endblock %}
+{% block eyebrow %}Reports{% endblock %}
+{% block heading %}Inventory valuation by location{% endblock %}
+{% block subheading %}Historical cost is never rewritten. Current metal value uses today's rate + the location premium; current value adds stone and making for serialized pieces.{% endblock %}
+{% block actions %}
+<form method="get"><select name="location" onchange="this.form.submit()" class="text-sm"><option value="">All locations</option>{% for l in locations %}<option value="{{ l.pk }}" {% if selected.pk == l.pk %}selected{% endif %}>{{ l.code }}</option>{% endfor %}</select></form>
+<a href="?{{ request.GET.urlencode }}&export=xlsx" class="glass px-3 py-2 text-slate-300 text-sm"><i class="fas fa-file-excel mr-1"></i>Excel</a><a href="?{{ request.GET.urlencode }}&export=pdf" class="glass px-3 py-2 text-slate-300 text-sm">PDF</a>
+{% endblock %}
+{% block body %}
+{% if unrated %}<p class="glass p-4 text-sm text-amber-700 border-l-4 border-amber-500">Some stock has no current metal rate for its metal/purity — maintain rates under Metal Rates. That weight is excluded from current metal value.</p>{% endif %}
+<section class="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Historical cost</p><p class="text-2xl font-bold text-white">{{ totals.cost_value|inr }}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Current metal value</p><p class="text-2xl font-bold text-amber-600">{{ totals.metal_value|inr }}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Current value</p><p class="text-2xl font-bold text-white">{{ totals.current_value|inr }}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Retail value</p><p class="text-2xl font-bold text-emerald-700">{{ totals.retail_value|inr }}</p></div>
+</section>
+<section class="glass overflow-x-auto"><table class="w-full text-left text-sm min-w-[900px]">
+    <thead class="text-xs uppercase text-slate-500 bg-white/5"><tr><th class="px-5 py-3">Location</th><th class="text-right">Quantity</th><th class="text-right">Gross g</th><th class="text-right">Net metal g</th><th class="text-right">Historical cost</th><th class="text-right">Current metal value</th><th class="text-right">Current value</th><th class="text-right px-5">Retail value</th></tr></thead>
+    <tbody>{% for r in rows %}<tr class="border-b border-white/5"><td class="px-5 py-2"><a class="text-sky-700 font-semibold" href="{% url 'inventory_location_card' r.location.pk %}">{{ r.location.code }}</a> <span class="text-slate-500">{{ r.location.name }}</span></td><td class="text-right">{{ r.qty|qty }}</td><td class="text-right">{{ r.gross_weight|grams }}</td><td class="text-right">{{ r.net_weight|grams }}</td><td class="text-right">{{ r.cost_value|inr }}</td><td class="text-right">{{ r.metal_value|inr }}</td><td class="text-right">{{ r.current_value|inr }}</td><td class="text-right px-5">{{ r.retail_value|inr }}</td></tr>
+    {% empty %}<tr><td colspan="8" class="px-5 py-10 text-center text-slate-500">No stock.</td></tr>{% endfor %}</tbody>
+    <tfoot class="font-semibold text-white"><tr><td class="px-5 py-3">Total</td><td class="text-right">{{ totals.qty|qty }}</td><td class="text-right">{{ totals.gross_weight|grams }}</td><td class="text-right">{{ totals.net_weight|grams }}</td><td class="text-right">{{ totals.cost_value|inr }}</td><td class="text-right">{{ totals.metal_value|inr }}</td><td class="text-right">{{ totals.current_value|inr }}</td><td class="text-right px-5">{{ totals.retail_value|inr }}</td></tr></tfoot>
+</table></section>
+{% endblock %}

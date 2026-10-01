@@ -1,0 +1,8 @@
+{% if field.is_hidden %}{{ field }}{% else %}
+<div class="{% if field.field.widget.input_type == 'checkbox' %}flex items-start gap-2 py-2{% endif %}{% if field.field.widget.allow_multiple_selected and field.field.widget.input_type == 'checkbox' %} col-span-full block{% endif %}">
+    {% if field.field.widget.input_type == 'checkbox' and not field.field.widget.allow_multiple_selected %}{{ field }}<label for="{{ field.id_for_label }}" class="text-sm text-white">{{ field.label }}{% if field.help_text %}<span class="field-help block">{{ field.help_text }}</span>{% endif %}</label>
+    {% else %}<label for="{{ field.id_for_label }}" class="block text-xs uppercase tracking-wider text-slate-500 mb-1">{{ field.label }}{% if field.field.required %} *{% endif %}</label>
+    {% if field.field.widget.allow_multiple_selected and field.field.widget.input_type == 'checkbox' %}<ul class="checks">{% for choice in field %}<li>{{ choice.tag }}<label for="{{ choice.id_for_label }}">{{ choice.choice_label }}</label></li>{% endfor %}</ul>{% else %}{{ field }}{% endif %}
+    {% if field.help_text %}<p class="field-help">{{ field.help_text }}</p>{% endif %}{% endif %}
+    {% for error in field.errors %}<p class="text-xs text-rose-600 mt-1">{{ error }}</p>{% endfor %}
+</div>{% endif %}

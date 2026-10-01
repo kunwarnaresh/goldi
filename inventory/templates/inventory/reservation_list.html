@@ -1,0 +1,14 @@
+{% extends 'inventory/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}Reservations{% endblock %}
+{% block eyebrow %}Stock{% endblock %}
+{% block heading %}Reservations{% endblock %}
+{% block subheading %}Reserved stock is still on hand but no longer available.{% endblock %}
+{% block body %}
+<section class="glass overflow-x-auto"><table class="w-full text-left text-sm min-w-[900px]">
+    <thead class="text-xs uppercase text-slate-500 bg-white/5"><tr><th class="px-5 py-3">Source</th><th>Document</th><th>Item</th><th>Location / bin</th><th>Barcode</th><th class="text-right">Reserved</th><th class="text-right">Open</th><th>Created</th><th class="px-5"></th></tr></thead>
+    <tbody>{% for r in reservations %}<tr class="border-b border-white/5"><td class="px-5 py-2">{{ r.get_source_type_display }}</td><td>{{ r.source_no }}{% if r.source_line_no %} / {{ r.source_line_no }}{% endif %}</td><td>{{ r.item.item_no }}</td><td>{{ r.location.code }} {{ r.bin.code|default:'' }}</td><td>{{ r.jewellery_unit.barcode|default:'' }}</td><td class="text-right">{{ r.quantity|qty }}</td><td class="text-right font-semibold">{{ r.open_quantity|qty }}</td><td>{{ r.created_at|date:'d M Y' }}</td>
+        <td class="px-5 text-right">{% if r.source_type != 'TRANSFER_ORDER' %}<form method="post">{% csrf_token %}<button name="reservation" value="{{ r.pk }}" class="text-rose-600 text-sm">Release</button></form>{% endif %}</td></tr>
+    {% empty %}<tr><td colspan="9" class="px-5 py-8 text-center text-slate-500">No active reservations.</td></tr>{% endfor %}</tbody>
+</table></section>
+{% endblock %}

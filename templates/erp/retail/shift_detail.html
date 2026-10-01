@@ -1,0 +1,39 @@
+{% extends 'erp/retail/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}{{ shift.shift_code }}{% endblock %}
+{% block eyebrow %}POS shift{% endblock %}
+{% block heading %}{{ shift.shift_code }}{% endblock %}
+{% block subheading %}{{ shift.store.code }} · {{ shift.terminal.code }} · {% badge shift.status|upper shift.get_status_display %}{% endblock %}
+{% block actions %}<a href="{% url 'retail_shifts' %}" class="btn-ghost"><i class="fas fa-arrow-left"></i>Back</a>{% endblock %}
+{% block body %}
+<section class="grid grid-cols-2 md:grid-cols-5 gap-3">
+    <div class="glass kpi"><p>Opening cash</p><p>₹{{ shift.opening_cash }}</p></div>
+    <div class="glass kpi"><p>Expected cash</p><p>₹{% if shift.status == 'closed' %}{{ shift.expected_cash }}{% else %}{{ expected }}{% endif %}</p></div>
+    <div class="glass kpi"><p>Counted cash</p><p>{% if shift.status == 'closed' %}₹{{ shift.actual_cash }}{% else %}—{% endif %}</p></div>
+    <div class="glass kpi"><p>Difference</p><p class="{% if shift.cash_difference < 0 %}text-rose-600{% endif %}">{% if shift.status == 'closed' %}₹{{ shift.cash_difference }}{% else %}—{% endif %}</p></div>
+    <div class="glass kpi"><p>Opened by</p><p class="text-base">{{ shift.opening_staff.name }}<br><span class="text-xs text-slate-500">{{ shift.opening_time|date:'d M H:i' }}</span></p></div>
+</section>
+<div class="grid lg:grid-cols-2 gap-5">
+    <section class="glass overflow-hidden">
+        <div class="panel-head"><h3>Collections by tender</h3></div>
+        <table class="rtable"><thead><tr><th>Tender</th><th>Lines</th><th class="text-right">Tendered</th><th class="text-right">Change</th></tr></thead><tbody>
+        {% for t in tender_totals %}<tr><td>{{ t.tender_name_snapshot }}</td><td>{{ t.count }}</td><td class="text-right">₹{{ t.total }}</td><td class="text-right">₹{{ t.change }}</td></tr>
+        {% empty %}<tr><td colspan="4" class="text-slate-500">No tenders taken in this shift.</td></tr>{% endfor %}
+        </tbody></table>
+    </section>
+    <section class="glass overflow-hidden">
+        <div class="panel-head"><h3>Sessions</h3></div>
+        <table class="rtable"><thead><tr><th>Session</th><th>Staff</th><th>Login</th><th>Logout</th><th>Status</th></tr></thead><tbody>
+        {% for s in sessions %}<tr><td>{{ s.session_no|default:s.pk }}</td><td>{{ s.staff_name_snapshot|default:s.staff.name }}</td><td>{{ s.login_time|date:'H:i' }}</td><td>{{ s.logout_time|date:'H:i'|default:'—' }}</td><td>{% if s.status == 'active' %}{% badge 'OPEN' 'Open' %}{% else %}{{ s.get_status_display }}{% endif %}</td></tr>{% endfor %}
+        </tbody></table>
+    </section>
+</div>
+{% if shift.status == 'open' and can_manage %}
+<form method="post" class="glass p-5 space-y-4">{% csrf_token %}
+    <h3 class="font-semibold text-white">Close shift / cash up</h3>
+    {% for error in form.non_field_errors %}<p class="text-rose-600 text-sm">{{ error }}</p>{% endfor %}
+    <div class="grid sm:grid-cols-2 gap-4">{% for field in form %}{% include 'erp/retail/_field.html' %}{% endfor %}</div>
+    <button class="btn-gold px-5 py-2.5 rounded-lg"><i class="fas fa-lock mr-2"></i>Close shift</button>
+</form>
+{% elif shift.closing_notes %}<section class="glass p-4 text-sm"><strong>Closing notes:</strong> {{ shift.closing_notes }}</section>{% endif %}
+{% endblock %}

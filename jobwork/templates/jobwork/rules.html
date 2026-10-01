@@ -1,0 +1,13 @@
+{% extends 'jobwork/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}Compliance rules{% endblock %}
+{% block heading %}GST compliance rule engine{% endblock %}
+{% block subheading %}Return periods, e-way bill applicability, ITC-04 frequency and alert bands — effective-dated data, never code{% endblock %}
+{% block actions %}{% if perms_jw.compliance %}<form method="post">{% csrf_token %}<input type="hidden" name="action" value="seed"><button class="glass px-3 py-2 text-sky-700 text-sm">Propose statutory defaults (drafts)</button></form>{% endif %}{% endblock %}
+{% block body %}
+<section class="glass overflow-hidden"><table class="w-full text-left text-sm">
+    <thead class="text-xs uppercase text-slate-500 bg-white/5"><tr><th class="px-5 py-3">Rule</th><th>Type</th><th>Description</th><th>Parameters</th><th>Effective</th><th>Citation</th><th>Status</th><th class="px-5"></th></tr></thead>
+    <tbody>{% for r in rules %}<tr class="border-b border-white/5 align-top"><td class="px-5 py-2 font-semibold">{{ r.rule_code }}</td><td>{{ r.get_rule_type_display }}</td><td>{{ r.description }}</td><td class="text-xs font-mono">{{ r.parameters }}</td><td class="text-xs">{{ r.effective_from }}{% if r.effective_to %} – {{ r.effective_to }}{% endif %}</td><td class="text-xs">{{ r.notification }} {{ r.circular }}</td><td>{% badge r.status %}</td>
+        <td class="px-5">{% if r.status == 'DRAFT' and perms_jw.tax_admin %}<form method="post">{% csrf_token %}<input type="hidden" name="action" value="approve"><input type="hidden" name="rule" value="{{ r.pk }}"><button class="text-emerald-700 text-xs">Approve</button></form>{% endif %}</td></tr>{% empty %}<tr><td colspan="8" class="px-5 py-8 text-center text-slate-500">No rules. Without approved rules the system cannot set statutory due dates or e-way bill applicability and raises exceptions instead.</td></tr>{% endfor %}</tbody>
+</table></section>
+{% endblock %}

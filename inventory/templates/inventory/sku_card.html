@@ -1,0 +1,53 @@
+{% extends 'inventory/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}{{ sku.code }}{% endblock %}
+{% block eyebrow %}SKU card{% endblock %}
+{% block heading %}{{ sku.code }}{% endblock %}
+{% block subheading %}<a class="text-sky-700" href="{% url 'inventory_item_card' sku.item.pk %}">{{ sku.item.item_no }} · {{ sku.item.description }}</a> at {{ sku.location.code }}{% if sku.variant %} · variant {{ sku.variant.code }}{% endif %}{% endblock %}
+{% block actions %}
+<a href="{% url 'inventory_setup_edit' 'skus' sku.pk %}" class="glass px-3 py-2 text-slate-300 text-sm">Edit</a>
+<a href="{% url 'inventory_stock_card' sku.pk %}" class="glass px-3 py-2 text-slate-300 text-sm">Stock card</a>
+<a href="{% url 'inventory_ledger' %}?item={{ sku.item.pk }}&location={{ sku.location.pk }}" class="glass px-3 py-2 text-slate-300 text-sm">Ledger</a>
+<a href="{% url 'inventory_transfer_new' %}" class="btn-gold px-4 py-2 rounded-lg text-sm">Transfer</a>
+{% endblock %}
+{% block body %}
+<section class="grid grid-cols-2 md:grid-cols-6 gap-4">
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">On hand</p><p class="text-xl font-bold text-white">{{ own.on_hand|qty }}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Available</p><p class="text-xl font-bold text-emerald-700">{{ own.available|qty }}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Reserved</p><p class="text-xl font-bold text-white">{{ own.reserved|qty }}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Projected</p><p class="text-xl font-bold text-white">{{ own.projected|qty }}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Gross / net</p><p class="text-xl font-bold text-white">{{ own.gross_weight|grams }} / {{ own.net_weight|grams }}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Average cost</p><p class="text-xl font-bold text-white">{{ sku.average_cost|inr }}</p><p class="text-xs text-slate-500">last {{ sku.last_cost|inr }}</p></div>
+</section>
+<div class="grid lg:grid-cols-3 gap-6">
+    <section class="glass p-5 text-sm space-y-1 lg:col-span-1">
+        <h3 class="font-semibold text-white mb-2">General &amp; planning</h3>
+        <p>Metal: <b>{{ sku.get_metal_display }} {{ sku.purity }}</b></p>
+        <p>Default weights: {{ sku.gross_weight|grams }} g gross · {{ sku.net_metal_weight|grams }} g net</p>
+        <p>Making {{ sku.making_charge|inr }} · wastage {{ sku.wastage_percent|qty }}%</p>
+        <p>Barcode: {{ sku.barcode|default:'–' }} · default bin {{ sku.default_bin.code|default:'–' }}</p>
+        <p>Min {{ sku.minimum_stock|qty }} · reorder {{ sku.reorder_point|qty }} · max {{ sku.maximum_stock|qty }} · safety {{ sku.safety_stock|qty }}</p>
+        <p>Replenish by {{ sku.get_replenishment_system_display }} from {{ sku.replenishment_source.code|default:'–' }} · lead time {{ sku.lead_time_days }} d</p>
+        <p>Retail price {{ sku.retail_price|inr }} · standard cost {{ sku.standard_cost|inr }}</p>
+    </section>
+    <section class="glass p-5 lg:col-span-2">
+        <h3 class="font-semibold text-white mb-2">Why is stock what it is?</h3>
+        <table class="w-full text-sm"><tbody>{% for l in investigation.lines %}<tr class="border-b border-white/5"><td class="py-1">{{ l.label }}</td><td class="text-right">{{ l.entries }} entries</td><td class="text-right {% if l.qty < 0 %}text-rose-600{% else %}text-emerald-700{% endif %}">{% if l.qty > 0 %}+{% endif %}{{ l.qty|qty }}</td><td class="text-right">{{ l.gross|grams }} g</td></tr>{% empty %}<tr><td class="py-2 text-slate-500">No movements yet.</td></tr>{% endfor %}</tbody>
+        <tfoot class="font-semibold"><tr><td class="py-2">Ledger total = current stock</td><td></td><td class="text-right">{{ investigation.ledger_total|qty }}</td><td class="text-right">{% if investigation.reconciled %}<span class="text-emerald-700">reconciled with balance</span>{% else %}<span class="text-rose-600">balance shows {{ investigation.balance_total|qty }}</span>{% endif %}</td></tr></tfoot></table>
+        {% if sku.location.allow_adjustment %}
+        <form method="post" class="mt-4 grid grid-cols-4 gap-2 items-end">{% csrf_token %}<input type="hidden" name="action" value="opening">
+            <div><label class="text-xs text-slate-500">Opening qty</label><input name="quantity" required></div><div><label class="text-xs text-slate-500">Unit cost</label><input name="unit_cost" placeholder="{{ sku.unit_cost }}"></div>
+            <div><label class="text-xs text-slate-500">Bin</label><select name="bin"><option value="">–</option>{% for b in location_bins %}<option value="{{ b.pk }}">{{ b.code }}</option>{% endfor %}</select></div>
+            <button class="btn-gold px-3 py-3 rounded-lg text-sm" {% if sku.item.serial_tracking %}disabled title="Register serialized pieces on the Jewellery units page"{% endif %}>Post opening stock</button>
+        </form>{% endif %}
+    </section>
+</div>
+<section class="glass overflow-hidden"><div class="px-5 py-4 border-b border-white/10"><h3 class="font-semibold text-white">Locations</h3></div>{% include 'inventory/_availability_table.html' with rows=grid totals=None %}</section>
+<div class="grid lg:grid-cols-2 gap-6">
+    <section class="glass overflow-hidden"><div class="px-5 py-4 border-b border-white/10"><h3 class="font-semibold text-white">Bins &amp; tracking</h3></div>
+        <table class="w-full text-left text-sm"><tbody>{% for b in bins %}<tr class="border-b border-white/5"><td class="px-5 py-2">{{ b.bin.code|default:'(no bin)' }}</td><td>{% if b.jewellery_unit %}<a class="text-sky-700" href="{% url 'inventory_trace' %}?q={{ b.jewellery_unit.barcode }}">{{ b.jewellery_unit.barcode }}</a>{% endif %}</td><td class="text-right">{{ b.on_hand_qty|qty }} on hand</td><td class="text-right px-5">{{ b.available_qty|qty }} available</td></tr>{% empty %}<tr><td class="px-5 py-5 text-slate-500">No stock.</td></tr>{% endfor %}</tbody></table></section>
+    <section class="glass overflow-hidden"><div class="px-5 py-4 border-b border-white/10"><h3 class="font-semibold text-white">Transfers</h3></div>
+        <table class="w-full text-left text-sm"><tbody>{% for l in transfers %}<tr class="border-b border-white/5"><td class="px-5 py-2"><a class="text-sky-700" href="{% url 'inventory_transfer_detail' l.transfer.pk %}">{{ l.transfer.transfer_no }}</a></td><td>→ {{ l.transfer.to_location.code }}</td><td class="text-right">{{ l.quantity|qty }}</td><td class="text-right px-5">{% badge l.transfer.status %}</td></tr>{% empty %}<tr><td class="px-5 py-5 text-slate-500">No transfers.</td></tr>{% endfor %}</tbody></table></section>
+</div>
+<section class="glass overflow-x-auto"><div class="px-5 py-4 border-b border-white/10"><h3 class="font-semibold text-white">Latest movements</h3></div>{% include 'inventory/_ledger_rows.html' with entries=ledger %}</section>
+{% endblock %}

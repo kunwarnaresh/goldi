@@ -1,0 +1,15 @@
+{% extends 'jobwork/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}Job worker price list{% endblock %}
+{% block heading %}Job worker price list{% endblock %}
+{% block subheading %}Most specific applicable price wins: job worker + work centre + item + variant + operation + UOM + currency + date + minimum quantity{% endblock %}
+{% block body %}
+<section class="glass overflow-hidden"><table class="w-full text-left text-sm">
+    <thead class="text-xs uppercase text-slate-500 bg-white/5"><tr><th class="px-5 py-3">Job worker</th><th>Operation</th><th>Item</th><th class="text-right">Rate</th><th>Basis</th><th class="text-right">Min qty</th><th class="text-right">Min charge</th><th class="px-5">Effective</th></tr></thead>
+    <tbody>{% for p in prices %}<tr class="border-b border-white/5"><td class="px-5 py-2">{{ p.job_worker.code }}</td><td>{{ p.operation_code|default:'*' }}</td><td>{{ p.item.item_no|default:'*' }}</td><td class="text-right">{{ p.rate|qty }}</td><td>{{ p.get_rate_basis_display }}</td><td class="text-right">{{ p.minimum_quantity|qty }}</td><td class="text-right">{{ p.minimum_amount|inr }}</td><td class="px-5 text-xs">{{ p.effective_from }}{% if p.effective_to %} – {{ p.effective_to }}{% endif %}</td></tr>{% empty %}<tr><td colspan="8" class="px-5 py-8 text-center text-slate-500">No prices.</td></tr>{% endfor %}</tbody>
+</table></section>
+{% if perms_jw.masters %}<form method="post" class="glass p-5 grid md:grid-cols-4 gap-3 text-sm">{% csrf_token %}
+    <label>Job worker<select name="job_worker">{% for w in workers %}<option value="{{ w.pk }}">{{ w }}</option>{% endfor %}</select></label><label>Operation code<input name="operation_code" placeholder="CASTING"></label><label>Item no (optional)<input name="item_no"></label>
+    <label>Basis<select name="rate_basis">{% for v, l in rate_bases %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select></label><label>Rate<input name="rate" required></label><label>Minimum charge<input name="minimum_amount"></label><label>Minimum quantity<input name="minimum_quantity"></label><label>Effective from<input type="date" name="effective_from"></label>
+    <button class="btn-gold px-4 py-2 rounded-lg md:col-span-4">Add price</button></form>{% endif %}
+{% endblock %}

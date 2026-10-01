@@ -1,0 +1,22 @@
+{% extends 'inventory/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}Reclassification{% endblock %}
+{% block eyebrow %}Journals{% endblock %}
+{% block heading %}Inventory reclassification{% endblock %}
+{% block subheading %}Move pieces between bins (e.g. DISPLAY-01 → SAFE-01), change stock status, or — if enabled and permitted — transfer directly to another location. Every change is a ledger movement.{% endblock %}
+{% block body %}
+<form method="post" class="glass p-5 space-y-4">{% csrf_token %}
+    <div class="grid md:grid-cols-3 gap-4 text-sm">
+        <div><label class="text-xs uppercase text-slate-500">From location (non-serialized lines)</label><select name="from_location"><option value="">– scanned piece's location –</option>{% for l in locations %}<option value="{{ l.pk }}">{{ l.code }}</option>{% endfor %}</select></div>
+        <div><label class="text-xs uppercase text-slate-500">From bin (non-serialized)</label><select name="from_bin"><option value="">–</option>{% for b in bins %}<option value="{{ b.pk }}">{{ b.location.code }} / {{ b.code }}</option>{% endfor %}</select></div>
+        <div><label class="text-xs uppercase text-slate-500">To location (direct transfer)</label><select name="to_location"><option value="">Same location</option>{% for l in locations %}<option value="{{ l.pk }}">{{ l.code }}</option>{% endfor %}</select></div>
+        <div><label class="text-xs uppercase text-slate-500">To bin</label><select name="to_bin"><option value="">Unchanged</option>{% for b in bins %}<option value="{{ b.pk }}">{{ b.location.code }} / {{ b.code }}</option>{% endfor %}</select></div>
+        <div><label class="text-xs uppercase text-slate-500">New status</label><select name="to_status"><option value="">Unchanged</option>{% for s in statuses %}<option value="{{ s }}">{{ s|title }}</option>{% endfor %}</select></div>
+        <div><label class="text-xs uppercase text-slate-500">Reason</label><input name="reason" required></div>
+    </div>
+    <div><label class="text-xs uppercase text-slate-500">Lines — scan barcodes, or <code>SKU-CODE, qty</code></label><textarea name="lines" rows="5" required></textarea></div>
+    <div class="flex justify-between items-center"><label class="flex items-center gap-2 text-sm text-white"><input type="checkbox" name="clear_bin" value="1" class="w-auto"> Move to "no bin" when no bin is chosen</label><button class="btn-gold px-6 py-3 rounded-lg">Post reclassification</button></div>
+</form>
+<section class="glass overflow-x-auto"><div class="px-5 py-4 border-b border-white/10"><h3 class="font-semibold text-white">Recent reclassifications</h3></div>
+    <table class="w-full text-left text-sm"><tbody>{% for r in recent %}{% for l in r.lines.all %}<tr class="border-b border-white/5"><td class="px-5 py-2">{{ r.reclass_no }}</td><td>{{ r.posting_date|date:'d M' }}</td><td>{{ l.jewellery_unit.barcode|default:l.item.item_no }} ×{{ l.quantity|qty }}</td><td>{{ l.from_location.code }}/{{ l.from_bin.code|default:'–' }} → {{ l.to_location.code }}/{{ l.to_bin.code|default:'–' }}</td><td>{% if l.to_status %}→ {{ l.to_status }}{% endif %}</td><td class="px-5 text-xs text-slate-500">{{ r.reason }}</td></tr>{% endfor %}{% empty %}<tr><td class="px-5 py-5 text-slate-500">None yet.</td></tr>{% endfor %}</tbody></table></section>
+{% endblock %}

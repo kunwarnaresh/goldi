@@ -67,6 +67,118 @@ def calculate_jewellery_price(*, unit, metal_rate, pricing_rule, tax_rate_code, 
     }
 
 
+DEFAULT_MAX_RATE_AGE_MINUTES = 720  # 12 hours - a jewellery store typically refreshes rates a few times a day, not every minute
+
+
+class ResolvedRate:
+    """Duck-typed stand-in for a JewelleryMetalRate exposing only what calculate_jewellery_price reads,
+    so a purity-converted rate can be priced through the exact same engine as a directly-maintained one."""
+    def __init__(self, rate_per_gram):
+        self.rate_per_gram = rate_per_gram
+
+
+class ProductWeightAsUnit:
+    """Duck-typed stand-in for a JewelleryItemUnit, so a non-serialized product can be priced dynamically
+    by its own weight_grams through the exact same engine used for serialized jewellery units."""
+    class _NoStones:
+        def all(self):
+            return []
+
+        def filter(self, *args, **kwargs):
+            return []
+
+    def __init__(self, product):
+        self.gross_weight = product.weight_grams or Decimal('0')
+        self.stone_weight = Decimal('0')
+        self.other_weight = Decimal('0')
+        self.stones = self._NoStones()
+
+
+class ManualUnit:
+    """Duck-typed stand-in for a JewelleryItemUnit built from raw weights (the Price Simulator's ad-hoc inputs)."""
+    def __init__(self, gross_weight, stone_weight=Decimal('0'), other_weight=Decimal('0')):
+        self.gross_weight = gross_weight
+        self.stone_weight = stone_weight
+        self.other_weight = other_weight
+        self.stones = ProductWeightAsUnit._NoStones()
+
+
+class ManualPricingRule:
+    """Duck-typed stand-in for a JewelleryPricingRule, for the Price Simulator's ad-hoc 'what-if' inputs
+    (no saved product/rule required) - priced through the exact same calculate_jewellery_price engine."""
+    def __init__(self, *, making_method='per_gram', making_rate=Decimal('0'), wastage_method='weight',
+                 wastage_percent=Decimal('0'), tax_rate_code='GST-3', hallmark_charge=Decimal('0'),
+                 certification_charge=Decimal('0'), other_charges=Decimal('0')):
+        self.making_method = making_method
+        self.making_rate = making_rate
+        self.wastage_method = wastage_method
+        self.wastage_percent = wastage_percent
+        self.tax_rate_code = tax_rate_code
+        self.hallmark_charge = hallmark_charge
+        self.certification_charge = certification_charge
+        self.other_charges = other_charges
+
+
+def resolve_current_metal_rate(*, metal_type, purity, store=None, as_of=None, max_age_minutes=None):
+    """The Current Metal Rate Service: resolve the applicable rate for (metal, purity[, store]) by trying,
+    in order: (1) a store-specific rate for this exact purity, (2) a company-wide rate for this purity,
+    (3) fine-metal conversion from any other purity of the same metal (store-specific, then company-wide),
+    using the same purity factors the live-rate fetch uses. Never silently uses a different metal's rate.
+
+    Returns a dict with 'resolved' (bool) and, when True, 'rate_per_gram' (the rate to actually bill at -
+    already purity-converted where applicable), 'purity_used', 'is_purity_converted', 'is_store_fallback',
+    'is_stale' and 'age_minutes' so callers can surface exactly what was used.
+    """
+    as_of = as_of or dj_timezone.now()
+    max_age_minutes = DEFAULT_MAX_RATE_AGE_MINUTES if max_age_minutes is None else max_age_minutes
+
+    def active_rates(metal_type_, purity_, store_):
+        return JewelleryMetalRate.objects.filter(
+            metal_type=metal_type_, purity=purity_, store=store_, is_active=True, effective_from__lte=as_of,
+        ).filter(Q(effective_to__isnull=True) | Q(effective_to__gte=as_of)).order_by('-effective_from')
+
+    def result(rate, rate_per_gram, purity_used, is_purity_converted, is_store_fallback):
+        age_minutes = (as_of - rate.effective_from).total_seconds() / 60
+        return {
+            'resolved': True, 'rate': rate, 'rate_per_gram': rate_per_gram, 'purity_used': purity_used,
+            'is_purity_converted': is_purity_converted, 'is_store_fallback': is_store_fallback,
+            'is_stale': age_minutes > max_age_minutes, 'age_minutes': round(age_minutes, 1),
+        }
+
+    not_resolved = {
+        'resolved': False, 'rate': None, 'rate_per_gram': None, 'purity_used': None,
+        'is_purity_converted': False, 'is_store_fallback': False, 'is_stale': False, 'age_minutes': None,
+    }
+
+    if store is not None:
+        rate = active_rates(metal_type, purity, store).first()
+        if rate:
+            return result(rate, Decimal(str(rate.rate_per_gram)), purity, False, False)
+
+    rate = active_rates(metal_type, purity, None).first()
+    if rate:
+        return result(rate, Decimal(str(rate.rate_per_gram)), purity, False, store is not None)
+
+    factors = {'gold': GOLD_PURITY_FACTORS, 'silver': SILVER_PURITY_FACTORS}.get(metal_type)
+    if factors and purity in factors:
+        target_factor = factors[purity]
+        candidates = []
+        for candidate_store in ([store, None] if store is not None else [None]):
+            for candidate_purity, candidate_factor in factors.items():
+                if candidate_purity == purity:
+                    continue
+                candidate_rate = active_rates(metal_type, candidate_purity, candidate_store).first()
+                if candidate_rate:
+                    candidates.append((candidate_rate, candidate_purity, candidate_factor, candidate_store))
+        if candidates:
+            candidates.sort(key=lambda c: c[0].effective_from, reverse=True)
+            candidate_rate, candidate_purity, candidate_factor, candidate_store = candidates[0]
+            converted = (Decimal(str(candidate_rate.rate_per_gram)) * target_factor / candidate_factor).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            return result(candidate_rate, converted, candidate_purity, True, candidate_store is None and store is not None)
+
+    return not_resolved
+
+
 def amount_in_words(value):
     """Return a compact Indian-style INR amount in words for printed invoices."""
     ones = ['', 'ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE', 'TEN', 'ELEVEN', 'TWELVE', 'THIRTEEN', 'FOURTEEN', 'FIFTEEN', 'SIXTEEN', 'SEVENTEEN', 'EIGHTEEN', 'NINETEEN']
@@ -247,6 +359,9 @@ DOCUMENT_TYPE_PREFIXES = {
     'accrual_journal': 'ACC',
     'provision_journal': 'PROV',
     'reversal_journal': 'REV',
+    'production_journal': 'PRJ',
+    'scheme_journal': 'SCJ',
+    'job_work_journal': 'JWJ',
 }
 
 
@@ -1195,6 +1310,9 @@ _AUTO_VOUCHER_NAMES = {
     'purchase_journal': 'Purchase Journal (Auto)',
     'receipt_journal': 'Receipt Journal (Auto)',
     'payment_journal': 'Payment Journal (Auto)',
+    'production_journal': 'Production Journal (Auto)',
+    'scheme_journal': 'Jewellery Savings Journal (Auto)',
+    'job_work_journal': 'Job Work Journal (Auto)',
 }
 
 

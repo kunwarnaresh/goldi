@@ -1,0 +1,17 @@
+{% extends 'erp/retail/form.html' %}
+{% block before_sections %}
+<section class="glass p-4 flex flex-wrap gap-6 text-sm">
+    <div><p class="text-xs uppercase tracking-wider text-slate-500">Location (from store)</p><p class="font-semibold text-white" id="derived-location">{% if fixed_store %}{{ fixed_store.location }}{% elif form.instance.pk %}{{ form.instance.store.location }}{% else %}Select a store{% endif %}</p></div>
+    <p class="text-slate-500 self-end">A terminal's location is always its store's location.</p>
+</section>
+{% endblock %}
+{% block after %}
+{{ store_locations|json_script:'store-locations' }}
+<script>
+(() => {
+    const map = JSON.parse(document.getElementById('store-locations').textContent);
+    const store = document.getElementById('id_store'), out = document.getElementById('derived-location');
+    if (store && !store.disabled) store.addEventListener('change', () => { out.textContent = map[store.value] || 'Select a store'; });
+})();
+</script>
+{% endblock %}

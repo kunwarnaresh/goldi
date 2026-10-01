@@ -1,0 +1,11 @@
+{% load inventory_tags %}
+<section class="glass overflow-hidden"><div class="overflow-x-auto"><table class="w-full text-left text-sm min-w-[1100px]">
+    <thead class="text-xs uppercase text-slate-500 bg-white/5"><tr><th class="px-5 py-3">Job worker</th><th>Order</th><th>Item</th><th>Owner</th><th class="text-right">Qty</th><th class="text-right">Gross g</th><th class="text-right">Net g</th><th class="text-right">Fine g</th><th class="text-right">Value</th><th>Dispatched</th><th>Due</th><th class="text-right">Age</th><th class="px-5">Band</th></tr></thead>
+    <tbody>{% for r in rows %}<tr class="border-b border-white/5">
+        <td class="px-5 py-2">{{ r.job_worker__code }}</td><td><a class="text-sky-700" href="{% url 'jobwork_order_detail' r.order %}">{{ r.order__order_no }}</a>{% if r.order__production_order__order_no %}<span class="text-xs text-slate-500 block">{{ r.order__production_order__order_no }}</span>{% endif %}</td>
+        <td>{{ r.item__item_no }} <span class="text-xs text-slate-500">{{ r.purity }}</span>{% if r.units %} <span class="text-xs">({{ r.units }} units)</span>{% endif %}</td><td class="text-xs">{{ r.owner|lower }}</td>
+        <td class="text-right">{{ r.q|qty }}</td><td class="text-right">{{ r.g|grams }}</td><td class="text-right">{{ r.n|grams }}</td><td class="text-right">{{ r.f|grams }}</td><td class="text-right">{{ r.v|inr }}</td>
+        <td>{{ r.order__first_dispatch_date|default:'' }}</td><td>{{ r.order__compliance_due_date|default:'no rule' }}</td><td class="text-right">{{ r.age_days|default:'' }}</td>
+        <td class="px-5">{% if r.band %}<span class="px-2 py-0.5 rounded text-xs font-semibold {% if r.band.band == 'RED' %}bg-rose-100 text-rose-800{% elif r.band.band == 'AMBER' %}bg-amber-100 text-amber-800{% else %}bg-emerald-100 text-emerald-800{% endif %}">{{ r.band.level|lower }}{% if r.band.days_remaining is not None %} · {{ r.band.days_remaining }}d{% endif %}</span>{% endif %}</td>
+    </tr>{% empty %}<tr><td colspan="13" class="px-5 py-10 text-center text-slate-500">Nothing is held at job workers.</td></tr>{% endfor %}</tbody>
+</table></div></section>

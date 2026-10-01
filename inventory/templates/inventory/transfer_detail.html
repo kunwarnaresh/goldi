@@ -1,0 +1,76 @@
+{% extends 'inventory/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}{{ order.transfer_no }}{% endblock %}
+{% block eyebrow %}Transfer order{% if order.direct_transfer %} · direct{% endif %}{% endblock %}
+{% block heading %}{{ order.transfer_no }} {% badge order.status %}{% endblock %}
+{% block subheading %}{{ order.from_location.code }} → {% if order.transit_location %}{{ order.transit_location.code }} → {% endif %}{{ order.to_location.code }} · {{ order.get_source_type_display }} · {{ order.get_priority_display }} priority · shipment {{ order.shipment_date|date:'d M' }} · expected {{ order.expected_receipt_date|date:'d M Y'|default:'–' }}{% if order.required_approval_level %} · approval level {{ order.required_approval_level }}{% endif %}{% endblock %}
+{% block actions %}
+{% if order.status == 'DRAFT' %}<form method="post">{% csrf_token %}<button name="action" value="submit" class="glass px-4 py-2 text-sm text-sky-700">Submit for approval</button></form>{% endif %}
+{% if order.status == 'APPROVED' %}<form method="post">{% csrf_token %}<button name="action" value="release" class="glass px-4 py-2 text-sm text-sky-700">Release to warehouse</button></form>{% endif %}
+{% if order.status == 'RECEIVED' %}<form method="post">{% csrf_token %}<button name="action" value="close" class="btn-gold px-4 py-2 rounded-lg text-sm">Close (exceptions resolved)</button></form>{% endif %}
+{% endblock %}
+{% block body %}
+<section class="grid grid-cols-2 md:grid-cols-5 gap-4">
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Quantity</p><p class="text-xl font-bold text-white">{{ total_qty|qty }}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Weight</p><p class="text-xl font-bold text-white">{{ total_weight|grams }} g</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Value (cost)</p><p class="text-xl font-bold text-white">{{ total_value|inr }}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Left to ship</p><p class="text-xl font-bold text-white">{{ to_ship|qty }}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">In transit</p><p class="text-xl font-bold text-sky-700">{{ in_transit|qty }}</p></div>
+</section>
+
+<form method="post" class="space-y-6">{% csrf_token %}
+<section class="glass overflow-x-auto"><table class="w-full text-left text-sm min-w-[1200px]">
+    <thead class="text-xs uppercase text-slate-500 bg-white/5"><tr><th class="px-4 py-3">Line</th><th>Item / SKU</th><th>Barcode / HUID</th><th>Bins</th><th class="text-right">Requested</th><th class="text-right">Approved</th><th class="text-right">Shipped</th><th class="text-right">Received</th><th class="text-right">Damaged</th><th class="text-right">Outstanding</th><th class="text-right">Gross g</th>
+        {% if can_approve %}<th class="text-right">Approve qty</th>{% endif %}
+        {% if can_ship %}<th class="text-right">Ship qty</th>{% endif %}
+        {% if can_receive %}<th class="text-right">Receive qty</th><th class="text-right">of which damaged</th><th class="text-right">Excess</th><th>Reason</th>{% endif %}
+        <th class="px-4">Status</th></tr></thead>
+    <tbody>{% for l in lines %}<tr class="border-b border-white/5">
+        <td class="px-4 py-2">{{ l.line_no }}</td><td>{{ l.item.item_no }} <span class="text-xs text-slate-500">{{ l.sku.code|default:'' }}</span></td>
+        <td class="text-xs">{% if l.jewellery_unit %}<a class="text-sky-700" href="{% url 'inventory_trace' %}?q={{ l.jewellery_unit.barcode }}">{{ l.jewellery_unit.barcode }}</a> {{ l.jewellery_unit.huid|default:'' }}{% endif %}</td>
+        <td class="text-xs">{{ l.from_bin.code|default:'' }}{% if l.to_bin %} → {{ l.to_bin.code }}{% endif %}</td>
+        <td class="text-right">{{ l.requested_qty|qty }}</td><td class="text-right">{{ l.quantity|qty }}</td><td class="text-right">{{ l.qty_shipped|qty }}</td><td class="text-right">{{ l.qty_received|qty }}</td><td class="text-right {% if l.qty_damaged %}text-rose-600{% endif %}">{{ l.qty_damaged|qty }}</td><td class="text-right font-semibold">{{ l.qty_outstanding|qty }}</td><td class="text-right">{{ l.gross_weight|grams }}</td>
+        {% if can_approve %}<td class="text-right"><input name="approve_{{ l.pk }}" value="{{ l.quantity|qty }}" class="w-20 text-right"></td>{% endif %}
+        {% if can_ship %}<td class="text-right">{% if l.qty_to_ship and can_ship %}<input name="ship_{{ l.pk }}" placeholder="{{ l.qty_to_ship|qty }}" class="w-20 text-right">{% endif %}</td>{% endif %}
+        {% if can_receive %}{% if l.qty_in_transit %}<td class="text-right"><input name="receive_{{ l.pk }}" placeholder="{{ l.qty_in_transit|qty }}" class="w-20 text-right"></td><td class="text-right"><input name="damaged_{{ l.pk }}" class="w-16 text-right"></td><td class="text-right">{% if not l.jewellery_unit %}<input name="excess_{{ l.pk }}" class="w-16 text-right">{% endif %}</td><td><select name="reason_{{ l.pk }}" class="text-xs"><option value="">–</option>{% for code, label in reasons %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select></td>{% else %}<td colspan="4"></td>{% endif %}{% endif %}
+        <td class="px-4">{% badge l.status %}</td></tr>{% endfor %}</tbody>
+</table></section>
+
+<div class="grid lg:grid-cols-3 gap-6">
+    {% if can_approve %}
+    <section class="glass p-5 space-y-3"><h3 class="font-semibold text-white">Approve</h3><p class="text-sm text-slate-500">Approving reserves the stock at {{ order.from_location.code }}: its available quantity drops, on hand does not.</p>
+        <button name="action" value="approve" class="btn-gold px-5 py-3 rounded-lg w-full">Approve &amp; reserve</button></section>
+    {% endif %}
+    {% if can_ship %}
+    <section class="glass p-5 space-y-3"><h3 class="font-semibold text-white">Ship{% if order.direct_transfer %} (direct){% endif %}</h3>
+        <p class="text-sm text-slate-500">Scan the pieces being packed (one barcode per line), or leave empty and use the ship quantities above — empty everywhere ships everything remaining.</p>
+        <textarea name="ship_barcodes" rows="4" placeholder="Scan barcodes / HUIDs"></textarea>
+        <button name="action" value="ship" class="btn-gold px-5 py-3 rounded-lg w-full"><i class="fas fa-truck mr-1"></i>Post shipment</button></section>
+    {% endif %}
+    {% if can_receive %}
+    <section class="glass p-5 space-y-3"><h3 class="font-semibold text-white">Receive at {{ order.to_location.code }}</h3>
+        <p class="text-sm text-slate-500">Scan what arrived. Only pieces shipped on this transfer are accepted. Damaged pieces go to the damage bin, not to available stock.</p>
+        <textarea name="receive_barcodes" rows="3" placeholder="Good pieces"></textarea>
+        <textarea name="damaged_barcodes" rows="2" placeholder="Damaged pieces"></textarea>
+        <button name="action" value="receive" class="btn-gold px-5 py-3 rounded-lg w-full"><i class="fas fa-box-open mr-1"></i>Post receipt</button></section>
+    {% endif %}
+    {% if can_exceptions %}
+    <section class="glass p-5 space-y-3"><h3 class="font-semibold text-white">Exceptions</h3>
+        {% if to_ship %}<button name="action" value="cancel_remaining" class="glass px-4 py-2 text-sm text-amber-700 w-full">Cancel unshipped remainder</button>{% endif %}
+        {% if can_receive %}<select name="reason_code"><option value="">Short-close reason…</option>{% for code, label in reasons %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select><input name="remarks" placeholder="Remarks"><button name="action" value="short_close" class="glass px-4 py-2 text-sm text-rose-600 w-full">Short close (write off what is still in transit)</button>{% endif %}
+        {% if can_cancel %}<button name="action" value="cancel" class="glass px-4 py-2 text-sm text-rose-600 w-full">Cancel transfer</button>{% endif %}
+    </section>
+    {% endif %}
+</div>
+</form>
+
+<div class="grid lg:grid-cols-2 gap-6">
+    <section class="glass overflow-hidden"><div class="px-5 py-4 border-b border-white/10"><h3 class="font-semibold text-white">Shipments</h3></div>
+        {% for s in shipments %}<div class="px-5 py-3 border-b border-white/5 text-sm"><b>{{ s.shipment_no }}</b> · {{ s.posting_date|date:'d M Y' }} · {{ s.shipped_by.username }}<div class="text-xs text-slate-500">{% for l in s.lines.all %}L{{ l.transfer_line.line_no }}: {{ l.quantity|qty }} ({{ l.gross_weight|grams }} g, {{ l.cost_amount|inr }}){% if not forloop.last %} · {% endif %}{% endfor %}</div></div>{% empty %}<p class="px-5 py-5 text-sm text-slate-500">Not shipped yet.</p>{% endfor %}</section>
+    <section class="glass overflow-hidden"><div class="px-5 py-4 border-b border-white/10"><h3 class="font-semibold text-white">Receipts</h3></div>
+        {% for r in receipts %}<div class="px-5 py-3 border-b border-white/5 text-sm"><b>{{ r.receipt_no }}</b> · {{ r.posting_date|date:'d M Y' }} · {{ r.received_by.username }}<div class="text-xs text-slate-500">{% for l in r.lines.all %}L{{ l.transfer_line.line_no }}: {{ l.quantity|qty }}{% if l.damaged_qty %} ({{ l.damaged_qty|qty }} damaged){% endif %}{% if l.excess_qty %} +{{ l.excess_qty|qty }} excess{% endif %}{% if l.reason_code %} · {{ l.get_reason_code_display }}{% endif %}{% if not forloop.last %} · {% endif %}{% endfor %}</div></div>{% empty %}<p class="px-5 py-5 text-sm text-slate-500">Nothing received yet.</p>{% endfor %}</section>
+</div>
+<section class="glass overflow-hidden"><div class="px-5 py-4 border-b border-white/10"><h3 class="font-semibold text-white">Audit trail</h3></div>
+    <table class="w-full text-left text-sm"><tbody>{% for a in audit_log %}<tr class="border-b border-white/5"><td class="px-5 py-2 whitespace-nowrap">{{ a.created_at|date:'d M Y H:i' }}</td><td>{{ a.user.username }}</td><td class="font-semibold">{{ a.action|title }}</td><td class="text-xs text-slate-500">{{ a.ip_address|default:'' }}</td><td class="text-xs text-slate-500">{{ a.reason }}</td></tr>{% endfor %}</tbody></table></section>
+{% if order.remarks %}<p class="glass p-4 text-sm whitespace-pre-line">{{ order.remarks }}</p>{% endif %}
+{% endblock %}

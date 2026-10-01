@@ -1,0 +1,36 @@
+{% extends 'erp/retail/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}Import / export{% endblock %}
+{% block heading %}Excel import & export{% endblock %}
+{% block subheading %}Upload → validate → preview errors → correct & re-upload → import. Nothing is written until the whole file is valid.{% endblock %}
+{% block body %}
+<div class="grid lg:grid-cols-3 gap-5">
+    <section class="glass overflow-hidden lg:col-span-2">
+        <div class="panel-head"><h3>Masters</h3></div>
+        <table class="rtable"><thead><tr><th>Master</th><th>Template</th><th>Export current data</th></tr></thead><tbody>
+        {% for code, label in kinds %}<tr><td>{{ label }}</td><td><a class="text-sky-700" href="{% url 'retail_import_template' code %}"><i class="fas fa-download mr-1"></i>Download template</a></td><td><a class="text-sky-700" href="{% url 'retail_export' code %}"><i class="fas fa-file-excel mr-1"></i>Export Excel</a></td></tr>{% endfor %}
+        </tbody></table>
+        <p class="px-4 py-3 text-xs text-slate-500">Import in this order: Locations → Stores → Tenders → Store tenders → POS terminals → Staff → Staff POS assignments. Exports never include passwords; a blank password on an existing staff row keeps the current one.</p>
+    </section>
+    <section class="glass p-5">
+        <h3 class="font-semibold text-white mb-4">Upload workbook</h3>
+        {% if can_manage %}
+        <form method="post" enctype="multipart/form-data" class="space-y-4">{% csrf_token %}
+            {% for field in form %}{% include 'erp/retail/_field.html' %}{% endfor %}
+            <button class="btn-gold px-5 py-2.5 rounded-lg w-full"><i class="fas fa-upload mr-2"></i>Upload & validate</button>
+        </form>
+        {% else %}<p class="text-sm text-slate-500">Only administrators can import.</p>{% endif %}
+    </section>
+</div>
+<section class="glass overflow-x-auto">
+    <div class="panel-head"><h3>Recent uploads</h3></div>
+    <table class="rtable"><thead><tr><th>#</th><th>Master</th><th>File</th><th>Rows</th><th>Errors</th><th>Status</th><th>By</th><th>When</th></tr></thead><tbody>
+    {% for b in batches %}<tr><td><a class="text-sky-700" href="{% url 'retail_import_detail' b.pk %}">{{ b.pk }}</a></td><td>{{ b.get_import_type_display }}</td><td>{{ b.file_name }}</td><td>{{ b.rows|length }}</td><td>{{ b.errors|length }}</td>
+        <td>{% if b.status == 'imported' %}{% badge 'IMPORTED' %}{% elif b.status == 'validated' %}{% badge 'VALIDATED' %}{% else %}{% badge 'FAILED' 'Has errors' %}{% endif %}</td><td>{{ b.created_by.username|default:'' }}</td><td>{{ b.created_at|date:'d M H:i' }}</td></tr>
+    {% empty %}<tr><td colspan="8" class="text-slate-500">No uploads yet.</td></tr>{% endfor %}
+    </tbody></table>
+</section>
+<script>
+(() => { const t = new URLSearchParams(location.search).get('type'); const s = document.getElementById('id_import_type'); if (t && s) s.value = t; })();
+</script>
+{% endblock %}
