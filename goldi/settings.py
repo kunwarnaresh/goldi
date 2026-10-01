@@ -27,7 +27,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'False').strip().lower() in ('true', '1', 'yes')
 
-SECRET_KEY = os.environ.get('SECRET_KEY')
+#SECRET_KEY = os.environ.get('SECRET_KEY')
+SECRET_KEY = "0!m5ve(=%pc$d-4)jclpcu5dhvi*-u@e+ahw_m-gpw6w^@u^w!"
 if not SECRET_KEY:
     if not DEBUG:
         raise ImproperlyConfigured('SECRET_KEY must be set when DEBUG is False.')
