@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+{% block title %}New Payout Receipt | Goldi ERP{% endblock %}
+{% block content %}
+<div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pb-32">
+    <h2 class="text-4xl font-bold gradient-text mb-8">New Payout Receipt</h2>
+
+    <div class="glass p-6 mb-6">
+        <form method="get" class="flex gap-4 items-end">
+            <div class="flex-1"><label class="block text-xs uppercase tracking-wider text-slate-400 mb-2">Vendor</label>
+                <select name="vendor" class="w-full px-4 py-3" onchange="this.form.submit()">
+                    <option value="">Select a vendor to load outstanding invoices</option>
+                    {% for vendor in vendors %}<option value="{{ vendor.pk }}" {% if selected_vendor_id == vendor.pk %}selected{% endif %}>{{ vendor.name }} ({{ vendor.phone|default:'no phone' }})</option>{% endfor %}
+                </select>
+            </div>
+        </form>
+    </div>
+
+    <div class="glass-glow p-8">
+        <form method="post" class="space-y-6">
+            {% csrf_token %}
+            {% if form.non_field_errors %}<div class="bg-red-500/15 border border-red-500/30 text-red-300 px-4 py-3 rounded-lg">{% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}</div>{% endif %}
+
+            <div class="grid md:grid-cols-2 gap-6">
+                {% for field in form %}
+                <div>
+                    {{ field.label_tag }}
+                    <div class="mt-2">{{ field }}</div>
+                    {% if field.errors %}<ul class="mt-1 text-red-400 text-sm">{% for error in field.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+                {% endfor %}
+            </div>
+
+            {% if outstanding_invoices %}
+            <div class="pt-6 border-t border-white/10">
+                <p class="text-sm font-semibold text-gray-300 mb-4">Allocate to outstanding purchase invoices</p>
+                <table class="w-full text-left">
+                    <thead class="text-xs uppercase text-slate-500 border-b border-white/10"><tr><th class="py-3">Invoice</th><th>Net</th><th>Outstanding</th><th>Allocate ₹</th></tr></thead>
+                    <tbody>
+                    {% for invoice in outstanding_invoices %}
+                    <tr class="border-b border-white/5">
+                        <td class="py-3"><a href="{% url 'purchase_invoice_detail' invoice.pk %}" class="text-cyan-300 hover:text-cyan-200" target="_blank">{{ invoice.document_no|default:invoice.invoice_no }}</a></td>
+                        <td class="text-slate-300">₹{{ invoice.net_amount|floatformat:2 }}</td>
+                        <td class="text-slate-300">₹{{ invoice.outstanding_amount|floatformat:2 }}</td>
+                        <td class="py-2"><input type="number" step="0.01" min="0" name="allocate_{{ invoice.pk }}" class="w-40 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white"></td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% elif selected_vendor_id %}
+            <p class="text-slate-400">This vendor has no outstanding invoices. The payment will be recorded unapplied.</p>
+            {% endif %}
+
+            <div class="flex gap-4 pt-6">
+                <button type="submit" class="btn-gold">Save payout</button>
+                <a href="{% url 'vendor_payment_list' %}" class="glass px-6 py-3 rounded-lg font-semibold hover:bg-white/10 transition">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+<style>
+form label { @apply block text-sm font-semibold text-gray-200; }
+form input[type="text"], form input[type="number"], form select, form textarea {
+    @apply w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white placeholder-gray-400 focus:outline-none focus:border-amber-500/50 transition;
+}
+</style>
+{% endblock %}

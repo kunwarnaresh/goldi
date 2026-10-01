@@ -1,0 +1,15 @@
+{% load inventory_tags %}
+<table class="w-full text-left text-sm min-w-[980px]">
+    <thead class="text-xs uppercase text-slate-500 bg-white/5"><tr><th class="px-5 py-3">Date</th><th>Document</th><th>Transaction</th><th>Item</th><th>Location</th><th>From → To</th><th>Barcode / HUID</th><th class="text-right">In</th><th class="text-right">Out</th><th class="text-right">Gross g</th><th class="text-right">Value</th><th class="px-5">User</th></tr></thead>
+    <tbody>{% for e in entries %}<tr class="border-b border-white/5">
+        <td class="px-5 py-2 whitespace-nowrap">{{ e.posting_date|date:'d M Y' }}</td>
+        <td class="whitespace-nowrap"><a class="text-sky-700" href="{% url 'inventory_trace' %}?q={{ e.document_no }}">{{ e.document_no }}</a></td>
+        <td>{{ e.get_transaction_type_display }}{% if e.status_to and not e.quantity %} <span class="text-xs text-slate-500">{{ e.status_from }}→{{ e.status_to }} ×{{ e.status_quantity|qty }}</span>{% elif e.status_to %} <span class="text-xs text-rose-600">→{{ e.status_to }}</span>{% endif %}</td>
+        <td>{{ e.item.item_no }}</td><td>{{ e.location.code }}</td>
+        <td class="text-xs">{{ e.from_location.code|default:'' }}{% if e.to_location %} → {{ e.to_location.code }}{% endif %}</td>
+        <td class="text-xs">{{ e.barcode }}{% if e.huid %} / {{ e.huid }}{% endif %}</td>
+        <td class="text-right text-emerald-700">{% if e.quantity > 0 %}{{ e.quantity|qty }}{% endif %}</td>
+        <td class="text-right text-rose-600">{% if e.quantity < 0 %}{{ e.quantity|neg|qty }}{% endif %}</td>
+        <td class="text-right">{{ e.gross_weight|grams }}</td><td class="text-right">{{ e.cost_amount|inr }}</td><td class="px-5 text-xs">{{ e.user.username|default:'' }}</td></tr>
+    {% empty %}<tr><td colspan="12" class="px-5 py-8 text-center text-slate-500">No ledger entries.</td></tr>{% endfor %}</tbody>
+</table>

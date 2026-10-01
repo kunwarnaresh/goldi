@@ -1,0 +1,22 @@
+{% extends 'inventory/base.html' %}
+{% block page_title %}New transfer{% endblock %}
+{% block eyebrow %}Transfers{% endblock %}
+{% block heading %}New transfer order{% endblock %}
+{% block subheading %}Scan jewellery barcodes or enter SKU codes with quantities. The transfer is created as a draft and must be approved before it can ship.{% endblock %}
+{% block body %}
+<form method="post" class="glass p-5 space-y-4">{% csrf_token %}
+    <div class="grid md:grid-cols-4 gap-4">
+        <div><label class="text-xs uppercase text-slate-500">From *</label><select name="from_location" required>{% for l in sources %}<option value="{{ l.pk }}">{{ l.code }} – {{ l.name }}</option>{% empty %}<option value="">No location allows you to create transfers</option>{% endfor %}</select></div>
+        <div><label class="text-xs uppercase text-slate-500">To *</label><select name="to_location" required>{% for l in destinations %}<option value="{{ l.pk }}">{{ l.code }} – {{ l.name }}</option>{% endfor %}</select></div>
+        <div><label class="text-xs uppercase text-slate-500">Priority</label><select name="priority">{% for code, label in priorities %}<option value="{{ code }}" {% if code == 'NORMAL' %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+        <div><label class="text-xs uppercase text-slate-500">Return reason (return transfers)</label><select name="return_reason">{% for code, label in return_reasons %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select></div>
+    </div>
+    <div><label class="text-xs uppercase text-slate-500">Lines — scan a barcode per line, or <code>SKU-CODE, qty</code></label>
+        <textarea name="lines" rows="8" required placeholder="JWL-0001&#10;GOLD-RING-001-WH, 20"></textarea></div>
+    <div class="grid md:grid-cols-2 gap-4"><div><label class="text-xs uppercase text-slate-500">Reason</label><input name="reason"></div><div><label class="text-xs uppercase text-slate-500">Remarks</label><input name="remarks"></div></div>
+    <div class="flex items-center justify-between">
+        <label class="flex items-center gap-2 text-sm text-white"><input type="checkbox" name="direct" value="1" class="w-auto"> Direct transfer (no in-transit stage — needs permission and must be enabled on the source location)</label>
+        <button class="btn-gold px-6 py-3 rounded-lg">Create transfer</button>
+    </div>
+</form>
+{% endblock %}

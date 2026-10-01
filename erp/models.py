@@ -47,8 +47,14 @@ class DocumentNumberSeries(models.Model):
         ('customer', 'Customer'),
         ('vendor', 'Vendor'),
         ('gl_journal', 'G/L Journal'),
+        ('quotation', 'Quotation'),
+        ('sales_order', 'Sales Order'),
+        ('payment_receipt', 'Payment Receipt'),
         ('sales_invoice', 'Sales Invoice'),
         ('sales_credit_memo', 'Sales Credit Memo'),
+        ('purchase_order', 'Purchase Order'),
+        ('goods_receipt', 'Goods Receipt'),
+        ('vendor_payment', 'Vendor Payment'),
         ('purchase_invoice', 'Purchase Invoice'),
         ('purchase_credit_memo', 'Purchase Credit Memo'),
         ('payment', 'Payment'),
@@ -75,6 +81,8 @@ class DocumentNumberSeries(models.Model):
         ('reclassification', 'Reclassification'),
         ('cross_dock', 'Cross Dock'),
         ('journal_voucher', 'Journal Voucher'),
+        ('sales_journal', 'Sales Journal'),
+        ('purchase_journal', 'Purchase Journal'),
         ('cash_receipt', 'Cash Receipt Voucher'),
         ('cash_payment', 'Cash Payment Voucher'),
         ('bank_receipt', 'Bank Receipt Voucher'),
@@ -86,6 +94,9 @@ class DocumentNumberSeries(models.Model):
         ('accrual_journal', 'Accrual Journal'),
         ('provision_journal', 'Provision Journal'),
         ('reversal_journal', 'Reversal Journal'),
+        ('production_journal', 'Production Journal'),
+        ('scheme_journal', 'Jewellery Savings Journal'),
+        ('job_work_journal', 'Job Work Journal'),
     ]
 
     company = models.ForeignKey(
@@ -253,10 +264,31 @@ class CostCenter(models.Model):
 
 
 class Store(models.Model):
+    """The operational hub of a retail site: exactly one Location, and many staff, POS terminals and tenders."""
+    STATUS_CHOICES = [('active', 'Active'), ('inactive', 'Inactive'), ('blocked', 'Blocked'), ('closed', 'Closed')]
+    STORE_TYPES = [('flagship', 'Flagship'), ('showroom', 'Showroom'), ('outlet', 'Outlet'), ('franchise', 'Franchise'),
+                   ('kiosk', 'Kiosk'), ('online', 'Online'), ('other', 'Other')]
+
     company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='stores')
     branch = models.ForeignKey(Branch, on_delete=models.SET_NULL, null=True, blank=True, related_name='stores')
+    # OneToOne => database-level UNIQUE: one Location can back only one Store. Nullable only for legacy rows;
+    # forms, imports and POS login all require it.
+    location = models.OneToOneField(Location, on_delete=models.PROTECT, null=True, blank=True, related_name='store')
     code = models.CharField(max_length=30)
     name = models.CharField(max_length=200)
+    store_type = models.CharField(max_length=20, choices=STORE_TYPES, default='showroom')
+    address = models.TextField(blank=True)
+    city = models.CharField(max_length=100, blank=True)
+    state = models.CharField(max_length=100, blank=True)
+    country = models.CharField(max_length=60, default='India')
+    pin_code = models.CharField(max_length=10, blank=True)
+    gstin = models.CharField(max_length=15, blank=True)
+    phone = models.CharField(max_length=30, blank=True)
+    email = models.EmailField(blank=True)
+    manager = models.ForeignKey('POSStaff', on_delete=models.SET_NULL, null=True, blank=True, related_name='managed_stores')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
+    opening_date = models.DateField(null=True, blank=True)
+    closing_date = models.DateField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
 
     class Meta:
@@ -264,6 +296,18 @@ class Store(models.Model):
 
     def __str__(self):
         return f'{self.code} - {self.name}'
+
+    def clean(self):
+        if self.location_id and self.company_id and self.location.company_id != self.company_id:
+            raise ValidationError({'location': 'Location belongs to a different company.'})
+        if self.manager_id and self.pk and self.manager.store_id != self.pk:
+            raise ValidationError({'manager': 'Store manager must be a staff member of this store.'})
+        if self.closing_date and self.opening_date and self.closing_date < self.opening_date:
+            raise ValidationError({'closing_date': 'Closing date cannot be before the opening date.'})
+
+    def save(self, *args, **kwargs):
+        self.is_active = self.status == 'active'
+        super().save(*args, **kwargs)
 
 
 class InvoicePrintLayout(models.Model):
@@ -317,7 +361,28 @@ class InvoicePrintLog(models.Model):
     error_message = models.TextField(blank=True)
 
 
+class POSRole(models.Model):
+    """Configurable POS staff role. `permissions` is a list of codes from erp.retail.permissions.CATALOG;
+    `base_role` maps onto the legacy POSStaff.role used for sales-staff attribution."""
+    code = models.CharField(max_length=30, unique=True)
+    name = models.CharField(max_length=100)
+    base_role = models.CharField(max_length=20, choices=[('cashier', 'Cashier'), ('manager', 'Manager'), ('sales_staff', 'Sales Staff')],
+                                 default='cashier')
+    description = models.TextField(blank=True)
+    pos_access = models.BooleanField(default=True, help_text='Staff with this role may log in to POS terminals.')
+    permissions = models.JSONField(default=list, blank=True)
+    is_system = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ('name',)
+
+    def __str__(self):
+        return self.name
+
+
 class POSStaff(models.Model):
+    """Staff master. One staff member belongs to exactly one Store (and so to that store's Location)."""
     ROLE_CHOICES = [
         ('cashier', 'Cashier'),
         ('manager', 'Manager'),
@@ -325,31 +390,141 @@ class POSStaff(models.Model):
     ]
     employee_code = models.CharField(max_length=50, unique=True)
     name = models.CharField(max_length=200)
+    first_name = models.CharField(max_length=100, blank=True)
+    last_name = models.CharField(max_length=100, blank=True)
     mobile = models.CharField(max_length=15, blank=True)
     email = models.EmailField(blank=True)
     department = models.CharField(max_length=100, blank=True)
     designation = models.CharField(max_length=100, blank=True)
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='cashier')
+    staff_role = models.ForeignKey(POSRole, on_delete=models.PROTECT, null=True, blank=True, related_name='staff')
     store = models.ForeignKey(Store, on_delete=models.PROTECT, related_name='pos_staff')
+    default_terminal = models.ForeignKey('POSTerminal', on_delete=models.SET_NULL, null=True, blank=True, related_name='default_for_staff')
+    login_id = models.CharField(max_length=60, null=True, blank=True)
+    # Salted hash from django.contrib.auth.hashers.make_password - never the password itself.
     pin_hash = models.CharField(max_length=128)
-    pos_access = models.BooleanField(default=True)
+    pos_access = models.BooleanField(default=True, verbose_name='POS login enabled')
     is_active = models.BooleanField(default=True)
-    is_blocked = models.BooleanField(default=False)
+    is_blocked = models.BooleanField(default=False, verbose_name='Account locked')
+    failed_login_attempts = models.PositiveSmallIntegerField(default=0)
+    locked_at = models.DateTimeField(null=True, blank=True)
+    last_login = models.DateTimeField(null=True, blank=True)
+    password_changed_at = models.DateTimeField(null=True, blank=True)
+    password_change_required = models.BooleanField(default=False)
+    joining_date = models.DateField(null=True, blank=True)
+    leaving_date = models.DateField(null=True, blank=True)
     permissions = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(default=dj_timezone.now)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(models.functions.Lower('login_id'), name='unique_pos_staff_login_id_ci')]
 
     def __str__(self):
         return f'{self.employee_code} - {self.name}'
 
+    @property
+    def location(self):
+        return self.store.location if self.store_id else None
+
+    def clean(self):
+        if self.default_terminal_id and self.store_id and self.default_terminal.store_id != self.store_id:
+            raise ValidationError({'default_terminal': 'Default POS terminal must belong to the staff member\'s store.'})
+        if self.leaving_date and self.joining_date and self.leaving_date < self.joining_date:
+            raise ValidationError({'leaving_date': 'Leaving date cannot be before the joining date.'})
+
+    def save(self, *args, **kwargs):
+        if self.login_id:
+            self.login_id = self.login_id.strip().lower()
+        else:
+            self.login_id = None
+        if self.staff_role_id:
+            self.role = self.staff_role.base_role
+        if self.default_terminal_id and self.default_terminal.store_id != self.store_id:
+            raise ValidationError('Default POS terminal must belong to the staff member\'s store.')
+        super().save(*args, **kwargs)
+
+
+class Tender(models.Model):
+    """Central tender master. Stores opt in to tenders through StoreTender - nothing is hard-coded in POS."""
+    TENDER_TYPES = [('cash', 'Cash'), ('card', 'Card'), ('digital', 'Digital / UPI'), ('online', 'Online gateway'),
+                    ('bank', 'Bank transfer'), ('cheque', 'Cheque'), ('gift_card', 'Gift card'),
+                    ('store_credit', 'Store credit'), ('wallet', 'Wallet'), ('other', 'Other')]
+    STATUS_CHOICES = [('active', 'Active'), ('inactive', 'Inactive')]
+
+    code = models.CharField(max_length=30, unique=True)
+    name = models.CharField(max_length=100)
+    tender_type = models.CharField(max_length=20, choices=TENDER_TYPES, default='cash')
+    description = models.TextField(blank=True)
+    payment_gateway = models.CharField(max_length=100, blank=True)
+    payment_method = models.ForeignKey('PaymentMethod', on_delete=models.SET_NULL, null=True, blank=True, related_name='tenders',
+                                       help_text='Payment method used when this tender is posted to receivables.')
+    gl_account = models.ForeignKey('GLAccount', on_delete=models.SET_NULL, null=True, blank=True, related_name='tenders')
+    bank_account = models.ForeignKey('BankAccount', on_delete=models.SET_NULL, null=True, blank=True, related_name='tenders')
+    currency = models.CharField(max_length=3, default='INR')
+    requires_reference = models.BooleanField(default=False)
+    requires_approval = models.BooleanField(default=False)
+    allow_refund = models.BooleanField(default=True)
+    allow_change = models.BooleanField(default=False)
+    allow_split_payment = models.BooleanField(default=True)
+    allow_partial_payment = models.BooleanField(default=True)
+    minimum_amount = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    maximum_amount = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
+    created_at = models.DateTimeField(default=dj_timezone.now)
+
+    class Meta:
+        ordering = ('name',)
+        constraints = [models.CheckConstraint(
+            condition=models.Q(minimum_amount__isnull=True) | models.Q(maximum_amount__isnull=True) | models.Q(maximum_amount__gte=models.F('minimum_amount')),
+            name='tender_min_le_max')]
+
+    def __str__(self):
+        return f'{self.code} - {self.name}'
+
+    # Classification flags are derived from the tender type so they can never disagree with it.
+    @property
+    def is_cash(self):
+        return self.tender_type == 'cash'
+
+    @property
+    def is_card(self):
+        return self.tender_type == 'card'
+
+    @property
+    def is_digital(self):
+        return self.tender_type in ('digital', 'wallet')
+
+    @property
+    def is_online(self):
+        return self.tender_type in ('online', 'bank')
+
+    def clean(self):
+        if self.minimum_amount is not None and self.maximum_amount is not None and self.maximum_amount < self.minimum_amount:
+            raise ValidationError({'maximum_amount': 'Maximum amount cannot be below the minimum amount.'})
+
 
 class POSTerminal(models.Model):
     STATUS_CHOICES = [('active', 'Active'), ('blocked', 'Blocked'), ('inactive', 'Inactive')]
+    TERMINAL_TYPES = [('counter', 'Billing counter'), ('mobile', 'Mobile / tablet'), ('kiosk', 'Self-service kiosk'),
+                      ('back_office', 'Back office')]
     store = models.ForeignKey(Store, on_delete=models.PROTECT, related_name='pos_terminals')
     code = models.CharField(max_length=30)
     name = models.CharField(max_length=100)
+    terminal_type = models.CharField(max_length=20, choices=TERMINAL_TYPES, default='counter')
     device_id = models.CharField(max_length=100, blank=True)
+    serial_number = models.CharField(max_length=100, blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    mac_address = models.CharField(max_length=17, blank=True)
     printer = models.CharField(max_length=100, blank=True)
+    receipt_printer = models.CharField(max_length=100, blank=True)
+    auto_print = models.BooleanField(default=False)
     cash_drawer = models.CharField(max_length=100, blank=True)
+    barcode_scanner = models.CharField(max_length=100, blank=True)
+    customer_display = models.CharField(max_length=100, blank=True)
+    payment_device = models.CharField(max_length=100, blank=True)
+    default_tender = models.ForeignKey(Tender, on_delete=models.SET_NULL, null=True, blank=True, related_name='default_for_terminals')
+    active_from = models.DateField(null=True, blank=True)
+    active_to = models.DateField(null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
     is_active = models.BooleanField(default=True)
     last_login = models.DateTimeField(null=True, blank=True)
@@ -361,8 +536,101 @@ class POSTerminal(models.Model):
     def __str__(self):
         return f'{self.store.code} / {self.code}'
 
+    @property
+    def location(self):
+        return self.store.location if self.store_id else None
+
+    def clean(self):
+        if self.active_to and self.active_from and self.active_to < self.active_from:
+            raise ValidationError({'active_to': 'Active-to date cannot be before active-from date.'})
+        if self.default_tender_id and self.store_id and not StoreTender.objects.filter(
+                store_id=self.store_id, tender_id=self.default_tender_id, active=True).exists():
+            raise ValidationError({'default_tender': 'Default tender must be an active tender of this store.'})
+
+    def save(self, *args, **kwargs):
+        # `status` is the single source of truth; is_active mirrors it for existing queries.
+        self.is_active = self.status == 'active'
+        super().save(*args, **kwargs)
+
+
+class StoreTender(models.Model):
+    """Tenders a store accepts, with store-level overrides of the tender master rules."""
+    store = models.ForeignKey(Store, on_delete=models.CASCADE, related_name='store_tenders')
+    tender = models.ForeignKey(Tender, on_delete=models.PROTECT, related_name='store_tenders')
+    tender_name_snapshot = models.CharField(max_length=100, blank=True)
+    active = models.BooleanField(default=True)
+    is_default = models.BooleanField(default=False)
+    sequence = models.PositiveSmallIntegerField(default=10)
+    minimum_amount = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    maximum_amount = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    requires_reference = models.BooleanField(default=False)
+    allow_refund = models.BooleanField(default=True)
+    allow_change = models.BooleanField(default=False)
+    allow_split_payment = models.BooleanField(default=True)
+    gl_account = models.ForeignKey('GLAccount', on_delete=models.SET_NULL, null=True, blank=True, related_name='store_tenders')
+    effective_from = models.DateField(null=True, blank=True)
+    effective_to = models.DateField(null=True, blank=True)
+    created_at = models.DateTimeField(default=dj_timezone.now)
+
+    class Meta:
+        ordering = ('sequence', 'tender__name')
+        constraints = [
+            models.UniqueConstraint(fields=('store', 'tender'), name='unique_store_tender'),
+            models.UniqueConstraint(fields=('store',), condition=models.Q(is_default=True), name='one_default_tender_per_store'),
+        ]
+
+    def __str__(self):
+        return f'{self.store.code} / {self.tender.name}'
+
+    def is_effective(self, on=None):
+        on = on or dj_timezone.localdate()
+        return (self.active and self.tender.status == 'active'
+                and (not self.effective_from or self.effective_from <= on)
+                and (not self.effective_to or self.effective_to >= on))
+
+    # Effective rules: the store setting can only tighten what the tender master allows.
+    @property
+    def effective_min(self):
+        values = [v for v in (self.minimum_amount, self.tender.minimum_amount) if v is not None]
+        return max(values) if values else None
+
+    @property
+    def effective_max(self):
+        values = [v for v in (self.maximum_amount, self.tender.maximum_amount) if v is not None]
+        return min(values) if values else None
+
+    @property
+    def needs_reference(self):
+        return self.requires_reference or self.tender.requires_reference
+
+    @property
+    def can_give_change(self):
+        return self.allow_change and self.tender.allow_change
+
+    @property
+    def can_split(self):
+        return self.allow_split_payment and self.tender.allow_split_payment
+
+    @property
+    def can_refund(self):
+        return self.allow_refund and self.tender.allow_refund
+
+    def clean(self):
+        if self.effective_to and self.effective_from and self.effective_to < self.effective_from:
+            raise ValidationError({'effective_to': 'Effective-to date cannot be before effective-from date.'})
+        if self.minimum_amount is not None and self.maximum_amount is not None and self.maximum_amount < self.minimum_amount:
+            raise ValidationError({'maximum_amount': 'Maximum amount cannot be below the minimum amount.'})
+
+    def save(self, *args, **kwargs):
+        if not self.pk and self.tender.status != 'active':
+            raise ValidationError('Only active tenders can be assigned to a store.')
+        self.tender_name_snapshot = self.tender_name_snapshot or self.tender.name
+        super().save(*args, **kwargs)
+
 
 class POSStaffAssignment(models.Model):
+    """Optional staff -> POS terminal access list. When a staff member has any active assignment, they may only log in
+    to those terminals; otherwise to any terminal of their own store. Never to another store's terminal."""
     staff = models.ForeignKey(POSStaff, on_delete=models.CASCADE, related_name='assignments')
     terminal = models.ForeignKey(POSTerminal, on_delete=models.CASCADE, related_name='staff_assignments')
     role = models.CharField(max_length=20, choices=POSStaff.ROLE_CHOICES)
@@ -374,6 +642,27 @@ class POSStaffAssignment(models.Model):
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=('staff', 'terminal', 'role'), name='unique_pos_staff_terminal_role')]
+
+    @property
+    def store(self):
+        return self.terminal.store
+
+    def is_effective(self, on=None):
+        on = on or dj_timezone.localdate()
+        return self.active and self.effective_from <= on and (not self.effective_to or self.effective_to >= on)
+
+    def clean(self):
+        if self.staff_id and self.terminal_id and self.staff.store_id != self.terminal.store_id:
+            raise ValidationError('Staff can only be assigned to POS terminals of their own store.')
+        if self.effective_to and self.effective_from and self.effective_to < self.effective_from:
+            raise ValidationError({'effective_to': 'Effective-to date cannot be before effective-from date.'})
+
+    def save(self, *args, **kwargs):
+        if hasattr(self.effective_from, 'date'):
+            self.effective_from = self.effective_from.date()
+        if self.active and self.staff.store_id != self.terminal.store_id:
+            raise ValidationError('Staff can only be assigned to POS terminals of their own store.')
+        super().save(*args, **kwargs)
 
 
 class POSShift(models.Model):
@@ -390,11 +679,19 @@ class POSShift(models.Model):
     actual_cash = models.DecimalField(max_digits=14, decimal_places=2, default=0)
     cash_difference = models.DecimalField(max_digits=14, decimal_places=2, default=0)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='open')
+    location_code_snapshot = models.CharField(max_length=30, blank=True)
+    closing_notes = models.TextField(blank=True)
+
+    def __str__(self):
+        return self.shift_code
 
 
 class POSSession(models.Model):
-    STATUS_CHOICES = [('active', 'Active'), ('logged_out', 'Logged out'), ('expired', 'Expired'), ('locked', 'Locked')]
-    session_key = models.CharField(max_length=100, unique=True)
+    # 'active' is an open session; 'logged_out' is a normally closed one.
+    STATUS_CHOICES = [('active', 'Open'), ('logged_out', 'Closed'), ('expired', 'Expired'), ('locked', 'Locked'),
+                      ('force_closed', 'Force closed')]
+    session_key = models.CharField(max_length=100)
+    session_no = models.CharField(max_length=30, blank=True)
     staff = models.ForeignKey(POSStaff, on_delete=models.PROTECT, related_name='pos_sessions')
     terminal = models.ForeignKey(POSTerminal, on_delete=models.PROTECT, related_name='pos_sessions')
     shift = models.ForeignKey(POSShift, on_delete=models.PROTECT, related_name='sessions')
@@ -404,6 +701,77 @@ class POSSession(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
     ip_address = models.GenericIPAddressField(null=True, blank=True)
     device_id = models.CharField(max_length=100, blank=True)
+    # Snapshots: history must not change when master data does.
+    staff_code_snapshot = models.CharField(max_length=50, blank=True)
+    staff_name_snapshot = models.CharField(max_length=200, blank=True)
+    role_snapshot = models.CharField(max_length=100, blank=True)
+    store_code_snapshot = models.CharField(max_length=30, blank=True)
+    store_name_snapshot = models.CharField(max_length=200, blank=True)
+    location_code_snapshot = models.CharField(max_length=30, blank=True)
+    location_name_snapshot = models.CharField(max_length=200, blank=True)
+    terminal_code_snapshot = models.CharField(max_length=30, blank=True)
+    terminal_name_snapshot = models.CharField(max_length=100, blank=True)
+    # Closing summary, filled at logout.
+    sales_count = models.PositiveIntegerField(default=0)
+    sales_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    refund_count = models.PositiveIntegerField(default=0)
+    refund_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    cash_collected = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=('terminal',), condition=models.Q(status='active'),
+                                               name='one_open_session_per_terminal')]
+
+    def __str__(self):
+        return self.session_no or f'POSSES-{self.pk}'
+
+    @property
+    def duration(self):
+        end = self.logout_time or dj_timezone.now()
+        return end - self.login_time
+
+
+class POSPayment(models.Model):
+    """One tender line of a POS bill, with snapshots of the tender as it was when taken."""
+    invoice = models.ForeignKey('SalesInvoice', on_delete=models.PROTECT, related_name='pos_payments')
+    session = models.ForeignKey(POSSession, on_delete=models.PROTECT, null=True, blank=True, related_name='payments')
+    store_tender = models.ForeignKey(StoreTender, on_delete=models.PROTECT, related_name='payments')
+    tender = models.ForeignKey(Tender, on_delete=models.PROTECT, related_name='payments')
+    tender_code_snapshot = models.CharField(max_length=30)
+    tender_name_snapshot = models.CharField(max_length=100)
+    tender_type_snapshot = models.CharField(max_length=20)
+    amount = models.DecimalField(max_digits=14, decimal_places=2)
+    change_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    reference = models.CharField(max_length=100, blank=True)
+    is_refund = models.BooleanField(default=False)
+    created_at = models.DateTimeField(default=dj_timezone.now)
+
+    class Meta:
+        constraints = [models.CheckConstraint(condition=models.Q(amount__gt=0), name='pos_payment_amount_positive')]
+
+    @property
+    def net_amount(self):
+        return self.amount - self.change_amount
+
+
+class RetailImportBatch(models.Model):
+    """Staged Excel import for the store/POS masters: upload -> validate -> preview/errors -> import."""
+    TYPES = [('locations', 'Locations'), ('stores', 'Stores'), ('staff', 'Staff'), ('terminals', 'POS terminals'),
+             ('tenders', 'Tenders'), ('store-tenders', 'Store tenders'), ('staff-terminals', 'Staff POS assignments')]
+    STATUS_CHOICES = [('validated', 'Validated'), ('failed', 'Has errors'), ('imported', 'Imported')]
+    import_type = models.CharField(max_length=30, choices=TYPES)
+    file_name = models.CharField(max_length=200, blank=True)
+    rows = models.JSONField(default=list)
+    errors = models.JSONField(default=list)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='validated')
+    created_count = models.PositiveIntegerField(default=0)
+    updated_count = models.PositiveIntegerField(default=0)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    created_at = models.DateTimeField(default=dj_timezone.now)
+    imported_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ('-created_at',)
 
 
 class Brand(models.Model):
@@ -701,6 +1069,15 @@ class AuditLog(models.Model):
         ('login', 'Login'),
         ('logout', 'Logout'),
         ('export', 'Export'),
+        ('import', 'Import'),
+        ('assign', 'Assign'),
+        ('unassign', 'Unassign'),
+        ('activate', 'Activate'),
+        ('deactivate', 'Deactivate'),
+        ('lock', 'Lock account'),
+        ('unlock', 'Unlock account'),
+        ('password_reset', 'Password reset'),
+        ('login_failed', 'Login failed'),
     ]
 
     company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='audit_logs', null=True, blank=True)
@@ -1379,6 +1756,7 @@ class RepairInvoice(models.Model):
 
 
 class Supplier(models.Model):
+    vendor_no = models.CharField(max_length=50, unique=True, null=True, blank=True)
     name = models.CharField(max_length=200)
     phone = models.CharField(max_length=15, blank=True)
     email = models.EmailField(blank=True)
@@ -1388,8 +1766,14 @@ class Supplier(models.Model):
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(default=dj_timezone.now)
 
+    def save(self, *args, **kwargs):
+        if not self.vendor_no:
+            from .services import get_next_number
+            self.vendor_no = get_next_number('vendor')
+        super().save(*args, **kwargs)
+
     def __str__(self):
-        return self.name
+        return f'{self.vendor_no or self.pk} - {self.name}'
 
 
 class PaymentTerm(models.Model):
@@ -1483,6 +1867,21 @@ class VendorFinanceProfile(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
 
+class FinancePostingSetup(models.Model):
+    """The minimal General Posting Matrix this ERP needs: which default G/L accounts absorb Sales/Purchase document postings."""
+    company = models.OneToOneField(Company, on_delete=models.CASCADE, related_name='posting_setup')
+    sales_revenue_account = models.ForeignKey(GLAccount, on_delete=models.PROTECT, related_name='+')
+    gst_output_account = models.ForeignKey(GLAccount, on_delete=models.PROTECT, related_name='+')
+    purchase_expense_account = models.ForeignKey(GLAccount, on_delete=models.PROTECT, related_name='+')
+    gst_input_account = models.ForeignKey(GLAccount, on_delete=models.PROTECT, related_name='+')
+    default_cash_account = models.ForeignKey(GLAccount, on_delete=models.PROTECT, related_name='+')
+    rounding_account = models.ForeignKey(GLAccount, on_delete=models.PROTECT, null=True, blank=True, related_name='+')
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'Posting Setup - {self.company.company_code}'
+
+
 class DocumentRelationship(models.Model):
     source_type = models.CharField(max_length=50)
     source_id = models.PositiveBigIntegerField()
@@ -1568,6 +1967,8 @@ class Product(models.Model):
         ('platinum', 'Platinum'),
     ]
     item_category = models.ForeignKey(ItemCategory, on_delete=models.SET_NULL, null=True, blank=True, related_name='products')
+    subcategory = models.CharField(max_length=100, blank=True)
+    variant = models.CharField(max_length=120, blank=True)
     sku = models.CharField(max_length=100, unique=True)
     name = models.CharField(max_length=200)
     metal_type = models.CharField(max_length=20, choices=METAL_CHOICES, default='gold')
@@ -1588,6 +1989,8 @@ class Product(models.Model):
 
 
 class JewelleryMetalRate(models.Model):
+    SOURCE_CHOICES = [('manual', 'Manual'), ('api', 'API')]
+
     metal_type = models.CharField(max_length=30)
     purity = models.CharField(max_length=30)
     rate_per_gram = models.DecimalField(max_digits=14, decimal_places=2)
@@ -1596,6 +1999,9 @@ class JewelleryMetalRate(models.Model):
     effective_from = models.DateTimeField(default=dj_timezone.now)
     effective_to = models.DateTimeField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
+    source = models.CharField(max_length=20, choices=SOURCE_CHOICES, default='manual')
+    source_reference = models.CharField(max_length=200, blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='metal_rates_created')
 
     class Meta:
         ordering = ['-effective_from']
@@ -2149,9 +2555,21 @@ class SalesInvoice(models.Model):
         ('approved', 'Approved'),
         ('rejected', 'Rejected'),
         ('completed', 'Completed'),
+        ('posted', 'Posted'),
+        ('cancelled', 'Cancelled'),
+    ]
+    PAYMENT_STATUS_CHOICES = [
+        ('unpaid', 'Unpaid'),
+        ('partially_paid', 'Partially Paid'),
+        ('paid', 'Paid'),
+        ('overpaid', 'Overpaid'),
     ]
     invoice_no = models.CharField(max_length=50, unique=True)
     customer = models.ForeignKey(Customer, on_delete=models.PROTECT)
+    sales_order = models.ForeignKey('SalesOrder', on_delete=models.SET_NULL, null=True, blank=True, related_name='invoices')
+    quotation = models.ForeignKey('Quotation', on_delete=models.SET_NULL, null=True, blank=True, related_name='invoices')
+    payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS_CHOICES, default='unpaid')
+    paid_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
     sales_date = models.DateTimeField(default=dj_timezone.now)
     subtotal = models.DecimalField(max_digits=14, decimal_places=2, default=0)
     discount_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
@@ -2176,6 +2594,11 @@ class SalesInvoice(models.Model):
     cashier_role_snapshot = models.CharField(max_length=50, blank=True)
     store_code_snapshot = models.CharField(max_length=30, blank=True)
     terminal_code_snapshot = models.CharField(max_length=30, blank=True)
+    cashier_code_snapshot = models.CharField(max_length=50, blank=True)
+    store_name_snapshot = models.CharField(max_length=200, blank=True)
+    location_code_snapshot = models.CharField(max_length=30, blank=True)
+    location_name_snapshot = models.CharField(max_length=200, blank=True)
+    terminal_name_snapshot = models.CharField(max_length=100, blank=True)
     print_type_snapshot = models.CharField(max_length=40, default='A4_INVOICE')
     print_layout_snapshot = models.CharField(max_length=40, blank=True)
     print_layout_version_snapshot = models.PositiveIntegerField(default=1)
@@ -2183,6 +2606,10 @@ class SalesInvoice(models.Model):
     @property
     def roundoff_total(self):
         return self.total_amount.quantize(Decimal('0.01'))
+
+    @property
+    def balance_amount(self):
+        return max(self.total_amount - self.paid_amount, Decimal('0')).quantize(Decimal('0.01'))
 
     @property
     def cgst_amount(self):
@@ -2278,6 +2705,178 @@ class SalesApproval(models.Model):
         return f'{self.invoice.invoice_no} - {self.status}'
 
 
+class JewelleryLineMixin(models.Model):
+    """Shared pricing/jewellery fields for Quotation and Sales Order lines, mirroring SalesInvoiceItem."""
+    quantity = models.DecimalField(max_digits=12, decimal_places=3, default=1)
+    unit_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    discount_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    taxable_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('3.00'))
+    cgst_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    sgst_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    igst_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    line_total = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    gross_weight = models.DecimalField(max_digits=12, decimal_places=3, default=0)
+    stone_weight = models.DecimalField(max_digits=12, decimal_places=3, default=0)
+    net_metal_weight = models.DecimalField(max_digits=12, decimal_places=3, default=0)
+    metal_rate = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    metal_value = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    wastage_value = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    making_charge = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    stone_value = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    hallmark_charge = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    certification_charge = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    other_charges = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    pricing_snapshot = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        abstract = True
+
+    @property
+    def gst_amount(self):
+        return (self.cgst_amount + self.sgst_amount + self.igst_amount).quantize(Decimal('0.01'))
+
+
+class Quotation(models.Model):
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('pending_approval', 'Pending Approval'),
+        ('approved', 'Approved'),
+        ('sent', 'Sent'),
+        ('customer_accepted', 'Customer Accepted'),
+        ('expired', 'Expired'),
+        ('converted', 'Converted'),
+        ('rejected', 'Rejected'),
+        ('cancelled', 'Cancelled'),
+    ]
+    quotation_no = models.CharField(max_length=50, unique=True)
+    customer = models.ForeignKey(Customer, on_delete=models.PROTECT, related_name='quotations')
+    store = models.ForeignKey(Store, on_delete=models.PROTECT, null=True, blank=True, related_name='quotations')
+    salesperson = models.ForeignKey(POSStaff, on_delete=models.SET_NULL, null=True, blank=True, related_name='quotations')
+    quotation_date = models.DateTimeField(default=dj_timezone.now)
+    valid_until = models.DateField(null=True, blank=True)
+    payment_terms = models.ForeignKey(PaymentTerm, on_delete=models.SET_NULL, null=True, blank=True, related_name='quotations')
+    delivery_terms = models.TextField(blank=True)
+    remarks = models.TextField(blank=True)
+    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default='draft')
+    subtotal = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    discount_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    taxable_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    gst_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    total_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='quotations_created')
+    created_at = models.DateTimeField(default=dj_timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.quotation_no
+
+
+class QuotationLine(JewelleryLineMixin):
+    quotation = models.ForeignKey(Quotation, on_delete=models.CASCADE, related_name='lines')
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='quotation_lines')
+    jewellery_unit = models.ForeignKey(JewelleryItemUnit, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    converted_quantity = models.DecimalField(max_digits=12, decimal_places=3, default=0)
+
+    @property
+    def remaining_quantity(self):
+        return max(self.quantity - self.converted_quantity, Decimal('0'))
+
+
+class SalesOrder(models.Model):
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('pending_approval', 'Pending Approval'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+        ('released', 'Released'),
+        ('partially_fulfilled', 'Partially Fulfilled'),
+        ('completed', 'Completed'),
+        ('cancelled', 'Cancelled'),
+    ]
+    order_no = models.CharField(max_length=50, unique=True)
+    customer = models.ForeignKey(Customer, on_delete=models.PROTECT, related_name='sales_orders')
+    quotation = models.ForeignKey(Quotation, on_delete=models.SET_NULL, null=True, blank=True, related_name='sales_orders')
+    store = models.ForeignKey(Store, on_delete=models.PROTECT, null=True, blank=True, related_name='sales_orders')
+    salesperson = models.ForeignKey(POSStaff, on_delete=models.SET_NULL, null=True, blank=True, related_name='sales_orders')
+    order_date = models.DateTimeField(default=dj_timezone.now)
+    expected_delivery_date = models.DateField(null=True, blank=True)
+    payment_terms = models.ForeignKey(PaymentTerm, on_delete=models.SET_NULL, null=True, blank=True, related_name='sales_orders')
+    remarks = models.TextField(blank=True)
+    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default='draft')
+    subtotal = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    discount_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    taxable_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    gst_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    total_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='sales_orders_created')
+    created_at = models.DateTimeField(default=dj_timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.order_no
+
+
+class SalesOrderLine(JewelleryLineMixin):
+    sales_order = models.ForeignKey(SalesOrder, on_delete=models.CASCADE, related_name='lines')
+    quotation_line = models.ForeignKey(QuotationLine, on_delete=models.SET_NULL, null=True, blank=True, related_name='sales_order_lines')
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='sales_order_lines')
+    jewellery_unit = models.ForeignKey(JewelleryItemUnit, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    reserved_quantity = models.DecimalField(max_digits=12, decimal_places=3, default=0)
+    invoiced_quantity = models.DecimalField(max_digits=12, decimal_places=3, default=0)
+    cancelled_quantity = models.DecimalField(max_digits=12, decimal_places=3, default=0)
+
+    @property
+    def remaining_quantity(self):
+        return max(self.quantity - self.invoiced_quantity - self.cancelled_quantity, Decimal('0'))
+
+
+class PaymentReceipt(models.Model):
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('posted', 'Posted'),
+        ('cancelled', 'Cancelled'),
+    ]
+    receipt_no = models.CharField(max_length=50, unique=True)
+    customer = models.ForeignKey(Customer, on_delete=models.PROTECT, related_name='payment_receipts')
+    store = models.ForeignKey(Store, on_delete=models.PROTECT, null=True, blank=True, related_name='payment_receipts')
+    payment_method = models.ForeignKey(PaymentMethod, on_delete=models.SET_NULL, null=True, blank=True, related_name='payment_receipts')
+    bank_account = models.ForeignKey('BankAccount', on_delete=models.SET_NULL, null=True, blank=True, related_name='payment_receipts')
+    amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    receipt_date = models.DateTimeField(default=dj_timezone.now)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    reference_no = models.CharField(max_length=100, blank=True)
+    transaction_id = models.CharField(max_length=100, blank=True)
+    remarks = models.TextField(blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='payment_receipts_created')
+    created_at = models.DateTimeField(default=dj_timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    @property
+    def allocated_amount(self):
+        return self.allocations.aggregate(total=models.Sum('allocated_amount'))['total'] or Decimal('0')
+
+    @property
+    def unapplied_amount(self):
+        return max(self.amount - self.allocated_amount, Decimal('0'))
+
+    def __str__(self):
+        return self.receipt_no
+
+
+class PaymentAllocation(models.Model):
+    receipt = models.ForeignKey(PaymentReceipt, on_delete=models.CASCADE, related_name='allocations')
+    invoice = models.ForeignKey(SalesInvoice, on_delete=models.PROTECT, related_name='receipt_allocations')
+    allocated_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    created_at = models.DateTimeField(default=dj_timezone.now)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=('receipt', 'invoice'), name='unique_payment_allocation_per_invoice')]
+
+    def __str__(self):
+        return f'{self.receipt.receipt_no} -> {self.invoice.invoice_no}: {self.allocated_amount}'
+
+
 class ExchangeTransaction(models.Model):
     METAL_CHOICES = [
         ('gold', 'Gold'),
@@ -2319,6 +2918,7 @@ class BankAccount(models.Model):
     opening_balance = models.DecimalField(max_digits=14, decimal_places=2, default=0)
     current_balance = models.DecimalField(max_digits=14, decimal_places=2, default=0)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
+    gl_account = models.ForeignKey('GLAccount', on_delete=models.SET_NULL, null=True, blank=True, related_name='bank_accounts')
     created_at = models.DateTimeField(default=dj_timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -2410,8 +3010,20 @@ class SupplierInvoice(models.Model):
         ('cancelled', 'Cancelled'),
     ]
 
+    WORKFLOW_STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('pending_approval', 'Pending Approval'),
+        ('approved', 'Approved'),
+        ('posted', 'Posted'),
+        ('cancelled', 'Cancelled'),
+    ]
+
     company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='supplier_invoices')
     supplier = models.ForeignKey(Supplier, on_delete=models.PROTECT, related_name='invoices')
+    document_no = models.CharField(max_length=50, unique=True, null=True, blank=True)
+    purchase_order = models.ForeignKey('PurchaseOrder', on_delete=models.SET_NULL, null=True, blank=True, related_name='invoices')
+    goods_receipt = models.ForeignKey('GoodsReceipt', on_delete=models.SET_NULL, null=True, blank=True, related_name='invoices')
+    workflow_status = models.CharField(max_length=30, choices=WORKFLOW_STATUS_CHOICES, default='draft')
     invoice_no = models.CharField(max_length=100, unique=True)
     invoice_date = models.DateField(default=date.today)
     gross_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
@@ -2449,14 +3061,165 @@ class SupplierInvoice(models.Model):
         return f'{self.invoice_no} - {self.supplier.name}'
 
 
-class PurchaseOrder(models.Model):
-    vendor = models.CharField(max_length=200)
-    product = models.ForeignKey(Product, on_delete=models.PROTECT)
-    quantity = models.DecimalField(max_digits=12, decimal_places=3, default=0)
+class SupplierInvoiceLine(models.Model):
+    supplier_invoice = models.ForeignKey(SupplierInvoice, on_delete=models.CASCADE, related_name='lines')
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, null=True, blank=True, related_name='supplier_invoice_lines')
+    description = models.CharField(max_length=250, blank=True)
+    purchase_order_line = models.ForeignKey('PurchaseOrderLine', on_delete=models.SET_NULL, null=True, blank=True, related_name='invoice_lines')
+    quantity = models.DecimalField(max_digits=12, decimal_places=3, default=1)
     unit_cost = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    total_cost = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    discount_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    taxable_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('18.00'))
+    cgst_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    sgst_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    igst_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    line_total = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+
+    @property
+    def gst_amount(self):
+        return (self.cgst_amount + self.sgst_amount + self.igst_amount).quantize(Decimal('0.01'))
+
+
+class VendorPayment(models.Model):
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('posted', 'Posted'),
+        ('cancelled', 'Cancelled'),
+    ]
+    payment_no = models.CharField(max_length=50, unique=True)
+    vendor = models.ForeignKey(Supplier, on_delete=models.PROTECT, related_name='payments_made')
+    bank_account = models.ForeignKey('BankAccount', on_delete=models.SET_NULL, null=True, blank=True, related_name='vendor_payments')
+    payment_method = models.ForeignKey(PaymentMethod, on_delete=models.SET_NULL, null=True, blank=True, related_name='vendor_payments')
+    amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    payment_date = models.DateTimeField(default=dj_timezone.now)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    reference_no = models.CharField(max_length=100, blank=True)
+    transaction_id = models.CharField(max_length=100, blank=True)
+    remarks = models.TextField(blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='vendor_payments_created')
+    created_at = models.DateTimeField(default=dj_timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    @property
+    def allocated_amount(self):
+        return self.allocations.aggregate(total=models.Sum('allocated_amount'))['total'] or Decimal('0')
+
+    @property
+    def unapplied_amount(self):
+        return max(self.amount - self.allocated_amount, Decimal('0'))
+
+    def __str__(self):
+        return self.payment_no
+
+
+class VendorPaymentAllocation(models.Model):
+    payment = models.ForeignKey(VendorPayment, on_delete=models.CASCADE, related_name='allocations')
+    supplier_invoice = models.ForeignKey(SupplierInvoice, on_delete=models.PROTECT, related_name='payment_allocations')
+    allocated_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    created_at = models.DateTimeField(default=dj_timezone.now)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=('payment', 'supplier_invoice'), name='unique_vendor_payment_allocation_per_invoice')]
+
+    def __str__(self):
+        return f'{self.payment.payment_no} -> {self.supplier_invoice.invoice_no}: {self.allocated_amount}'
+
+
+class PurchaseOrder(models.Model):
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('pending_approval', 'Pending Approval'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+        ('sent_to_vendor', 'Sent to Vendor'),
+        ('partially_received', 'Partially Received'),
+        ('fully_received', 'Fully Received'),
+        ('cancelled', 'Cancelled'),
+    ]
+    order_no = models.CharField(max_length=50, unique=True)
+    vendor = models.ForeignKey(Supplier, on_delete=models.PROTECT, related_name='purchase_orders')
+    warehouse = models.ForeignKey('Warehouse', on_delete=models.SET_NULL, null=True, blank=True, related_name='purchase_orders')
+    buyer = models.ForeignKey('Staff', on_delete=models.SET_NULL, null=True, blank=True, related_name='purchase_orders')
     order_date = models.DateTimeField(default=dj_timezone.now)
-    received = models.BooleanField(default=False)
+    expected_delivery_date = models.DateField(null=True, blank=True)
+    payment_terms = models.ForeignKey(PaymentTerm, on_delete=models.SET_NULL, null=True, blank=True, related_name='purchase_orders')
+    remarks = models.TextField(blank=True)
+    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default='draft')
+    subtotal = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    discount_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    taxable_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    gst_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    total_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='purchase_orders_created')
+    created_at = models.DateTimeField(default=dj_timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.order_no
+
+
+class PurchaseOrderLine(models.Model):
+    purchase_order = models.ForeignKey(PurchaseOrder, on_delete=models.CASCADE, related_name='lines')
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='purchase_order_lines')
+    quantity = models.DecimalField(max_digits=12, decimal_places=3, default=1)
+    unit_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    discount_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    taxable_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('18.00'))
+    cgst_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    sgst_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    igst_amount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    line_total = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    received_quantity = models.DecimalField(max_digits=12, decimal_places=3, default=0)
+    invoiced_quantity = models.DecimalField(max_digits=12, decimal_places=3, default=0)
+    cancelled_quantity = models.DecimalField(max_digits=12, decimal_places=3, default=0)
+
+    @property
+    def gst_amount(self):
+        return (self.cgst_amount + self.sgst_amount + self.igst_amount).quantize(Decimal('0.01'))
+
+    @property
+    def remaining_quantity(self):
+        return max(self.quantity - self.received_quantity - self.cancelled_quantity, Decimal('0'))
+
+    @property
+    def remaining_to_invoice(self):
+        return max(self.received_quantity - self.invoiced_quantity, Decimal('0'))
+
+
+class GoodsReceipt(models.Model):
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('posted', 'Posted'),
+        ('cancelled', 'Cancelled'),
+    ]
+    receipt_no = models.CharField(max_length=50, unique=True)
+    purchase_order = models.ForeignKey(PurchaseOrder, on_delete=models.PROTECT, related_name='goods_receipts')
+    vendor = models.ForeignKey(Supplier, on_delete=models.PROTECT, related_name='goods_receipts')
+    warehouse = models.ForeignKey('Warehouse', on_delete=models.SET_NULL, null=True, blank=True, related_name='goods_receipts')
+    receipt_date = models.DateTimeField(default=dj_timezone.now)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    received_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='goods_receipts_received')
+    remarks = models.TextField(blank=True)
+    created_at = models.DateTimeField(default=dj_timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.receipt_no
+
+
+class GoodsReceiptLine(models.Model):
+    goods_receipt = models.ForeignKey(GoodsReceipt, on_delete=models.CASCADE, related_name='lines')
+    purchase_order_line = models.ForeignKey(PurchaseOrderLine, on_delete=models.PROTECT, related_name='receipt_lines')
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='goods_receipt_lines')
+    quantity_received = models.DecimalField(max_digits=12, decimal_places=3, default=0)
+    quantity_rejected = models.DecimalField(max_digits=12, decimal_places=3, default=0)
+    rejection_reason = models.CharField(max_length=200, blank=True)
+
+    @property
+    def accepted_quantity(self):
+        return max(self.quantity_received - self.quantity_rejected, Decimal('0'))
 
 
 class StockLedger(models.Model):

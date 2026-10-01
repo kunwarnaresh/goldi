@@ -1,0 +1,17 @@
+{% if related %}
+<section class="glass p-6">
+    <h3 class="text-xl text-white font-semibold mb-4"><i class="fas fa-diagram-project mr-2 text-cyan-300"></i>Related documents</h3>
+    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        {% for doc_type, docs in related.items %}
+            {% for doc in docs %}
+            <a href="{% if doc_type == 'quotation' %}{% url 'quotation_detail' doc.pk %}{% elif doc_type == 'sales_order' %}{% url 'sales_order_detail' doc.pk %}{% elif doc_type == 'sales_invoice' %}{% url 'invoice_detail' doc.pk %}{% elif doc_type == 'payment_receipt' %}{% url 'payment_receipt_detail' doc.pk %}{% elif doc_type == 'purchase_order' %}{% url 'purchase_order_detail' doc.pk %}{% elif doc_type == 'goods_receipt' %}{% url 'purchase_order_detail' doc.purchase_order_id %}{% elif doc_type == 'purchase_invoice' %}{% url 'purchase_invoice_detail' doc.pk %}{% elif doc_type == 'vendor_payment' %}{% url 'vendor_payment_detail' doc.pk %}{% elif doc_type == 'finance_voucher' and doc.posted_snapshot %}{% url 'posted_voucher_detail' doc.posted_snapshot.pk %}{% else %}#{% endif %}"
+               class="glass p-4 hover:bg-white/10 transition block">
+                <p class="text-xs uppercase tracking-wider text-slate-500">{% if doc_type == 'quotation' %}Quotation{% elif doc_type == 'sales_order' %}Sales Order{% elif doc_type == 'sales_invoice' %}Invoice{% elif doc_type == 'payment_receipt' %}Payment Receipt{% elif doc_type == 'purchase_order' %}Purchase Order{% elif doc_type == 'goods_receipt' %}Goods Receipt{% elif doc_type == 'purchase_invoice' %}Purchase Invoice{% elif doc_type == 'vendor_payment' %}Vendor Payment{% elif doc_type == 'finance_voucher' %}G/L Voucher{% else %}{{ doc_type }}{% endif %}</p>
+                <p class="text-white font-semibold mt-1">{% if doc_type == 'quotation' %}{{ doc.quotation_no }}{% elif doc_type == 'sales_order' %}{{ doc.order_no }}{% elif doc_type == 'sales_invoice' %}{{ doc.invoice_no }}{% elif doc_type == 'payment_receipt' %}{{ doc.receipt_no }}{% elif doc_type == 'purchase_order' %}{{ doc.order_no }}{% elif doc_type == 'goods_receipt' %}{{ doc.receipt_no }}{% elif doc_type == 'purchase_invoice' %}{{ doc.document_no|default:doc.invoice_no }}{% elif doc_type == 'vendor_payment' %}{{ doc.payment_no }}{% elif doc_type == 'finance_voucher' %}{{ doc.voucher_no }}{% endif %}</p>
+                <p class="text-slate-400 text-xs mt-1">{{ doc.get_status_display }}</p>
+            </a>
+            {% endfor %}
+        {% endfor %}
+    </div>
+</section>
+{% endif %}

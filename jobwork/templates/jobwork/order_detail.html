@@ -1,0 +1,168 @@
+{% extends 'jobwork/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}{{ order.order_no }}{% endblock %}
+{% block eyebrow %}{{ order.get_order_kind_display }} · {{ order.get_transaction_type_display }}{% endblock %}
+{% block heading %}{{ order.order_no }} {% badge order.status %}{% endblock %}
+{% block subheading %}{{ order.job_worker }} at {{ order.job_worker_location.code }}{% if order.production_order %} · production {{ order.production_order.order_no }} op {{ order.operation.operation_no }} {{ order.operation.description }}{% endif %}{% if order.parent %} · after <a class="text-sky-700" href="{% url 'jobwork_order_detail' order.parent.pk %}">{{ order.parent.order_no }}</a>{% endif %}{% if order.rework_of %} · rework of <a class="text-sky-700" href="{% url 'jobwork_order_detail' order.rework_of.pk %}">{{ order.rework_of.order_no }}</a>{% endif %}{% endblock %}
+{% block body %}
+{% with r=trace.reconciliation m=trace.reconciliation.metal %}
+<section class="glass p-5 text-sm space-y-4">
+    <div class="flex flex-wrap gap-2 items-center">
+        {% if order.status == 'DRAFT' and perms_jw.create %}<form method="post">{% csrf_token %}<input type="hidden" name="action" value="submit"><button class="btn-gold px-3 py-2 rounded-lg">Submit for approval</button></form>{% endif %}
+        {% if order.status == 'PENDING_APPROVAL' and perms_jw.approve %}
+        <form method="post">{% csrf_token %}<input type="hidden" name="action" value="approve"><button class="glass px-3 py-2 text-emerald-700"><i class="fas fa-check mr-1"></i>Approve{% if order.required_approval_role %} ({{ order.required_approval_role|lower }}){% endif %}</button></form>
+        <form method="post" class="flex gap-2">{% csrf_token %}<input type="hidden" name="action" value="reject"><input name="reason" placeholder="Reason" class="text-xs w-40"><button class="glass px-3 py-2 text-rose-600">Reject</button></form>
+        {% endif %}
+        {% if order.status in 'APPROVED,MATERIAL_PENDING' and perms_jw.execute and not order.is_production %}<form method="post">{% csrf_token %}<input type="hidden" name="action" value="reserve"><button class="glass px-3 py-2 text-sky-700"><i class="fas fa-lock mr-1"></i>Reserve material</button></form>{% endif %}
+        {% if order.is_open and perms_jw.execute %}
+        <form method="post" class="flex flex-wrap gap-2 items-center">{% csrf_token %}<input type="hidden" name="action" value="dispatch"><input name="vehicle_no" placeholder="Vehicle" class="text-xs w-28"><input name="transporter" placeholder="Transporter" class="text-xs w-32"><input name="barcodes" placeholder="Scan barcodes / HUIDs" class="text-xs w-44"><button class="btn-gold px-3 py-2 rounded-lg"><i class="fas fa-truck mr-1"></i>Dispatch remaining</button></form>
+        <form method="post">{% csrf_token %}<input type="hidden" name="action" value="return"><button class="glass px-3 py-2 text-sky-700"><i class="fas fa-rotate-left mr-1"></i>Return everything at job worker</button></form>
+        {% endif %}
+        {% if is_final and order.output_accepted_qty > order.output_posted_qty %}
+        <form method="post" class="flex gap-2">{% csrf_token %}<input type="hidden" name="action" value="confirm_output"><input name="quantity" value="{{ order.output_accepted_qty|qty }}" class="text-xs w-20"><button class="btn-gold px-3 py-2 rounded-lg">Confirm final output</button></form>
+        {% endif %}
+        {% if order.is_open and perms_jw.close %}<form method="post">{% csrf_token %}<input type="hidden" name="action" value="complete"><button class="glass px-3 py-2 text-emerald-700"><i class="fas fa-flag-checkered mr-1"></i>Complete</button></form>{% endif %}
+        {% if order.status == 'COMPLETED' and perms_jw.close %}<form method="post">{% csrf_token %}<input type="hidden" name="action" value="close"><button class="glass px-3 py-2 text-sky-700">Close</button></form>{% endif %}
+        {% if order.status in 'DRAFT,PENDING_APPROVAL,APPROVED,MATERIAL_PENDING,READY_TO_DISPATCH,DISPATCH_CREATED' and perms_jw.approve %}
+        <form method="post" class="flex gap-2 ml-auto">{% csrf_token %}<input type="hidden" name="action" value="cancel"><input name="reason" placeholder="Cancellation reason" class="text-xs w-44"><button class="glass px-3 py-2 text-rose-600">Cancel</button></form>
+        {% endif %}
+    </div>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 pt-2 border-t border-white/10">
+        <div><p class="text-xs uppercase text-slate-500">From → back to</p><p class="text-white">{{ order.source_location.code }} → {{ order.return_location.code }}</p></div>
+        <div><p class="text-xs uppercase text-slate-500">Dates</p><p class="text-white">ordered {{ order.order_date }} · expected back {{ order.expected_return_date|default:'—' }}</p></div>
+        <div><p class="text-xs uppercase text-slate-500">Statutory due ({{ order.get_goods_category_display|truncatewords:1 }})</p><p class="{% if order.compliance_due_date and order.compliance_due_date < today and order.is_open %}text-rose-600 font-semibold{% else %}text-white{% endif %}">{{ order.compliance_due_date|default:'—' }}</p></div>
+        <div><p class="text-xs uppercase text-slate-500">Rate</p><p class="text-white">{{ order.rate|qty }} {{ order.get_rate_basis_display|lower }}{% if order.minimum_charge %} · min {{ order.minimum_charge|inr }}{% endif %}</p></div>
+        <div><p class="text-xs uppercase text-slate-500">Expected charge / invoiced</p><p class="text-white">{{ order.expected_charge|inr }} / {{ order.invoiced_amount|inr }}</p></div>
+        <div><p class="text-xs uppercase text-slate-500">Material value</p><p class="text-white">{{ order.material_value|inr }}</p></div>
+        <div><p class="text-xs uppercase text-slate-500">Loss tolerance</p><p class="text-white">expected {{ order.expected_loss_percent|qty }}% · max {{ order.max_loss_percent|qty }}%</p></div>
+        <div><p class="text-xs uppercase text-slate-500">Output accepted / rejected / posted</p><p class="text-white">{{ order.output_accepted_qty|qty }} / {{ order.output_rejected_qty|qty }} / {{ order.output_posted_qty|qty }}</p></div>
+    </div>
+</section>
+
+{% if suggestions %}
+<section class="glass overflow-hidden"><div class="px-5 py-4 border-b border-white/10"><h3 class="font-semibold text-white">Job worker comparison (nothing is assigned automatically)</h3></div>
+<table class="w-full text-left text-sm"><thead class="text-xs uppercase text-slate-500 bg-white/5"><tr><th class="px-5 py-2">Job worker</th><th class="text-right">Charge</th><th class="text-right">Lead days</th><th class="text-right">Quality %</th><th class="text-right">On-time %</th><th>Capacity</th><th class="text-right px-5">Score</th></tr></thead>
+<tbody>{% for s in suggestions %}<tr class="border-b border-white/5"><td class="px-5 py-2">{{ s.job_worker }}{% if s.recommended %} <span class="text-emerald-700 text-xs">suggested</span>{% endif %}</td><td class="text-right">{{ s.amount|inr }}</td><td class="text-right">{{ s.lead_time_days }}</td><td class="text-right">{{ s.performance.quality_percent|default:'—' }}</td><td class="text-right">{{ s.performance.on_time_percent|default:'—' }}</td><td>{% if s.capacity_ok and s.metal_ok %}ok{% else %}<span class="text-rose-600">short</span>{% endif %}</td><td class="text-right px-5">{{ s.score|default:'' }}</td></tr>{% endfor %}</tbody></table></section>
+{% endif %}
+
+<section class="glass overflow-hidden">
+    <div class="px-5 py-4 border-b border-white/10 flex justify-between"><h3 class="font-semibold text-white">Lines & reconciliation</h3><span class="text-xs">{% badge r.status %}</span></div>
+    <div class="overflow-x-auto"><table class="w-full text-left text-sm min-w-[1100px]">
+        <thead class="text-xs uppercase text-slate-500 bg-white/5"><tr><th class="px-5 py-3">#</th><th>Type</th><th>Item</th><th>Supply</th><th class="text-right">Planned</th><th class="text-right">Sent / produced</th><th class="text-right">Consumed</th><th class="text-right">Scrap</th><th class="text-right">Loss</th><th class="text-right">Returned</th><th class="text-right">Transferred</th><th class="text-right">At JW</th><th class="text-right">In transit</th><th class="text-right px-5">Value at JW</th></tr></thead>
+        <tbody>{% for row in r.lines %}{% with l=row.line %}<tr class="border-b border-white/5">
+            <td class="px-5 py-2">{{ l.line_no }}</td><td>{{ l.get_line_type_display }}</td>
+            <td>{{ l.item.item_no }}{% if l.jewellery_unit %} <span class="text-xs text-slate-500">{{ l.jewellery_unit.barcode }}</span>{% endif %} <span class="text-xs text-slate-500">{{ l.purity }}</span></td>
+            <td class="text-xs">{{ l.get_supply_method_display }}</td>
+            <td class="text-right">{{ l.quantity|qty }} {{ l.uom.code|default:'' }}</td>
+            <td class="text-right">{% if l.is_inbound %}{{ row.sent_qty|qty }}{% else %}{{ row.output_qty|default:row.scrap_qty|qty }}{% endif %}</td>
+            <td class="text-right">{{ row.consumed_qty|qty }}</td><td class="text-right">{% if l.is_inbound %}{{ row.scrap_qty|qty }}{% endif %}{% if row.scrap_qty_memo %} <span class="text-xs text-slate-500">({{ row.scrap_qty_memo|qty }} in material)</span>{% endif %}</td>
+            <td class="text-right">{{ row.loss_qty|qty }}</td><td class="text-right">{{ row.returned_qty|qty }}</td><td class="text-right">{{ row.transferred_qty|qty }}</td>
+            <td class="text-right font-semibold">{{ row.balance_qty|qty }}</td><td class="text-right">{{ row.in_transit|qty }}</td><td class="text-right px-5">{{ row.balance_value|inr }}</td>
+        </tr>{% endwith %}{% endfor %}</tbody>
+    </table></div>
+    {% if m.sent %}
+    <div class="px-5 py-4 border-t border-white/10 text-sm grid grid-cols-2 md:grid-cols-5 gap-3">
+        <p><span class="text-slate-500 text-xs uppercase block">Metal sent (net g)</span>{{ m.sent|grams }} <span class="text-xs text-slate-500">fine {{ m.sent_fine|grams }}</span></p>
+        <p><span class="text-slate-500 text-xs uppercase block">Consumed into output</span>{{ m.consumed|grams }}</p>
+        <p><span class="text-slate-500 text-xs uppercase block">Scrap / loss</span>{{ m.scrap|grams }} / {{ m.loss|grams }} <span class="{% if r.within_tolerance %}text-slate-500{% else %}text-rose-600 font-semibold{% endif %}">({{ m.loss_percent|qty }}%)</span></p>
+        <p><span class="text-slate-500 text-xs uppercase block">Returned / transferred</span>{{ m.returned|grams }} / {{ m.transferred|grams }}</p>
+        <p><span class="text-slate-500 text-xs uppercase block">Still at job worker</span><span class="{% if m.difference %}text-amber-600 font-semibold{% endif %}">{{ m.difference|grams }}</span></p>
+    </div>
+    {% endif %}
+</section>
+
+<section class="glass overflow-hidden">
+    <div class="px-5 py-4 border-b border-white/10"><h3 class="font-semibold text-white">Dispatches, challans & e-way bills</h3></div>
+    <div class="overflow-x-auto"><table class="w-full text-left text-sm min-w-[1000px]">
+        <thead class="text-xs uppercase text-slate-500 bg-white/5"><tr><th class="px-5 py-3">Dispatch</th><th>Movement</th><th>Challan</th><th>Date</th><th class="text-right">Qty / net g</th><th class="text-right">Value</th><th>E-way bill</th><th>Due</th><th>Status</th><th class="px-5">Action</th></tr></thead>
+        <tbody>{% for d in trace.dispatches %}<tr class="border-b border-white/5 align-top">
+            <td class="px-5 py-2 font-semibold">{{ d.dispatch_no }}</td><td class="text-xs">{{ d.get_movement_type_display }}</td>
+            <td>{% if d.challan %}<a class="text-sky-700" href="{% url 'jobwork_challan' d.challan.pk %}">{{ d.challan.challan_no }}</a>{% endif %}</td>
+            <td>{{ d.dispatch_date }}</td><td class="text-right">{{ d.total_qty|qty }} / {{ d.total_net|grams }}</td><td class="text-right">{{ d.total_value|inr }}</td>
+            <td class="text-xs">{% for e in d.eway_bills.all %}{% if e.status == 'PENDING' and perms_jw.execute %}<form method="post" class="flex gap-1">{% csrf_token %}<input type="hidden" name="action" value="eway"><input type="hidden" name="eway" value="{{ e.pk }}"><input name="ewb_no" placeholder="EWB no" class="text-xs w-28"><button class="text-sky-700">Record</button></form>{% else %}{{ e.ewb_no }} {% badge e.status %}{% endif %}{% empty %}{% if d.eway_bill_required %}required{% else %}<span class="text-slate-500" title="{{ d.eway_bill_reason }}">not required</span>{% endif %}{% endfor %}</td>
+            <td>{{ d.compliance_due_date|default:'' }}</td><td>{% badge d.status %}</td>
+            <td class="px-5 text-xs space-y-1">
+                {% if d.status == 'IN_TRANSIT' and d.movement_type != 'JW_TO_PRINCIPAL' and perms_jw.execute %}<form method="post">{% csrf_token %}<input type="hidden" name="action" value="deliver"><input type="hidden" name="dispatch" value="{{ d.pk }}"><button class="text-emerald-700">Received by job worker</button></form>{% endif %}
+                {% if d.status == 'IN_TRANSIT' or d.status == 'PARTIALLY_RECEIVED' %}{% if d.movement_type == 'JW_TO_PRINCIPAL' and perms_jw.execute %}
+                <form method="post">{% csrf_token %}<input type="hidden" name="action" value="receive"><input type="hidden" name="dispatch" value="{{ d.pk }}"><button class="text-emerald-700">Receive all</button></form>
+                <form method="post" class="flex gap-1">{% csrf_token %}<input type="hidden" name="action" value="short_close"><input type="hidden" name="dispatch" value="{{ d.pk }}"><select name="loss_class" class="text-xs"><option value="">classify…</option>{% for v, l in loss_classes %}{% if v %}<option value="{{ v }}">{{ l }}</option>{% endif %}{% endfor %}</select><input name="reason" placeholder="reason" class="text-xs w-24"><button class="text-rose-600">Short close</button></form>
+                {% endif %}{% endif %}
+                {% if d.status == 'IN_TRANSIT' and perms_jw.reverse %}<form method="post" class="flex gap-1">{% csrf_token %}<input type="hidden" name="action" value="reverse_dispatch"><input type="hidden" name="dispatch" value="{{ d.pk }}"><input name="reason" placeholder="reason" class="text-xs w-24"><button class="text-rose-600">Reverse</button></form>{% endif %}
+            </td>
+        </tr>{% empty %}<tr><td colspan="10" class="px-5 py-8 text-center text-slate-500">Nothing dispatched yet.</td></tr>{% endfor %}
+        {% for d in trace.outgoing_transfers %}<tr class="border-b border-white/5"><td class="px-5 py-2">{{ d.dispatch_no }}</td><td class="text-xs" colspan="8">WIP transfer to <a class="text-sky-700" href="{% url 'jobwork_order_detail' d.order.pk %}">{{ d.order.order_no }}</a> ({{ d.to_job_worker.code }})</td><td class="px-5">{% badge d.status %}</td></tr>{% endfor %}</tbody>
+    </table></div>
+</section>
+
+{% if order.is_open and perms_jw.execute %}
+<section class="glass p-5 text-sm">
+    <h3 class="font-semibold text-white mb-1">Job worker report — consumption, output, scrap, loss</h3>
+    <p class="text-xs text-slate-500 mb-3">Every gram must be classified. A difference is never assumed to be wastage; output fine metal must match the fine metal consumed.</p>
+    <form method="post" class="space-y-2">{% csrf_token %}<input type="hidden" name="action" value="process">
+        <input name="reference" placeholder="Job worker docket no." class="text-xs w-48">
+        {% for i in '12345' %}<div class="grid grid-cols-2 md:grid-cols-12 gap-2">
+            <select name="kind_{{ forloop.counter }}" class="text-xs md:col-span-1"><option value="">—</option><option value="OUTPUT">Output</option><option value="CONSUMPTION">Consume</option><option value="SCRAP">Scrap</option><option value="LOSS">Loss</option></select>
+            <select name="input_{{ forloop.counter }}" class="text-xs md:col-span-2"><option value="">input…</option>{% for l in lines %}{% if l.is_inbound %}<option value="{{ l.pk }}">{{ l.line_no }} {{ l.item.item_no }}</option>{% endif %}{% endfor %}</select>
+            <input name="input_qty_{{ forloop.counter }}" placeholder="input qty/g" class="text-xs">
+            <select name="result_{{ forloop.counter }}" class="text-xs md:col-span-2"><option value="">output / scrap line…</option>{% for l in lines %}{% if not l.is_inbound %}<option value="{{ l.pk }}">{{ l.line_no }} {{ l.item.item_no }}</option>{% endif %}{% endfor %}</select>
+            <input name="qty_{{ forloop.counter }}" placeholder="out qty" class="text-xs"><input name="gross_{{ forloop.counter }}" placeholder="gross g" class="text-xs"><input name="net_{{ forloop.counter }}" placeholder="net g" class="text-xs">
+            <input name="barcode_{{ forloop.counter }}" placeholder="barcode / HUID" class="text-xs">
+            <select name="loss_class_{{ forloop.counter }}" class="text-xs"><option value="">loss class…</option>{% for v, l in loss_classes %}{% if v %}<option value="{{ v }}">{{ l }}</option>{% endif %}{% endfor %}</select>
+            <select name="disposition_{{ forloop.counter }}" class="text-xs"><option value="">scrap…</option><option value="RETURNED">Returned</option><option value="RETAINED">Retained by JW</option><option value="DISPOSED">Disposed</option><option value="SOLD">Sold</option><option value="RECYCLED">Recycled</option></select>
+        </div>{% endfor %}
+        <button class="btn-gold px-3 py-2 rounded-lg text-sm">Post job worker report</button>
+    </form>
+</section>
+{% endif %}
+
+<div class="grid lg:grid-cols-2 gap-6">
+<section class="glass overflow-hidden">
+    <div class="px-5 py-4 border-b border-white/10"><h3 class="font-semibold text-white">Receipts & QC</h3></div>
+    {% for rc in trace.receipts %}
+    <div class="px-5 py-3 border-b border-white/5 text-sm">
+        <p class="font-semibold">{{ rc.receipt_no }} · {{ rc.receipt_date }} · {% badge rc.qc_status %}</p>
+        {% if rc.qc_status == 'PENDING' and perms_jw.qc %}
+        <form method="post" class="space-y-1 mt-2">{% csrf_token %}<input type="hidden" name="action" value="qc"><input type="hidden" name="receipt" value="{{ rc.pk }}">
+            {% for rl in rc.lines.all %}{% if rl.qc_pending_qty %}<div class="grid grid-cols-7 gap-1 text-xs items-center"><span class="col-span-2">{{ rl.item.item_no }} {{ rl.jewellery_unit.barcode|default:'' }} ({{ rl.qc_pending_qty|qty }})</span>
+                <input name="accepted_{{ rl.pk }}" value="{{ rl.qc_pending_qty|qty }}" title="accepted"><input name="rejected_{{ rl.pk }}" placeholder="rejected"><input name="rework_{{ rl.pk }}" placeholder="rework"><input name="purity_{{ rl.pk }}" placeholder="purity"><select name="huid_{{ rl.pk }}"><option value="ok">HUID ok</option><option value="bad">HUID wrong</option></select></div>{% endif %}{% endfor %}
+            <button class="glass px-3 py-1 text-emerald-700 text-xs">Post QC</button></form>
+        {% endif %}
+        {% for q in rc.qcs.all %}<p class="text-xs text-slate-500">{{ q.qc_no }} {{ q.get_result_display }} by {{ q.inspector }}{% if q.rework_order %} → <a class="text-sky-700" href="{% url 'jobwork_order_detail' q.rework_order.pk %}">{{ q.rework_order.order_no }}</a>{% endif %}</p>{% endfor %}
+    </div>
+    {% empty %}<p class="px-5 py-6 text-slate-500 text-sm">Nothing received back yet.</p>{% endfor %}
+</section>
+<section class="glass overflow-hidden">
+    <div class="px-5 py-4 border-b border-white/10"><h3 class="font-semibold text-white">Vendor invoices (3-way match)</h3></div>
+    {% for inv in trace.invoices %}<div class="px-5 py-2 border-b border-white/5 text-sm"><p><span class="font-semibold">{{ inv.document_no }}</span> {{ inv.vendor_invoice_no }} · {{ inv.billed_quantity|qty }} × {{ inv.rate|qty }} = {{ inv.taxable_value|inr }} {% badge inv.status %}</p>
+        {% for issue in inv.match_result.issues %}<p class="text-xs text-rose-600">{{ issue }}</p>{% endfor %}
+        {% if inv.tax_snapshot %}<p class="text-xs text-slate-500">{{ inv.tax_snapshot.get_supply_type_display }} · CGST {{ inv.tax_snapshot.cgst }} SGST {{ inv.tax_snapshot.sgst }} IGST {{ inv.tax_snapshot.igst }}{% if inv.tax_snapshot.reverse_charge %} · RCM{% endif %} · G/L {{ inv.gl_status|lower }}</p>{% endif %}</div>
+    {% empty %}<p class="px-5 py-4 text-slate-500 text-sm">No invoice yet.</p>{% endfor %}
+    {% if perms_jw.invoice and order.status not in 'DRAFT,PENDING_APPROVAL,CANCELLED' %}
+    <form method="post" class="p-5 grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">{% csrf_token %}<input type="hidden" name="action" value="invoice">
+        <input name="vendor_invoice_no" placeholder="Vendor invoice no" required><input type="date" name="invoice_date" value="{{ today|date:'Y-m-d' }}">
+        <input name="billed_quantity" placeholder="Qty ({{ order.get_rate_basis_display|lower }})"><input name="rate" placeholder="Rate ({{ order.rate|qty }})">
+        <input name="cgst" placeholder="CGST"><input name="sgst" placeholder="SGST"><input name="igst" placeholder="IGST"><input name="freight" placeholder="Freight">
+        <input name="irn" placeholder="IRN (if e-invoiced)" class="col-span-2"><button class="btn-gold px-3 py-2 rounded-lg col-span-2">Enter & match invoice</button>
+    </form>{% endif %}
+</section>
+</div>
+
+<div class="grid lg:grid-cols-2 gap-6">
+<section class="glass overflow-hidden">
+    <div class="px-5 py-4 border-b border-white/10"><h3 class="font-semibold text-white">Exceptions</h3></div>
+    <table class="w-full text-left text-sm"><tbody>{% for e in trace.exceptions %}<tr class="border-b border-white/5"><td class="px-5 py-2 font-semibold">{{ e.exception_no }}</td><td>{{ e.get_exception_type_display }}<p class="text-xs text-slate-500">{{ e.description }}</p></td><td>{% badge e.status %}{% if e.blocking and e.is_open %} <span class="text-rose-600 text-xs">blocking</span>{% endif %}</td></tr>{% empty %}<tr><td class="px-5 py-4 text-slate-500">None.</td></tr>{% endfor %}</tbody></table>
+    <a href="{% url 'jobwork_exceptions' %}" class="block px-5 py-3 text-xs text-sky-700">Review & approve exceptions →</a>
+</section>
+<section class="glass overflow-hidden">
+    <div class="px-5 py-4 border-b border-white/10"><h3 class="font-semibold text-white">Cost ledger</h3></div>
+    <table class="w-full text-left text-sm"><tbody>{% for c in trace.costs %}<tr class="border-b border-white/5"><td class="px-5 py-1 text-xs">{{ c.entry_no }}</td><td>{{ c.get_cost_type_display }}<span class="text-xs text-slate-500"> {{ c.description }}</span></td><td class="text-right px-5">{{ c.amount|inr }}</td></tr>{% empty %}<tr><td class="px-5 py-4 text-slate-500">No cost postings{% if order.is_production %} (material cost is in the production order's WIP){% endif %}.</td></tr>{% endfor %}</tbody></table>
+</section>
+</div>
+
+<section class="glass overflow-hidden">
+    <div class="px-5 py-4 border-b border-white/10"><h3 class="font-semibold text-white">Job worker stock ledger</h3></div>
+    <div class="overflow-x-auto"><table class="w-full text-left text-sm min-w-[900px]"><thead class="text-xs uppercase text-slate-500 bg-white/5"><tr><th class="px-5 py-2">Entry</th><th>Date</th><th>Type</th><th>Document</th><th>Item / unit</th><th>Owner</th><th class="text-right">Qty</th><th class="text-right">Net g</th><th class="text-right">Fine g</th><th class="text-right px-5">Value</th></tr></thead>
+    <tbody>{% for s in trace.stock %}<tr class="border-b border-white/5 {% if s.reversed %}line-through text-slate-500{% endif %}"><td class="px-5 py-1 text-xs">{{ s.entry_no }}</td><td>{{ s.posting_date }}</td><td>{{ s.get_entry_type_display }}{% if s.loss_class %} <span class="text-xs">({{ s.get_loss_class_display }})</span>{% endif %}</td><td class="text-xs">{{ s.document_no }}</td><td>{{ s.item.item_no }} {{ s.jewellery_unit.barcode|default:'' }}{% if s.memo %} <span class="text-xs text-slate-500">memo</span>{% endif %}</td><td class="text-xs">{{ s.get_owner_display }}</td><td class="text-right">{{ s.quantity|qty }}</td><td class="text-right">{{ s.net_weight|grams }}</td><td class="text-right">{{ s.fine_weight|grams }}</td><td class="text-right px-5">{{ s.value|inr }}</td></tr>{% empty %}<tr><td colspan="10" class="px-5 py-6 text-center text-slate-500">Nothing has reached the job worker.</td></tr>{% endfor %}</tbody></table></div>
+</section>
+{% endwith %}
+{% endblock %}

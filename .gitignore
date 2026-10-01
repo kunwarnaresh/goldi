@@ -27,6 +27,9 @@ staticfiles/
 .DS_Store
 Thumbs.db
 
+# Claude Code local tool settings (personal, machine-specific)
+.claude/
+
 # Test and coverage output
 .coverage
 htmlcov/

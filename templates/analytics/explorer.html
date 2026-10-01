@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% load analytics_tags %}
+{% block title %}Report Explorer | Goldio{% endblock %}
+{% block content %}
+<div class="max-w-7xl mx-auto px-6 space-y-5 animate-in pb-24">
+    <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4"><div><p class="text-xs uppercase tracking-[0.25em] text-sky-600">Analytics Center</p><h2 class="text-3xl font-bold text-white mt-1">Report Explorer</h2><p class="text-slate-400 mt-1 text-sm">Choose reusable dimensions and measures, then group the source data.</p></div><a href="{% url 'analytics:dashboard' %}" class="text-sky-700 text-sm"><i class="fas fa-arrow-left mr-1"></i>Dashboard</a></div>
+
+    <form method="get" id="report-form" class="glass p-5 space-y-4">
+        <div class="grid sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
+            <label><span class="text-xs text-slate-500">Dataset</span><select name="dataset" onchange="this.form.submit()">{% for dataset in datasets %}<option value="{{ dataset.key }}" {% if dataset.key == selected_dataset %}selected{% endif %}>{{ dataset.label }}</option>{% endfor %}</select></label>
+            {% if spec.date_field %}<label><span class="text-xs text-slate-500">Date range</span><select name="period"><option value="">Custom / current month</option><option value="today">Today</option><option value="yesterday">Yesterday</option><option value="mtd">Month to date</option><option value="previous_month">Previous month</option><option value="ytd">Year to date</option><option value="fytd">Financial year to date</option><option value="previous_fy">Previous financial year</option><option value="rolling_7">Rolling 7 days</option><option value="rolling_30">Rolling 30 days</option><option value="rolling_90">Rolling 90 days</option></select></label>
+            <label><span class="text-xs text-slate-500">Date from</span><input type="date" name="date_from" value="{{ config.filters.date_from }}"></label>
+            <label><span class="text-xs text-slate-500">Date to</span><input type="date" name="date_to" value="{{ config.filters.date_to }}"></label>
+            {% endif %}
+            <button class="btn-gold px-4 py-2 rounded-lg text-sm"><i class="fas fa-play mr-1"></i>Run analysis</button>
+        </div>
+        <div class="grid md:grid-cols-2 gap-4">
+            <fieldset><legend class="text-sm font-semibold mb-2">Rows / dimensions <span class="text-xs text-slate-500">(up to 3)</span></legend><div class="flex flex-wrap gap-2">{% for dimension in spec.dimensions.items %}<label class="inline-flex items-center gap-2 border border-slate-200 rounded px-2 py-1 text-xs"><input type="checkbox" name="dimension" value="{{ dimension.0 }}" {% if dimension.0 in config.dimensions %}checked{% endif %}>{{ dimension.1.1 }}</label>{% endfor %}</div></fieldset>
+            <fieldset><legend class="text-sm font-semibold mb-2">Values / measures</legend><div class="flex flex-wrap gap-2">{% for measure in spec.measures.items %}<label class="inline-flex items-center gap-2 border border-slate-200 rounded px-2 py-1 text-xs"><input type="checkbox" name="measure" value="{{ measure.0 }}" {% if measure.0 in config.measures %}checked{% endif %}>{{ measure.1.2 }}</label>{% endfor %}</div></fieldset>
+        </div>
+        <details class="border-t border-slate-200 pt-3"><summary class="cursor-pointer text-sm font-semibold">Additional filters</summary><div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-3">
+            <label><span class="text-xs text-slate-500">Location ID</span><input name="location" value="{{ config.filters.location }}" inputmode="numeric"></label>
+            <label><span class="text-xs text-slate-500">Store code</span><input name="store" value="{{ config.filters.store }}"></label>
+            <label><span class="text-xs text-slate-500">Customer ID</span><input name="customer" value="{{ config.filters.customer }}" inputmode="numeric"></label>
+            <label><span class="text-xs text-slate-500">Category</span><input name="category" value="{{ config.filters.category }}"></label>
+            <label><span class="text-xs text-slate-500">Metal</span><input name="metal" value="{{ config.filters.metal }}"></label>
+            <label><span class="text-xs text-slate-500">Purity</span><input name="purity" value="{{ config.filters.purity }}"></label>
+            <label><span class="text-xs text-slate-500">Status</span><input name="status" value="{{ config.filters.status }}"></label>
+            <label><span class="text-xs text-slate-500">Payment method</span><input name="method" value="{{ config.filters.method }}"></label>
+            <label><span class="text-xs text-slate-500">Document contains</span><input name="document" value="{{ config.filters.document }}"></label>
+        </div></details>
+    </form>
+
+    <section class="glass p-5">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-4"><div><h3 class="font-bold text-lg">{{ spec.label }}</h3><p class="text-sm text-slate-500">{{ spec.description }}{% if result.truncated %} · Showing up to 1,000 groups{% endif %}</p></div>
+            <div class="flex flex-wrap gap-2"><a href="{% url 'analytics:export' 'csv' %}?{{ request.GET.urlencode }}" class="glass px-3 py-2 text-xs text-sky-700"><i class="fas fa-file-csv mr-1"></i>CSV</a><a href="{% url 'analytics:export' 'json' %}?{{ request.GET.urlencode }}" class="glass px-3 py-2 text-xs text-sky-700"><i class="fas fa-code mr-1"></i>JSON</a><button type="button" onclick="window.print()" class="glass px-3 py-2 text-xs text-sky-700"><i class="fas fa-print mr-1"></i>Print</button></div>
+        </div>
+        <form method="post" action="{% url 'analytics:save_view' %}" class="flex flex-wrap items-end gap-2 mb-4">{% csrf_token %}<input type="hidden" name="dataset" value="{{ selected_dataset }}">{% for dim in config.dimensions %}<input type="hidden" name="dimension" value="{{ dim }}">{% endfor %}{% for measure in config.measures %}<input type="hidden" name="measure" value="{{ measure }}">{% endfor %}{% for key,value in config.filters.items %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endfor %}<label class="min-w-52"><span class="text-xs text-slate-500">Save this analysis</span><input name="name" placeholder="e.g. Monthly store sales" maxlength="120" required></label><button class="btn-gold px-3 py-2 rounded-lg text-xs">Save view</button></form>
+        {% if result.rows %}<div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="border-b border-slate-200 text-left"><th class="py-2 pr-4 text-xs uppercase text-slate-500">#</th>{% for dimension in result.dimensions %}<th class="py-2 px-3 text-xs uppercase text-slate-500">{{ result.labels|get_item:dimension|default:dimension }}</th>{% endfor %}{% for measure in result.measures %}<th class="py-2 px-3 text-right text-xs uppercase text-slate-500">{{ result.labels|get_item:measure|default:measure }}</th>{% endfor %}</tr></thead><tbody>{% for row in result.rows %}<tr class="border-b border-slate-100 hover:bg-sky-50"><td class="py-2 pr-4 text-slate-400">{{ forloop.counter }}</td>{% for dimension in result.dimensions %}<td class="py-2 px-3">{{ row|get_item:dimension }}</td>{% endfor %}{% for measure in result.measures %}<td class="py-2 px-3 text-right tabular-nums">{{ row|get_item:measure|floatformat:2 }}</td>{% endfor %}</tr>{% endfor %}</tbody><tfoot><tr class="font-bold border-t-2 border-slate-300"><td class="py-3 pr-4" colspan="{{ result.dimensions|length|add:1 }}">Total</td>{% for measure in result.measures %}<td class="py-3 px-3 text-right">{{ result.totals|get_item:measure|floatformat:2 }}</td>{% endfor %}</tr></tfoot></table></div>{% else %}<p class="py-12 text-center text-slate-500">No records match this dataset and filter selection.</p>{% endif %}
+        <p class="text-xs text-slate-500 mt-4">Aggregates are produced from registered dataset fields. Detail transaction links are available only in modules that expose a source record and remain subject to that module’s access checks.</p>
+    </section>
+    {% if saved_views %}<section class="glass p-5"><h3 class="font-bold mb-3">My and shared views</h3><div class="flex flex-wrap gap-2">{% for view in saved_views %}<a href="?view_id={{ view.pk }}" class="border border-slate-200 rounded-lg px-3 py-2 text-sm hover:border-sky-500">{{ view.name }}{% if view.shared %}<span class="text-xs text-sky-600 ml-1">Shared</span>{% endif %}</a>{% endfor %}</div></section>{% endif %}
+</div>
+{% endblock %}

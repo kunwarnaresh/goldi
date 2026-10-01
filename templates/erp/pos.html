@@ -110,8 +110,8 @@
 <div class="pos-shell" id="pos-app">
     <header class="pos-status" aria-label="POS status">
         <div><span class="status-kicker">Current time</span><strong id="pos-clock">--:--:--</strong></div>
-        <div><span class="status-kicker">Store</span><strong>DKG / Goldi Main</strong></div>
-        <div><span class="status-kicker">Terminal</span><strong>POS-003 · Register 01</strong></div>
+        <div><span class="status-kicker">Store</span><strong>{{ pos_session.store_code_snapshot|default:pos_session.terminal.store.code }} / {{ pos_session.store_name_snapshot|default:pos_session.terminal.store.name }}</strong></div>
+        <div><span class="status-kicker">Terminal</span><strong>{{ pos_session.terminal.code }} · {{ pos_session.terminal.name }}</strong></div>
         <div class="receipt"><span class="status-kicker">Receipt</span><strong id="receipt-label">DRAFT</strong></div>
         <div><span class="status-kicker">Cashier</span><strong>{{ pos_session.staff.name }}</strong></div>
         <div><span class="status-kicker">Shift</span><strong>{{ pos_session.shift.shift_code }} · <span class="online-dot">● ONLINE</span></strong></div>
@@ -167,14 +167,22 @@
                         <div class="pos-panel-head"><h2><i class="fas fa-wallet" style="color:var(--pos-teal)"></i> Payment</h2><span id="payment-state">No tender added</span></div>
                         <div class="payment-body">
                             <div class="tender-grid">
-                                <button type="button" class="tender" data-tender="Cash">Cash</button><button type="button" class="tender" data-tender="Card">Card</button><button type="button" class="tender" data-tender="UPI">UPI</button><button type="button" class="tender" data-tender="Gift Card">Gift card</button><button type="button" class="tender" data-tender="Credit">Credit memo</button>
+                                {% for st in store_tenders %}<button type="button" class="tender{% if st.is_default %} active{% endif %}" data-tender="{{ st.tender.name }}" data-store-tender="{{ st.pk }}" data-reference="{{ st.needs_reference|yesno:'1,' }}" data-change="{{ st.can_give_change|yesno:'1,' }}">{{ st.tender.name }}</button>
+                                {% empty %}<p style="grid-column:1/-1; color:var(--pos-muted); font-size:.78rem">No tenders are set up for this store. Ask an administrator to add tenders on the Store card.</p>{% endfor %}
                             </div>
                             <div class="payment-entry">
-                                <div><label class="field-label" for="payment-tender">Tender</label><input id="payment-tender" value="Cash" readonly></div>
+                                <div><label class="field-label" for="payment-tender">Tender</label><input id="payment-tender" value="" readonly></div>
                                 <div><label class="field-label" for="payment-amount">Amount received</label><input id="payment-amount" type="number" min="0" step="0.01" placeholder="0.00"></div>
-                                <button type="button" class="pos-btn primary" id="add-payment"><i class="fas fa-plus"></i> Add tender</button>
+                                <div id="payment-reference-wrap" style="display:none"><label class="field-label" for="payment-reference">Reference</label><input id="payment-reference" placeholder="Txn / approval no."></div>
+                                <button type="button" class="pos-btn primary" id="add-payment"{% if not store_tenders %} disabled{% endif %}><i class="fas fa-plus"></i> Add tender</button>
                             </div>
                             <div class="tender-lines" id="tender-lines"><div class="tender-line"><span>No payments recorded</span><strong>₹0.00</strong></div></div>
+                            <div id="tender-inputs"></div>
+                            {% if 'pos.discount.approve' not in pos_permissions %}
+                            <details style="margin-top:.6rem; font-size:.75rem"><summary style="cursor:pointer; color:var(--pos-muted)">Manager approval (needed for discounts)</summary>
+                                <div class="payment-entry" style="margin-top:.4rem"><div><label class="field-label">Manager login ID</label><input name="approver_login" autocomplete="off"></div><div><label class="field-label">Manager password</label><input name="approver_password" type="password" autocomplete="off"></div></div>
+                            </details>
+                            {% endif %}
                         </div>
                     </div>
                 </section>
@@ -229,7 +237,10 @@
 (() => {
     const products = [{% for product in products %}{id: '{{ product.pk }}', name: '{{ product.name|escapejs }}', sku: '{{ product.sku|default:''|escapejs }}', barcode: '{{ product.barcode|default:''|escapejs }}', price: Number('{{ product.sale_price|default:product.mrp|default:'0' }}')},{% endfor %}];
     const jewelleryUnits = [{% for unit in jewellery_units %}{id: '{{ unit.product_id }}', barcode: '{{ unit.barcode|escapejs }}', name: '{{ unit.product.name|escapejs }}', sku: '{{ unit.product.sku|escapejs }}', price: Number('{{ unit.product.sale_price|default:unit.product.mrp|default:'0' }}'), metal: '{{ unit.metal_type|escapejs }}', purity: '{{ unit.purity|escapejs }}', huid: '{{ unit.huid|escapejs }}', gross: '{{ unit.gross_weight }}', stoneWeight: '{{ unit.stone_weight }}', net: '{{ unit.net_metal_weight }}'},{% endfor %}];
-    const state = { product: null, quantity: 1, payments: [], tender: 'Cash' };
+    const defaultTender = document.querySelector('.tender.active') || document.querySelector('.tender');
+    const state = { product: null, quantity: 1, payments: [], tender: defaultTender ? defaultTender.dataset.tender : '', storeTender: defaultTender ? defaultTender.dataset.storeTender : '', needsReference: !!(defaultTender && defaultTender.dataset.reference) };
+    if (defaultTender) document.getElementById('payment-tender').value = state.tender;
+    document.getElementById('payment-reference-wrap').style.display = state.needsReference ? '' : 'none';
     const $ = (id) => document.getElementById(id);
     const money = (value) => `₹${Number(value || 0).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
     const total = () => { const gross = (state.product?.price || 0) * state.quantity; const discount = Number($('id_discount_amount')?.value || 0); const taxable = Math.max(gross - discount, 0); const gst = taxable * Number($('gst-rate').value || 3) / 100; return {gross, discount, taxable, gst, net: taxable + gst}; };
@@ -241,7 +252,8 @@
         $('line-count').textContent = `${state.product ? 1 : 0} item${state.product ? '' : 's'} · ${state.product ? state.quantity : 0} qty`;
         $('summary-items').textContent = state.product ? '1' : '0'; $('summary-qty').textContent = state.product ? state.quantity : '0'; $('summary-gross').textContent = money(t.gross); $('summary-discount').textContent = `-${money(t.discount)}`; $('summary-taxable').textContent = money(t.taxable); $('summary-cgst').textContent = money(t.gst / 2); $('summary-sgst').textContent = money(t.gst / 2); $('summary-gst').textContent = money(t.gst); $('summary-total').textContent = money(t.net); $('summary-paid').textContent = money(paid); $('summary-balance').textContent = money(balance); $('summary-change').textContent = money(change);
         $('quantity').value = state.quantity; $('item-id').value = state.product?.id || ''; $('receipt-label').textContent = state.product ? 'DRAFT · 1 LINE' : 'DRAFT'; $('payment-state').textContent = paid ? `${money(paid)} recorded` : 'No tender added';
-        $('tender-lines').innerHTML = state.payments.length ? state.payments.map((payment, index) => `<div class="tender-line"><span><strong>${payment.tender}</strong> · confirmed</span><strong>${money(payment.amount)} <button type="button" class="line-action" data-remove-payment="${index}">×</button></strong></div>`).join('') : '<div class="tender-line"><span>No payments recorded</span><strong>₹0.00</strong></div>';
+        $('tender-inputs').innerHTML = state.payments.map(p => `<input type="hidden" name="tender_store_tender" value="${p.storeTender}"><input type="hidden" name="tender_amount" value="${p.amount}"><input type="hidden" name="tender_reference" value="${(p.reference || '').replace(/"/g, '&quot;')}">`).join('');
+        $('tender-lines').innerHTML = state.payments.length ? state.payments.map((payment, index) => `<div class="tender-line"><span><strong>${payment.tender}</strong>${payment.reference ? ' · ' + payment.reference.replace(/</g, '&lt;') : ''} · confirmed</span><strong>${money(payment.amount)} <button type="button" class="line-action" data-remove-payment="${index}">×</button></strong></div>`).join('') : '<div class="tender-line"><span>No payments recorded</span><strong>₹0.00</strong></div>';
     }
     function addProduct(product) { state.product = product; state.quantity = 1; $('scan-input').value = ''; $('scan-status').textContent = `✓ ${product.name} added · scanner ready`; $('scan-input').focus(); render(); }
     function findProduct(query) { const value = query.trim().toLowerCase(); return products.find(product => product.barcode.toLowerCase() === value || product.sku.toLowerCase() === value) || products.find(product => product.name.toLowerCase().includes(value)) || jewelleryUnits.find(unit => unit.barcode.toLowerCase() === value || unit.sku.toLowerCase() === value); }
@@ -250,8 +262,8 @@
     document.querySelectorAll('.quick-item').forEach(button => button.addEventListener('click', () => addProduct(products.find(product => product.id === button.dataset.productId))));
     document.addEventListener('click', (event) => { const qty = event.target.closest('[data-qty]'); if (qty) { state.quantity = Math.max(1, state.quantity + Number(qty.dataset.qty)); render(); } if (event.target.id === 'remove-line') { state.product = null; state.quantity = 1; render(); $('scan-input').focus(); } const removePayment = event.target.closest('[data-remove-payment]'); if (removePayment) { state.payments.splice(Number(removePayment.dataset.removePayment), 1); render(); } });
     document.addEventListener('input', event => { if (event.target.id === 'line-quantity') { state.quantity = Math.max(1, Number(event.target.value || 1)); render(); } });
-    document.querySelectorAll('[data-tender]').forEach(button => button.addEventListener('click', () => { state.tender = button.dataset.tender; $('payment-tender').value = state.tender; document.querySelectorAll('.tender').forEach(item => item.classList.toggle('active', item === button)); $('payment-amount').focus(); }));
-    $('add-payment').addEventListener('click', () => { const amount = Number($('payment-amount').value || 0); if (amount > 0) { state.payments.push({tender: state.tender, amount}); $('payment-amount').value = ''; render(); } });
+    document.querySelectorAll('[data-tender]').forEach(button => button.addEventListener('click', () => { state.tender = button.dataset.tender; state.storeTender = button.dataset.storeTender; state.needsReference = !!button.dataset.reference; $('payment-reference-wrap').style.display = state.needsReference ? '' : 'none'; $('payment-tender').value = state.tender; document.querySelectorAll('.tender').forEach(item => item.classList.toggle('active', item === button)); $('payment-amount').focus(); }));
+    $('add-payment').addEventListener('click', () => { const amount = Number($('payment-amount').value || 0); const reference = $('payment-reference').value.trim(); if (!state.storeTender) return; if (state.needsReference && !reference) { $('payment-reference').focus(); $('payment-state').textContent = `${state.tender} needs a reference`; return; } if (amount > 0) { state.payments.push({tender: state.tender, storeTender: state.storeTender, amount, reference}); $('payment-amount').value = ''; $('payment-reference').value = ''; render(); } });
     function showPriceDetails() { const unit = jewelleryUnits.find(item => item.barcode === state.product?.barcode); if (!unit) { $('price-detail-item').textContent = state.product ? `${state.product.name} · No physical jewellery unit pricing snapshot is configured yet.` : 'Select a jewellery item to inspect its components.'; } else { $('price-detail-item').textContent = `${unit.name} · ${unit.barcode}`; $('detail-metal').textContent = `${unit.metal || '-'} / ${unit.purity || '-'}`; $('detail-huid').textContent = unit.huid || 'Not recorded'; $('detail-gross').textContent = `${unit.gross} g`; $('detail-stone-weight').textContent = `${unit.stoneWeight} g`; $('detail-net').textContent = `${unit.net} g`; } $('price-drawer').classList.add('open'); $('price-drawer').setAttribute('aria-hidden', 'false'); }
     $('open-price-details').addEventListener('click', showPriceDetails); $('close-price').addEventListener('click', () => { $('price-drawer').classList.remove('open'); $('price-drawer').setAttribute('aria-hidden', 'true'); });
     $('open-customer').addEventListener('click', () => { $('customer-drawer').classList.add('open'); $('customer-drawer').setAttribute('aria-hidden', 'false'); }); $('edit-customer').addEventListener('click', () => $('open-customer').click()); $('close-customer').addEventListener('click', () => { $('customer-drawer').classList.remove('open'); $('customer-drawer').setAttribute('aria-hidden', 'true'); }); $('save-customer').addEventListener('click', () => { $('customer-drawer').classList.remove('open'); $('customer-drawer').setAttribute('aria-hidden', 'true'); });

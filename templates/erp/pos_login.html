@@ -26,14 +26,25 @@
         <div class="pos-login-lock"><i class="fas fa-lock"></i></div>
         <h1>POS staff login</h1>
         <p>Authenticate before opening the billing terminal.</p>
+        {% if choosing_terminal %}
+        <label class="pos-login-field">POS terminal
+            <select name="terminal_id" required style="margin-top:.35rem; min-height:48px">
+                <option value="">Select this device's terminal</option>
+                {% for t in terminals %}<option value="{{ t.pk }}" {% if terminal and t.pk == terminal.pk %}selected{% endif %}>{{ t.store.name }} ({{ t.store.location.location_code|default:'no location' }}) · {{ t.code }} {{ t.name }}</option>{% endfor %}
+            </select>
+        </label>
+        {% else %}
         <div class="pos-login-terminal">
-            <div><span>Store</span><strong>{{ terminal.store.code|default:'Not configured' }}</strong></div>
-            <div><span>POS terminal</span><strong>{{ terminal.code|default:'Not configured' }}</strong></div>
+            <div><span>Store</span><strong>{{ terminal.store.name|default:'Not configured' }}</strong></div>
+            <div><span>Location</span><strong>{{ terminal.store.location.location_name|default:'—' }}</strong></div>
+            <div><span>POS terminal</span><strong>{{ terminal.code }} · {{ terminal.name }}</strong></div>
+            <div><span>Change</span><strong><a href="?change=terminal" style="color:#65e6e0">Use another terminal</a></strong></div>
         </div>
-        <label class="pos-login-field">Staff ID / employee code<input name="staff_id" autocomplete="username" required autofocus placeholder="EMP1024"></label>
-        <label class="pos-login-field">PIN / password<input name="pin" type="password" inputmode="numeric" autocomplete="current-password" required placeholder="Enter your PIN"></label>
+        {% endif %}
+        <label class="pos-login-field">Login ID / employee code<input name="staff_id" autocomplete="username" required autofocus placeholder="rahul.pos"></label>
+        <label class="pos-login-field">Password<input name="pin" type="password" autocomplete="current-password" required placeholder="Enter your password"></label>
         <button class="pos-login-submit" type="submit"><i class="fas fa-arrow-right-to-bracket"></i> Open POS</button>
-        <p style="margin-top:1rem; text-align:center">Access is limited to active staff assigned to this terminal.</p>
+        <p style="margin-top:1rem; text-align:center">Only active staff of this store with POS access can log in. Accounts lock after repeated failed attempts.</p>
     </form>
 </div>
 {% endblock %}

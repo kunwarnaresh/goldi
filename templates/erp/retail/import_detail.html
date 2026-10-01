@@ -1,0 +1,26 @@
+{% extends 'erp/retail/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}Import #{{ batch.pk }}{% endblock %}
+{% block eyebrow %}Excel import{% endblock %}
+{% block heading %}{{ batch.get_import_type_display }} · {{ batch.file_name }}{% endblock %}
+{% block subheading %}{{ batch.rows|length }} row{{ batch.rows|length|pluralize }} ·
+{% if batch.status == 'imported' %}{% badge 'IMPORTED' %} {{ batch.created_count }} created, {{ batch.updated_count }} updated{% elif batch.status == 'validated' %}{% badge 'VALIDATED' %} ready: {{ batch.created_count }} new, {{ batch.updated_count }} updates{% else %}{% badge 'FAILED' 'Has errors' %} {{ batch.errors|length }} error{{ batch.errors|length|pluralize }}{% endif %}{% endblock %}
+{% block actions %}
+{% if batch.errors %}<a href="?errors=1" class="btn-ghost"><i class="fas fa-file-excel"></i>Error report</a>{% endif %}
+{% if can_manage and batch.status != 'imported' %}
+<form method="post" class="flex gap-2">{% csrf_token %}
+    <button name="action" value="revalidate" class="btn-ghost"><i class="fas fa-rotate"></i>Revalidate</button>
+    {% if batch.status == 'validated' %}<button name="action" value="import" class="btn-gold px-4 py-2 rounded-lg text-sm"><i class="fas fa-file-import mr-1"></i>Import {{ batch.rows|length }} rows</button>{% endif %}
+</form>
+{% endif %}
+<a href="{% url 'retail_imports' %}?type={{ batch.import_type }}" class="btn-ghost"><i class="fas fa-upload"></i>Upload corrected file</a>
+{% endblock %}
+{% block body %}
+{% for e in file_errors %}<p class="glass p-3 text-rose-600 text-sm">{{ e }}</p>{% endfor %}
+<section class="glass overflow-x-auto">
+    <table class="rtable"><thead><tr><th>Row</th>{% for c in columns %}<th>{{ c }}</th>{% endfor %}<th>Errors</th></tr></thead><tbody>
+    {% for number, cells, errors in preview %}<tr class="{% if errors %}bg-rose-50{% endif %}"><td>{{ number }}</td>{% for c in cells %}<td>{{ c }}</td>{% endfor %}<td class="text-rose-600 text-xs">{% for e in errors %}{{ e }}{% if not forloop.last %}<br>{% endif %}{% endfor %}</td></tr>
+    {% empty %}<tr><td colspan="{{ columns|length|add:2 }}" class="text-slate-500">No data rows.</td></tr>{% endfor %}
+    </tbody></table>
+</section>
+{% endblock %}

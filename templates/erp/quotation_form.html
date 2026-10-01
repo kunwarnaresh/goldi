@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% block title %}New Quotation | Goldi ERP{% endblock %}
+{% block content %}
+<div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pb-32">
+    <h2 class="text-4xl font-bold gradient-text mb-8">New Quotation</h2>
+
+    <div class="glass-glow p-8">
+        <form method="post" class="space-y-6">
+            {% csrf_token %}
+            {% if form.non_field_errors %}
+            <div class="bg-red-500/15 border border-red-500/30 text-red-300 px-4 py-3 rounded-lg">{% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}</div>
+            {% endif %}
+
+            <div class="grid md:grid-cols-2 gap-6">
+                {% for field in form %}
+                <div>
+                    {{ field.label_tag }}
+                    <div class="mt-2">{{ field }}</div>
+                    {% if field.errors %}<ul class="mt-1 text-red-400 text-sm">{% for error in field.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+                </div>
+                {% endfor %}
+            </div>
+
+            <div class="pt-6 border-t border-white/10">
+                <p class="text-sm font-semibold text-gray-300 mb-4">Lines</p>
+                {{ formset.management_form }}
+                {% if formset.non_form_errors %}<div class="bg-red-500/15 border border-red-500/30 text-red-300 px-4 py-3 rounded-lg mb-4">{{ formset.non_form_errors }}</div>{% endif %}
+                <div class="space-y-4">
+                    {% for line_form in formset %}
+                    <div class="glass p-4 grid md:grid-cols-5 gap-3 items-end">
+                        <div class="md:col-span-2"><label class="block text-xs uppercase tracking-wider text-slate-400 mb-1">Product</label>{{ line_form.product }}</div>
+                        <div><label class="block text-xs uppercase tracking-wider text-slate-400 mb-1">Quantity</label>{{ line_form.quantity }}</div>
+                        <div><label class="block text-xs uppercase tracking-wider text-slate-400 mb-1">Discount ₹</label>{{ line_form.discount_amount }}</div>
+                        <div><label class="block text-xs uppercase tracking-wider text-slate-400 mb-1">Jewellery barcode</label>{{ line_form.jewellery_barcode }}</div>
+                        {% if line_form.errors %}<div class="md:col-span-5 text-red-400 text-sm">{{ line_form.errors }}</div>{% endif %}
+                        {% if formset.can_delete %}<div class="md:col-span-5 text-xs text-slate-500">{{ line_form.DELETE }} Remove this line</div>{% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                <p class="text-xs text-slate-500 mt-3">Scan a jewellery unit barcode to price this line with the live metal-rate pricing engine; otherwise the product's standard sale price is used.</p>
+            </div>
+
+            <div class="flex gap-4 pt-6">
+                <button type="submit" class="btn-gold">Save quotation</button>
+                <a href="{% url 'quotation_list' %}" class="glass px-6 py-3 rounded-lg font-semibold hover:bg-white/10 transition">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+form label { @apply block text-sm font-semibold text-gray-200; }
+form input[type="text"], form input[type="number"], form input[type="date"], form select, form textarea {
+    @apply w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white placeholder-gray-400 focus:outline-none focus:border-amber-500/50 transition;
+}
+</style>
+{% endblock %}

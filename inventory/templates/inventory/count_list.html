@@ -1,0 +1,22 @@
+{% extends 'inventory/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}Physical inventory{% endblock %}
+{% block eyebrow %}Journals{% endblock %}
+{% block heading %}Physical inventory counts{% endblock %}
+{% block subheading %}Create → snapshot → count / scan → submit → variance adjustment → approval → post.{% endblock %}
+{% block body %}
+<div class="grid lg:grid-cols-3 gap-6">
+<section class="glass overflow-x-auto lg:col-span-2"><table class="w-full text-left text-sm">
+    <thead class="text-xs uppercase text-slate-500 bg-white/5"><tr><th class="px-5 py-3">Count</th><th>Date</th><th>Location</th><th>Blind</th><th class="text-right">Lines</th><th class="px-5">Status</th></tr></thead>
+    <tbody>{% for c in counts %}<tr class="border-b border-white/5"><td class="px-5 py-2"><a class="text-sky-700 font-semibold" href="{% url 'inventory_count_detail' c.pk %}">{{ c.count_no }}</a></td><td>{{ c.count_date|date:'d M Y' }}</td><td>{{ c.location.code }}</td><td>{% if c.blind_count %}Yes{% endif %}</td><td class="text-right">{{ c.line_count }}</td><td class="px-5">{% badge c.status %}</td></tr>
+    {% empty %}<tr><td colspan="6" class="px-5 py-10 text-center text-slate-500">No counts yet.</td></tr>{% endfor %}</tbody>
+</table></section>
+<section class="glass p-5"><h3 class="font-semibold text-white mb-3">New count</h3>
+    {% if my_locations %}<form method="post" class="space-y-3 text-sm">{% csrf_token %}
+        <div><label class="text-xs uppercase text-slate-500">Location</label><select name="location">{% for l in my_locations %}{% if l.location_type != 'TRANSIT' %}<option value="{{ l.pk }}">{{ l.code }} – {{ l.name }}</option>{% endif %}{% endfor %}</select></div>
+        <label class="flex items-center gap-2 text-white"><input type="checkbox" name="blind" value="1" class="w-auto"> Blind count (counters do not see system quantities)</label>
+        <div><label class="text-xs uppercase text-slate-500">Remarks</label><input name="remarks"></div>
+        <button class="btn-gold px-5 py-3 rounded-lg w-full">Create &amp; take snapshot</button></form>
+    {% else %}<p class="text-sm text-slate-500">You cannot count any location.</p>{% endif %}</section>
+</div>
+{% endblock %}

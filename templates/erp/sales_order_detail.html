@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% block title %}{{ order.order_no }} | Sales Order{% endblock %}
+{% block content %}
+<div class="max-w-6xl mx-auto px-6 pb-32 space-y-7">
+    <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+            <p class="text-sm uppercase tracking-[0.25em] text-sky-300">Sales Order</p>
+            <h2 class="text-4xl font-bold text-white mt-2">{{ order.order_no }}</h2>
+            <p class="text-slate-400 mt-2">{{ order.customer.name }} &middot; {{ order.order_date|date:'d M Y' }}{% if order.expected_delivery_date %} &middot; Expected {{ order.expected_delivery_date }}{% endif %}</p>
+        </div>
+        <span class="px-4 py-2 rounded-full bg-cyan-500/15 text-cyan-300">{{ order.get_status_display }}</span>
+    </div>
+
+    <section class="grid md:grid-cols-4 gap-4">
+        <div class="glass p-5"><p class="text-slate-400 text-xs uppercase">Subtotal</p><p class="text-xl text-white font-semibold mt-2">₹{{ order.subtotal|floatformat:2 }}</p></div>
+        <div class="glass p-5"><p class="text-slate-400 text-xs uppercase">Discount</p><p class="text-xl text-white font-semibold mt-2">₹{{ order.discount_amount|floatformat:2 }}</p></div>
+        <div class="glass p-5"><p class="text-slate-400 text-xs uppercase">GST</p><p class="text-xl text-white font-semibold mt-2">₹{{ order.gst_amount|floatformat:2 }}</p></div>
+        <div class="glass p-5"><p class="text-slate-400 text-xs uppercase">Total</p><p class="text-xl gold-text font-semibold mt-2">₹{{ order.total_amount|floatformat:2 }}</p></div>
+    </section>
+
+    <section class="glass p-6">
+        <div class="flex flex-wrap gap-3">
+            {% if order.status == 'draft' %}
+            <form method="post" action="{% url 'sales_order_submit' order.pk %}">{% csrf_token %}<button class="btn-gold px-4 py-3 rounded-lg" type="submit"><i class="fas fa-paper-plane mr-2"></i>Submit for approval</button></form>
+            {% endif %}
+            {% if order.status == 'pending_approval' %}
+            <form method="post" action="{% url 'sales_order_approve' order.pk %}">{% csrf_token %}<input type="hidden" name="decision" value="approve"><button class="btn-gold px-4 py-3 rounded-lg" type="submit"><i class="fas fa-check mr-2"></i>Approve</button></form>
+            <form method="post" action="{% url 'sales_order_approve' order.pk %}">{% csrf_token %}<input type="hidden" name="decision" value="reject"><button class="glass px-4 py-3 text-red-300" type="submit"><i class="fas fa-xmark mr-2"></i>Reject</button></form>
+            {% endif %}
+            {% if order.status == 'approved' or order.status == 'released' or order.status == 'partially_fulfilled' %}
+            <a href="{% url 'sales_order_convert' order.pk %}" class="btn-gold px-4 py-3 rounded-lg"><i class="fas fa-file-invoice mr-2"></i>Convert to Invoice</a>
+            {% endif %}
+        </div>
+        <p class="text-xs text-slate-500 mt-4">Approving an order runs credit control and reserves any linked jewellery units.</p>
+    </section>
+
+    <section class="glass overflow-hidden">
+        <div class="px-6 py-5 border-b border-white/10"><h3 class="text-xl text-white font-semibold"><i class="fas fa-list mr-2 text-cyan-300"></i>Lines</h3></div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left min-w-[1000px]">
+                <thead class="text-xs uppercase text-slate-500 border-b border-white/10 bg-white/5"><tr><th class="px-6 py-4">Product</th><th>Ordered</th><th>Reserved</th><th>Invoiced</th><th>Remaining</th><th class="text-right px-6">Line total</th></tr></thead>
+                <tbody>
+                {% for line in lines %}
+                <tr class="border-b border-white/5 text-sm">
+                    <td class="px-6 py-3 text-white">{{ line.product.name }}{% if line.jewellery_unit %}<span class="block text-xs text-slate-500">{{ line.jewellery_unit.barcode }} &middot; {{ line.jewellery_unit.get_current_status_display }}</span>{% endif %}</td>
+                    <td class="text-slate-300">{{ line.quantity }}</td>
+                    <td class="text-slate-300">{{ line.reserved_quantity }}</td>
+                    <td class="text-slate-300">{{ line.invoiced_quantity }}</td>
+                    <td class="text-amber-300">{{ line.remaining_quantity }}</td>
+                    <td class="text-right px-6 font-semibold text-emerald-300">₹{{ line.line_total|floatformat:2 }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    {% include 'erp/_related_documents.html' %}
+    {% include 'erp/_status_timeline.html' %}
+</div>
+{% endblock %}

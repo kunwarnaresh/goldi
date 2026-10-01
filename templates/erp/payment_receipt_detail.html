@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% block title %}{{ receipt.receipt_no }} | Payment Receipt{% endblock %}
+{% block content %}
+<div class="max-w-5xl mx-auto px-6 pb-32 space-y-7">
+    <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+            <p class="text-sm uppercase tracking-[0.25em] text-sky-300">Payment Receipt</p>
+            <h2 class="text-4xl font-bold text-white mt-2">{{ receipt.receipt_no }}</h2>
+            <p class="text-slate-400 mt-2">{{ receipt.customer.name }} &middot; {{ receipt.receipt_date|date:'d M Y' }} &middot; {{ receipt.payment_method.name|default:'-' }}</p>
+        </div>
+        <span class="px-4 py-2 rounded-full bg-cyan-500/15 text-cyan-300">{{ receipt.get_status_display }}</span>
+    </div>
+
+    <section class="grid md:grid-cols-3 gap-4">
+        <div class="glass p-5"><p class="text-slate-400 text-xs uppercase">Receipt amount</p><p class="text-xl gold-text font-semibold mt-2">₹{{ receipt.amount|floatformat:2 }}</p></div>
+        <div class="glass p-5"><p class="text-slate-400 text-xs uppercase">Allocated</p><p class="text-xl text-white font-semibold mt-2">₹{{ receipt.allocated_amount|floatformat:2 }}</p></div>
+        <div class="glass p-5"><p class="text-slate-400 text-xs uppercase">Unapplied</p><p class="text-xl text-amber-300 font-semibold mt-2">₹{{ receipt.unapplied_amount|floatformat:2 }}</p></div>
+    </section>
+
+    {% if receipt.status == 'draft' %}
+    <section class="glass p-6">
+        <form method="post" action="{% url 'payment_receipt_post' receipt.pk %}">{% csrf_token %}<button class="btn-gold px-4 py-3 rounded-lg" type="submit"><i class="fas fa-lock mr-2"></i>Post receipt</button></form>
+        <p class="text-xs text-slate-500 mt-4">Posting applies the allocations below to each invoice's balance and records the bank transaction.</p>
+    </section>
+    {% endif %}
+
+    <section class="glass overflow-hidden">
+        <div class="px-6 py-5 border-b border-white/10"><h3 class="text-xl text-white font-semibold"><i class="fas fa-list mr-2 text-cyan-300"></i>Allocations</h3></div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left min-w-[700px]">
+                <thead class="text-xs uppercase text-slate-500 border-b border-white/10 bg-white/5"><tr><th class="px-6 py-4">Invoice</th><th>Invoice total</th><th>Invoice balance</th><th class="text-right px-6">Allocated</th></tr></thead>
+                <tbody>
+                {% for allocation in allocations %}
+                <tr class="border-b border-white/5 text-sm">
+                    <td class="px-6 py-3"><a href="{% url 'invoice_detail' allocation.invoice.pk %}" class="text-cyan-300 hover:text-cyan-200">{{ allocation.invoice.invoice_no }}</a></td>
+                    <td class="text-slate-300">₹{{ allocation.invoice.total_amount|floatformat:2 }}</td>
+                    <td class="text-slate-300">₹{{ allocation.invoice.balance_amount|floatformat:2 }}</td>
+                    <td class="text-right px-6 font-semibold text-emerald-300">₹{{ allocation.allocated_amount|floatformat:2 }}</td>
+                </tr>
+                {% empty %}<tr><td colspan="4" class="px-6 py-10 text-center text-slate-400">No invoices allocated yet.</td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    {% include 'erp/_related_documents.html' %}
+    {% include 'erp/_status_timeline.html' %}
+</div>
+{% endblock %}

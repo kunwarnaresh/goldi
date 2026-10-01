@@ -1,0 +1,36 @@
+{% extends 'erp/retail/base.html' %}
+{% block page_title %}{{ title }}{% endblock %}
+{% block heading %}{{ title }}{% endblock %}
+{% block subheading %}{{ subtitle }}{% endblock %}
+{% block actions %}
+{% if new_url and can_manage %}<a href="{{ new_url }}" class="btn-gold px-4 py-2 rounded-lg text-sm"><i class="fas fa-plus mr-1"></i>{{ new_label }}</a>{% endif %}
+{% if export_kind %}
+<a href="?{{ export_query }}" class="btn-ghost"><i class="fas fa-file-excel"></i>Export Excel</a>
+{% if can_manage %}<a href="{% url 'retail_imports' %}?type={{ export_kind }}" class="btn-ghost"><i class="fas fa-file-import"></i>Import Excel</a>{% endif %}
+{% endif %}
+{% for url, label in extra_actions %}<a href="{{ url }}" class="btn-ghost">{{ label }}</a>{% endfor %}
+{% endblock %}
+{% block body %}
+{% if filters %}
+<form method="get" class="glass p-3 flex flex-wrap gap-3 items-end">
+    {% for f in filters %}
+    <div class="min-w-[180px]">
+        {% if f.options %}<select name="{{ f.name }}"><option value="">All {{ f.name }}</option>{% for value, label in f.options %}<option value="{{ value }}" {% if value == f.value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+        {% else %}<input type="search" name="{{ f.name }}" value="{{ f.value }}" placeholder="{{ f.placeholder }}">{% endif %}
+    </div>
+    {% endfor %}
+    <button class="btn-ghost"><i class="fas fa-filter"></i>Filter</button>
+    {% if request.GET %}<a href="{{ request.path }}" class="text-sm text-slate-500">Clear</a>{% endif %}
+</form>
+{% endif %}
+<section class="glass overflow-x-auto">
+    <table class="rtable">
+        <thead><tr>{% for h in headers %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+        <tbody>
+        {% for row in rows %}<tr>{% for cell in row.cells %}<td>{{ cell|default_if_none:'' }}</td>{% endfor %}</tr>
+        {% empty %}<tr><td colspan="{{ headers|length }}" class="text-center text-slate-500 py-8">No records.</td></tr>{% endfor %}
+        </tbody>
+    </table>
+</section>
+<p class="text-xs text-slate-500">{{ rows|length }} record{{ rows|length|pluralize }}</p>
+{% endblock %}

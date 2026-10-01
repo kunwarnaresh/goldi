@@ -1,0 +1,13 @@
+{% extends 'jobwork/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}Job worker invoices{% endblock %}
+{% block heading %}Job worker invoices{% endblock %}
+{% block subheading %}3-way match: order rate × received / accepted work × invoice; GST from the tax master{% endblock %}
+{% block body %}
+<section class="glass overflow-hidden"><div class="overflow-x-auto"><table class="w-full text-left text-sm min-w-[1100px]">
+    <thead class="text-xs uppercase text-slate-500 bg-white/5"><tr><th class="px-5 py-3">Document</th><th>Vendor invoice</th><th>Order</th><th>Job worker</th><th class="text-right">Taxable</th><th class="text-right">Tax</th><th class="text-right">Total</th><th>Match</th><th>Status</th><th class="px-5">Action</th></tr></thead>
+    <tbody>{% for i in invoices %}<tr class="border-b border-white/5 align-top"><td class="px-5 py-2 font-semibold">{{ i.document_no }}</td><td>{{ i.vendor_invoice_no }}<span class="block text-xs text-slate-500">{{ i.invoice_date }}</span></td><td><a class="text-sky-700" href="{% url 'jobwork_order_detail' i.order.pk %}">{{ i.order.order_no }}</a></td><td>{{ i.job_worker.code }}</td><td class="text-right">{{ i.taxable_value|inr }}</td><td class="text-right">{{ i.vendor_tax|inr }}</td><td class="text-right">{{ i.total_amount|inr }}</td>
+        <td class="text-xs max-w-xs">{% for issue in i.match_result.issues %}<p class="text-rose-600">{{ issue }}</p>{% empty %}<p>expected {{ i.match_result.expected_amount }}</p>{% endfor %}</td><td>{% badge i.status %}</td>
+        <td class="px-5 text-xs"><form method="post" class="flex gap-2">{% csrf_token %}<input type="hidden" name="invoice" value="{{ i.pk }}">{% if i.status in 'DRAFT,EXCEPTION' and perms_jw.invoice %}<button name="action" value="match" class="text-sky-700">Re-match</button>{% endif %}{% if i.status == 'MATCHED' or i.status == 'EXCEPTION' %}{% if perms_jw.invoice %}<button name="action" value="approve" class="text-emerald-700">Approve</button>{% endif %}{% endif %}{% if i.status == 'APPROVED' and perms_jw.post_invoice %}<button name="action" value="post" class="text-emerald-700">Post</button>{% endif %}</form></td></tr>{% empty %}<tr><td colspan="10" class="px-5 py-10 text-center text-slate-500">No invoices.</td></tr>{% endfor %}</tbody>
+</table></div></section>
+{% endblock %}

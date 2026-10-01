@@ -1,0 +1,72 @@
+{% extends 'savings/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}Enrol new member{% endblock %}
+{% block heading %}Enrol new member{% endblock %}
+{% block subheading %}Pick an existing customer or add a new one, choose the scheme and the monthly installment. The installment schedule is created automatically.{% endblock %}
+{% block body %}
+{% if not schemes %}
+<div class="glass p-5 text-sm text-amber-700">
+    No scheme is open for enrolment yet. Open the <a class="text-sky-700 underline" href="{% url 'savings_schemes' %}">Scheme master</a>, then submit and approve a scheme version.
+    {% if perms_sav.configure %}To approve your own schemes and enrolments, switch on <em>Maker-checker: allow self-approval</em> in <a class="text-sky-700 underline" href="{% url 'savings_setup' %}">Savings setup</a>.{% endif %}
+</div>
+{% endif %}
+
+<section class="glass p-5 text-sm max-w-4xl">
+    <h3 class="font-semibold text-white mb-3">1. Customer</h3>
+    <form method="get" class="flex gap-2 mb-3">
+        <input name="customer_q" value="{{ customer_q }}" placeholder="Search existing customer by mobile, name, customer no, email or PAN" class="flex-1">
+        <button class="px-4 py-2 rounded-lg bg-slate-700 text-white">Search</button>
+    </form>
+    {% if customer_q %}
+    <table class="w-full text-left mb-2"><tbody>
+        {% for c in matches %}
+        <tr class="border-b border-white/5"><td class="py-1">{{ c.name }}</td><td>{{ c.phone }}</td><td>{{ c.customer_no }}</td>
+            <td class="text-right"><a class="text-sky-700 font-semibold" href="?customer_q={{ customer_q|urlencode }}&customer={{ c.pk }}">Select</a></td></tr>
+        {% empty %}<tr><td class="py-2 text-slate-500">No customer found - add them as a new customer below.</td></tr>{% endfor %}
+    </tbody></table>
+    {% endif %}
+</section>
+
+<form method="post" class="glass p-6 grid md:grid-cols-2 gap-5 text-sm max-w-4xl">
+    {% csrf_token %}
+    <div class="md:col-span-2 flex flex-wrap gap-6">
+        <label class="flex items-center gap-2"><input type="radio" name="customer_mode" value="existing" {% if selected and posted.customer_mode != 'new' %}checked{% endif %} {% if not selected %}disabled{% endif %}>
+            Existing customer: {% if selected %}<strong>{{ selected.name }}</strong> · {{ selected.phone }} · {{ selected.customer_no }}<input type="hidden" name="customer" value="{{ selected.pk }}">{% else %}<span class="text-slate-500">search and select above</span>{% endif %}</label>
+        <label class="flex items-center gap-2"><input type="radio" name="customer_mode" value="new" {% if not selected or posted.customer_mode == 'new' %}checked{% endif %}> New customer</label>
+    </div>
+    <fieldset class="md:col-span-2 grid md:grid-cols-2 gap-4 border border-white/10 rounded-lg p-4">
+        <legend class="px-2 text-xs uppercase text-slate-500">New customer details (used only when "New customer" is chosen)</legend>
+        <label><span class="text-slate-500 text-xs uppercase">Full name</span><input name="new_name" value="{{ posted.new_name }}"></label>
+        <label><span class="text-slate-500 text-xs uppercase">Mobile</span><input name="new_phone" value="{{ posted.new_phone }}" maxlength="15"></label>
+        <label><span class="text-slate-500 text-xs uppercase">Email</span><input name="new_email" type="email" value="{{ posted.new_email }}"></label>
+        <label><span class="text-slate-500 text-xs uppercase">PAN (needed if the scheme requires KYC)</span><input name="new_pan" value="{{ posted.new_pan }}" maxlength="10"></label>
+        <label class="md:col-span-2"><span class="text-slate-500 text-xs uppercase">Address</span><textarea name="new_address" rows="2">{{ posted.new_address }}</textarea></label>
+    </fieldset>
+
+    <h3 class="md:col-span-2 font-semibold text-white">2. Scheme</h3>
+    <label><span class="text-slate-500 text-xs uppercase">Scheme</span>
+        <select name="scheme" required><option value="">Select a scheme…</option>
+            {% for s in schemes %}{% with v=s.current_version %}<option value="{{ s.pk }}" {% if posted.scheme == s.pk|stringformat:'s' %}selected{% endif %}>{{ s.code }} – {{ s.name }} (₹{{ v.installment_amount }} × {{ v.number_of_installments }})</option>{% endwith %}{% endfor %}
+        </select></label>
+    <label><span class="text-slate-500 text-xs uppercase">Monthly installment (blank = scheme default)</span><input name="installment_amount" type="number" step="0.01" min="0" value="{{ posted.installment_amount }}"></label>
+    <label><span class="text-slate-500 text-xs uppercase">Start date</span><input name="start_date" type="date" value="{{ posted.start_date|default:today|date:'Y-m-d' }}"></label>
+    <label><span class="text-slate-500 text-xs uppercase">Enrolment branch</span>
+        <select name="branch"><option value="">—</option>{% for l in branches %}<option value="{{ l.pk }}" {% if posted.branch == l.pk|stringformat:'s' %}selected{% endif %}>{{ l.code }} – {{ l.name }}</option>{% endfor %}</select></label>
+
+    <h3 class="md:col-span-2 font-semibold text-white">3. Nominee (optional unless the scheme requires one)</h3>
+    <label><span class="text-slate-500 text-xs uppercase">Nominee name</span><input name="nominee_name" value="{{ posted.nominee_name }}"></label>
+    <label><span class="text-slate-500 text-xs uppercase">Relationship</span><input name="nominee_relationship" value="{{ posted.nominee_relationship }}"></label>
+    <label><span class="text-slate-500 text-xs uppercase">Nominee mobile</span><input name="nominee_mobile" value="{{ posted.nominee_mobile }}" maxlength="15"></label>
+
+    <h3 class="md:col-span-2 font-semibold text-white">4. Agreement</h3>
+    <label><span class="text-slate-500 text-xs uppercase">Customer accepted by</span>
+        <select name="acceptance_method">{% for code, label in acceptance_methods %}<option value="{{ code }}" {% if posted.acceptance_method == code %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+    <label><span class="text-slate-500 text-xs uppercase">Signed agreement / OTP reference</span><input name="signature_reference" value="{{ posted.signature_reference }}" placeholder="Required for a physical signature"></label>
+
+    {% if confirm_message %}
+    <label class="md:col-span-2 flex items-start gap-2 rounded-lg bg-amber-100 text-amber-900 p-3"><input type="checkbox" name="confirm" class="mt-1">
+        <span><strong>Possible duplicate:</strong> {{ confirm_message }} Tick to enrol anyway.</span></label>
+    {% endif %}
+    <div class="md:col-span-2 flex gap-3"><button class="btn-gold px-5 py-2 rounded-lg" {% if not schemes %}disabled{% endif %}>Enrol member</button><a href="{% url 'savings_members' %}" class="px-5 py-2 text-slate-500">Cancel</a></div>
+</form>
+{% endblock %}

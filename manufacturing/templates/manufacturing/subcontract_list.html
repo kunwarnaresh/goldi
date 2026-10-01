@@ -1,0 +1,19 @@
+{% extends 'manufacturing/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}Subcontracting{% endblock %}
+{% block heading %}Subcontracting{% endblock %}
+{% block subheading %}Operations sent to outside karigars and job workers{% endblock %}
+{% block body %}
+<section class="glass overflow-hidden"><div class="overflow-x-auto"><table class="w-full text-left text-sm min-w-[900px]">
+    <thead class="text-xs uppercase text-slate-500 bg-white/5"><tr><th class="px-5 py-3">Subcontract</th><th>Production order</th><th>Operation</th><th>Subcontractor</th><th class="text-right">Qty</th><th class="text-right">Sent / returned / loss g</th><th>Expected back</th><th class="text-right">Service cost</th><th class="text-right px-5">Status</th></tr></thead>
+    <tbody>{% for s in subcontracts %}<tr class="border-b border-white/5">
+        <td class="px-5 py-2 font-semibold">{{ s.subcontract_no }}</td>
+        <td><a class="text-sky-700" href="{% url 'manufacturing_order_detail' s.order.pk %}">{{ s.order.order_no }}</a></td>
+        <td>{{ s.operation.operation_no }} {{ s.operation.description }}</td><td>{{ s.subcontractor }}</td>
+        <td class="text-right">{{ s.quantity|qty }}</td>
+        <td class="text-right">{{ s.weight_sent|grams }} / {{ s.weight_returned|grams }} / {{ s.loss_weight|grams }}</td>
+        <td>{{ s.expected_return_date|default:'' }}</td><td class="text-right">{{ s.service_cost|inr }}</td>
+        <td class="text-right px-5">{% badge s.status %}</td>
+    </tr>{% empty %}<tr><td colspan="9" class="px-5 py-10 text-center text-slate-500">No subcontract orders yet.</td></tr>{% endfor %}</tbody>
+</table></div></section>
+{% endblock %}

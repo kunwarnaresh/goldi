@@ -1,0 +1,19 @@
+{% extends 'manufacturing/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}Capacity load{% endblock %}
+{% block heading %}Capacity load{% endblock %}
+{% block subheading %}Planned load vs available minutes per work centre, {{ days }} days from {{ start }}{% endblock %}
+{% block actions %}
+<form method="get" class="flex gap-2 items-center"><input type="date" name="start" value="{{ start|date:'Y-m-d' }}" class="text-sm w-40"><input type="number" name="days" min="1" max="31" value="{{ days }}" class="text-sm w-20"><button class="glass px-3 py-2 text-sm text-sky-700">Show</button></form>
+{% endblock %}
+{% block body %}
+<section class="glass overflow-hidden"><div class="overflow-x-auto"><table class="w-full text-left text-xs">
+    <thead class="uppercase text-slate-500 bg-white/5"><tr><th class="px-5 py-3">Work centre</th><th class="text-right">Load %</th><th class="text-right">Utilisation %</th><th class="text-right pr-3">Backlog min</th>{% for d in day_heads %}<th class="text-center px-1 whitespace-nowrap">{{ d.day|date:'d M' }}</th>{% endfor %}</tr></thead>
+    <tbody>{% for r in rows %}<tr class="border-b border-white/5">
+        <td class="px-5 py-2 text-sm font-semibold whitespace-nowrap">{{ r.work_center.code }}</td>
+        <td class="text-right {% if r.load_percent > 100 %}text-rose-600 font-semibold{% endif %}">{{ r.load_percent }}</td>
+        <td class="text-right">{{ r.utilisation_percent }}</td><td class="text-right pr-3">{{ r.backlog|qty }}</td>
+        {% for d in r.days %}<td class="text-center px-1 py-2 {% if d.load_percent > 100 %}bg-rose-100 text-rose-800{% elif d.load_percent > 80 %}bg-amber-100 text-amber-800{% elif d.planned %}bg-emerald-50 text-emerald-800{% else %}text-slate-400{% endif %}" title="{{ d.planned|qty }} of {{ d.available|qty }} min planned, {{ d.actual|qty }} actual">{% if d.available %}{{ d.load_percent }}%{% else %}–{% endif %}</td>{% endfor %}
+    </tr>{% empty %}<tr><td colspan="4" class="px-5 py-10 text-center text-slate-500">No active work centres.</td></tr>{% endfor %}</tbody>
+</table></div></section>
+{% endblock %}

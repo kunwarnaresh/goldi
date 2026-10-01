@@ -1,0 +1,24 @@
+{% extends 'manufacturing/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}{{ bom.bom_no }}{% endblock %}
+{% block eyebrow %}Production BOM{% endblock %}
+{% block heading %}{{ bom.bom_no }} – {{ bom.bom_name }} {% badge bom.status %}{% endblock %}
+{% block subheading %}{{ bom.item.item_no }} – {{ bom.item.description }} · {{ bom.get_manufacturing_type_display }}{% endblock %}
+{% block body %}
+{% include 'manufacturing/_version_panel.html' %}
+<section class="glass overflow-hidden">
+    <div class="px-5 py-4 border-b border-white/10 flex justify-between"><h3 class="font-semibold text-white">Lines{% if selected %} · {{ selected.code }}{% endif %}</h3>{% if selected %}<span class="text-xs text-slate-500">Base qty {{ selected.base_quantity|qty }} · expected net {{ selected.expected_net_weight|grams }} g</span>{% endif %}</div>
+    <div class="overflow-x-auto"><table class="w-full text-left text-sm min-w-[900px]">
+        <thead class="text-xs uppercase text-slate-500 bg-white/5"><tr><th class="px-5 py-3">#</th><th>Component</th><th>Type</th><th>Basis</th><th class="text-right">Qty / formula</th><th class="text-right">Scrap %</th><th class="text-right">Loss %</th><th>Metal</th><th>Op / link</th><th class="text-right px-5">Unit cost</th></tr></thead>
+        <tbody>{% for l in lines %}<tr class="border-b border-white/5">
+            <td class="px-5 py-2">{{ l.line_no }}</td>
+            <td>{{ l.component_item.item_no }} <span class="text-slate-500">{{ l.description|default:l.component_item.description|truncatechars:30 }}</span>{% if l.optional %} <span class="text-xs text-slate-500">(optional)</span>{% endif %}</td>
+            <td>{{ l.get_component_type_display }}</td><td>{{ l.get_consumption_basis_display }}</td>
+            <td class="text-right">{% if l.consumption_basis == 'FORMULA' %}<code class="text-xs">{{ l.formula }}</code>{% else %}{{ l.quantity|qty }} {{ l.uom.code|default:'' }}{% endif %}</td>
+            <td class="text-right">{{ l.scrap_percent|qty }}</td><td class="text-right">{{ l.expected_loss_percent|qty }}</td>
+            <td>{{ l.metal }} {{ l.purity }}</td><td>{{ l.operation_no }} {{ l.routing_link_code }}</td>
+            <td class="text-right px-5">{{ l.component_cost|inr }}</td>
+        </tr>{% empty %}<tr><td colspan="10" class="px-5 py-8 text-center text-slate-500">No lines on this version.</td></tr>{% endfor %}</tbody>
+    </table></div>
+</section>
+{% endblock %}

@@ -1,0 +1,35 @@
+{% extends 'savings/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}{{ customer.name }} - scheme ledger{% endblock %}
+{% block heading %}{{ customer.name }}{% endblock %}
+{% block subheading %}{{ customer.customer_no }} · {{ customer.phone }}{% if customer.email %} · {{ customer.email }}{% endif %} · {{ accounts|length }} scheme account{{ accounts|length|pluralize }}{% endblock %}
+{% block actions %}{% if perms_sav.enroll %}<a href="{% url 'savings_member_new' %}?customer={{ customer.pk }}&customer_q={{ customer.phone|urlencode }}" class="btn-gold px-4 py-2 rounded-lg text-sm">Enrol in another scheme</a>{% endif %}{% endblock %}
+{% block body %}
+<section class="grid grid-cols-2 md:grid-cols-5 gap-4">
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Total paid</p><p class="text-2xl font-bold text-white">{{ totals.contribution_paid|inr }}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Pending contribution</p><p class="text-2xl font-bold {% if pending %}text-amber-600{% else %}text-white{% endif %}">{{ pending|inr }}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Jeweller benefit</p><p class="text-2xl font-bold text-white">{{ totals.benefit_approved|inr }}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Redeemed</p><p class="text-2xl font-bold text-white">{{ totals.contribution_redeemed|add:totals.benefit_redeemed|inr }}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Available for purchase</p><p class="text-2xl font-bold text-white">{{ totals.available|inr }}</p></div>
+</section>
+<section class="glass overflow-x-auto">
+    <table class="w-full text-left text-sm">
+        <thead class="text-xs uppercase text-slate-500"><tr><th class="px-5 py-2">Account</th><th>Scheme</th><th class="text-right">Monthly</th><th class="text-right">Paid</th><th class="text-right">Benefit</th><th class="text-right">Available</th><th>Maturity</th><th class="px-5">Status</th></tr></thead>
+        <tbody>{% for a in accounts %}<tr class="border-t border-white/5"><td class="px-5 py-2"><a class="text-sky-700 font-semibold" href="{% url 'savings_member_detail' a.pk %}">{{ a.account_no }}</a></td><td>{{ a.scheme.name }}</td>
+            <td class="text-right">{{ a.installment_amount|inr }}</td><td class="text-right">{{ a.contribution_paid|inr }}</td><td class="text-right">{{ a.benefit_approved|inr }}</td><td class="text-right">{{ a.available_entitlement|inr }}</td>
+            <td>{{ a.expected_maturity_date|date:'d-M-Y' }}</td><td class="px-5">{% badge a.status a.get_status_display %}</td></tr>{% endfor %}</tbody>
+    </table>
+</section>
+<section class="glass overflow-x-auto">
+    <div class="px-5 py-4 border-b border-white/10"><h3 class="font-semibold text-white">Customer scheme ledger (all accounts)</h3></div>
+    <table class="w-full text-left text-sm">
+        <thead class="text-xs uppercase text-slate-500"><tr><th class="px-5 py-2">Date</th><th>Account</th><th>Document</th><th>Description</th><th class="text-right">Contribution</th><th class="text-right">Benefit</th><th class="text-right">Redeemed</th><th class="text-right">Refund / forfeit</th><th class="text-right px-5">Account available after</th></tr></thead>
+        <tbody>{% for l in ledger %}<tr class="border-t border-white/5"><td class="px-5 py-1.5 whitespace-nowrap">{{ l.entry_date|date:'d-M-Y' }}</td><td>{{ l.enrollment.account_no }}</td><td class="whitespace-nowrap">{{ l.document_no }}</td><td>{{ l.description }}</td>
+            <td class="text-right">{% if l.contribution %}{{ l.contribution|inr }}{% endif %}</td><td class="text-right">{% if l.benefit %}{{ l.benefit|inr }}{% endif %}</td>
+            <td class="text-right">{% if l.contribution_redeemed or l.benefit_redeemed %}{{ l.contribution_redeemed|add:l.benefit_redeemed|inr }}{% endif %}</td>
+            <td class="text-right">{% if l.refund or l.contribution_forfeited or l.benefit_forfeited %}{{ l.refund|add:l.contribution_forfeited|add:l.benefit_forfeited|inr }}{% endif %}</td>
+            <td class="text-right px-5">{{ l.entitlement_balance|inr }}</td></tr>
+        {% empty %}<tr><td colspan="9" class="px-5 py-6 text-slate-500">No ledger entries yet.</td></tr>{% endfor %}</tbody>
+    </table>
+</section>
+{% endblock %}

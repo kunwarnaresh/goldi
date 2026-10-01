@@ -1,0 +1,34 @@
+{% extends 'jobwork/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}{{ worker.code }}{% endblock %}
+{% block eyebrow %}Job worker{% endblock %}
+{% block heading %}{{ worker }}{% endblock %}
+{% block subheading %}{{ worker.gstin|default:'unregistered' }} · state {{ worker.state_code }} · location {{ worker.default_location.code }}{% if worker.supplier %} · vendor {{ worker.supplier }}{% endif %}{% endblock %}
+{% block body %}
+<section class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
+    {% with p=performance %}
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Orders / open</p><p class="text-xl font-bold text-white">{{ p.orders }} / {{ p.open_orders }}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Overdue</p><p class="text-xl font-bold {% if p.overdue_orders %}text-rose-600{% else %}text-white{% endif %}">{{ p.overdue_orders }}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">On-time %</p><p class="text-xl font-bold text-white">{{ p.on_time_percent|default:'—' }}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Quality %</p><p class="text-xl font-bold text-white">{{ p.quality_percent|default:'—' }}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Rework %</p><p class="text-xl font-bold text-white">{{ p.rework_percent|default:'—' }}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Loss % (metal)</p><p class="text-xl font-bold text-white">{{ p.loss_percent|default:'—' }}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Weight variance g</p><p class="text-xl font-bold text-white">{{ p.weight_variance|grams }}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Avg cost / cost variance</p><p class="text-xl font-bold text-white">{{ p.average_cost|default:'—' }} / {{ p.cost_variance|inr }}</p></div>
+    {% endwith %}
+</section>
+<h3 class="font-semibold text-white">Stock at this job worker</h3>
+{% with rows=stock %}{% include 'jobwork/_material_table.html' %}{% endwith %}
+<section class="glass overflow-hidden">
+    <div class="px-5 py-4 border-b border-white/10 flex justify-between items-center"><h3 class="font-semibold text-white">Stock reconciliation (quantity and net weight)</h3><form class="flex gap-2 text-xs"><label>Opening as of <input type="date" name="start" value="{{ start|date:'Y-m-d' }}"></label><button class="text-sky-700">Apply</button></form></div>
+    <div class="overflow-x-auto"><table class="w-full text-left text-sm min-w-[1100px]"><thead class="text-xs uppercase text-slate-500 bg-white/5"><tr><th class="px-5 py-2">Item</th><th class="text-right">Opening</th><th class="text-right">+ Sent</th><th class="text-right">+ Transfers in</th><th class="text-right">+ Produced</th><th class="text-right">− Consumed</th><th class="text-right">− Returned</th><th class="text-right">− Scrap</th><th class="text-right">− Loss</th><th class="text-right">− Transfers out</th><th class="text-right">± Other</th><th class="text-right px-5">= Closing</th></tr></thead>
+    <tbody>{% for r in reconciliation %}<tr class="border-b border-white/5"><td class="px-5 py-2">{{ r.item }}</td>
+        <td class="text-right">{{ r.opening_q|qty }}<span class="block text-xs text-slate-500">{{ r.opening_n|grams }} g</span></td><td class="text-right">{{ r.sent_q|qty }}<span class="block text-xs text-slate-500">{{ r.sent_n|grams }}</span></td><td class="text-right">{{ r.transfer_in_q|qty }}</td><td class="text-right">{{ r.produced_q|qty }}</td><td class="text-right">{{ r.consumed_q|qty }}<span class="block text-xs text-slate-500">{{ r.consumed_n|grams }}</span></td><td class="text-right">{{ r.returned_q|qty }}</td><td class="text-right">{{ r.scrap_q|qty }}</td><td class="text-right">{{ r.loss_q|qty }}<span class="block text-xs text-slate-500">{{ r.loss_n|grams }}</span></td><td class="text-right">{{ r.transfer_out_q|qty }}</td><td class="text-right">{{ r.other_q|qty }}</td><td class="text-right px-5 font-semibold">{{ r.closing_q|qty }}<span class="block text-xs text-slate-500">{{ r.closing_n|grams }} g</span></td></tr>{% empty %}<tr><td colspan="12" class="px-5 py-6 text-slate-500">No movements.</td></tr>{% endfor %}</tbody></table></div>
+</section>
+<div class="grid lg:grid-cols-2 gap-6">
+<section class="glass overflow-hidden"><div class="px-5 py-4 border-b border-white/10"><h3 class="font-semibold text-white">Prices</h3></div><table class="w-full text-left text-sm"><tbody>{% for p in prices %}<tr class="border-b border-white/5"><td class="px-5 py-2">{{ p.operation_code|default:'*' }} {{ p.item.item_no|default:'' }}</td><td>{{ p.rate|qty }} {{ p.get_rate_basis_display|lower }}</td><td>{% if p.minimum_amount %}min {{ p.minimum_amount|inr }}{% endif %}{% if p.minimum_quantity %} from {{ p.minimum_quantity|qty }}{% endif %}</td><td class="px-5 text-xs">{{ p.effective_from }}{% if p.effective_to %} – {{ p.effective_to }}{% endif %}</td></tr>{% empty %}<tr><td class="px-5 py-4 text-slate-500">No prices.</td></tr>{% endfor %}</tbody></table></section>
+<section class="glass overflow-hidden"><div class="px-5 py-4 border-b border-white/10"><h3 class="font-semibold text-white">Recent orders</h3></div><table class="w-full text-left text-sm"><tbody>{% for o in orders %}<tr class="border-b border-white/5"><td class="px-5 py-2"><a class="text-sky-700" href="{% url 'jobwork_order_detail' o.pk %}">{{ o.order_no }}</a></td><td>{{ o.get_transaction_type_display }}</td><td class="text-right px-5">{% badge o.status %}</td></tr>{% endfor %}</tbody></table></section>
+</div>
+<section class="glass overflow-hidden"><div class="px-5 py-4 border-b border-white/10"><h3 class="font-semibold text-white">Job worker stock ledger (latest 200)</h3></div>
+<div class="overflow-x-auto"><table class="w-full text-left text-sm min-w-[900px]"><tbody>{% for s in ledger %}<tr class="border-b border-white/5"><td class="px-5 py-1 text-xs">{{ s.entry_no }}</td><td>{{ s.posting_date }}</td><td>{{ s.get_entry_type_display }}</td><td><a class="text-sky-700" href="{% url 'jobwork_order_detail' s.order.pk %}">{{ s.order.order_no }}</a></td><td>{{ s.item.item_no }} {{ s.jewellery_unit.barcode|default:'' }}</td><td class="text-right">{{ s.quantity|qty }}</td><td class="text-right">{{ s.net_weight|grams }}</td><td class="text-right px-5">{{ s.value|inr }}</td></tr>{% endfor %}</tbody></table></div></section>
+{% endblock %}

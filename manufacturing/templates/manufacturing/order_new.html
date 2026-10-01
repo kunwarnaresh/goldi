@@ -1,0 +1,19 @@
+{% extends 'manufacturing/base.html' %}
+{% block page_title %}New production order{% endblock %}
+{% block heading %}New production order{% endblock %}
+{% block subheading %}The certified BOM and routing effective today are picked up automatically, then the order is refreshed.{% endblock %}
+{% block body %}
+<form method="post" class="glass p-6 grid md:grid-cols-2 gap-5 text-sm max-w-3xl">
+    {% csrf_token %}
+    <label class="md:col-span-2"><span class="text-slate-500 text-xs uppercase">Item to produce</span>
+        <select name="item" required><option value="">Select an item…</option>{% for i in items %}<option value="{{ i.pk }}">{{ i.item_no }} – {{ i.description }}</option>{% endfor %}</select></label>
+    <label><span class="text-slate-500 text-xs uppercase">Quantity</span><input name="quantity" type="number" step="0.001" min="0.001" required></label>
+    <label><span class="text-slate-500 text-xs uppercase">Production location</span>
+        <select name="location"><option value="">Setup default</option>{% for l in locations %}<option value="{{ l.pk }}">{{ l.code }} – {{ l.name }}</option>{% endfor %}</select></label>
+    <label><span class="text-slate-500 text-xs uppercase">Due date</span><input name="due_date" type="date"></label>
+    <label><span class="text-slate-500 text-xs uppercase">Priority</span>
+        <select name="priority">{% for code, label in priorities %}<option value="{{ code }}" {% if code == 'NORMAL' %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+    <label class="md:col-span-2"><span class="text-slate-500 text-xs uppercase">Remarks</span><textarea name="remarks" rows="2"></textarea></label>
+    <div class="md:col-span-2 flex gap-3"><button class="btn-gold px-5 py-2 rounded-lg">Create order</button><a href="{% url 'manufacturing_orders' %}" class="px-5 py-2 text-slate-500">Cancel</a></div>
+</form>
+{% endblock %}

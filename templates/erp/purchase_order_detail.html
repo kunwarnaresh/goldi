@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+{% block title %}{{ order.order_no }} | Purchase Order{% endblock %}
+{% block content %}
+<div class="max-w-6xl mx-auto px-6 pb-32 space-y-7">
+    <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+            <p class="text-sm uppercase tracking-[0.25em] text-sky-300">Purchase Order</p>
+            <h2 class="text-4xl font-bold text-white mt-2">{{ order.order_no }}</h2>
+            <p class="text-slate-400 mt-2">{{ order.vendor.name }} &middot; {{ order.order_date|date:'d M Y' }}{% if order.expected_delivery_date %} &middot; Expected {{ order.expected_delivery_date }}{% endif %}</p>
+        </div>
+        <span class="px-4 py-2 rounded-full bg-cyan-500/15 text-cyan-300">{{ order.get_status_display }}</span>
+    </div>
+
+    <section class="grid md:grid-cols-4 gap-4">
+        <div class="glass p-5"><p class="text-slate-400 text-xs uppercase">Subtotal</p><p class="text-xl text-white font-semibold mt-2">₹{{ order.subtotal|floatformat:2 }}</p></div>
+        <div class="glass p-5"><p class="text-slate-400 text-xs uppercase">Discount</p><p class="text-xl text-white font-semibold mt-2">₹{{ order.discount_amount|floatformat:2 }}</p></div>
+        <div class="glass p-5"><p class="text-slate-400 text-xs uppercase">GST</p><p class="text-xl text-white font-semibold mt-2">₹{{ order.gst_amount|floatformat:2 }}</p></div>
+        <div class="glass p-5"><p class="text-slate-400 text-xs uppercase">Total</p><p class="text-xl gold-text font-semibold mt-2">₹{{ order.total_amount|floatformat:2 }}</p></div>
+    </section>
+
+    <section class="glass p-6">
+        <div class="flex flex-wrap gap-3">
+            {% if order.status == 'draft' %}
+            <form method="post" action="{% url 'purchase_order_submit' order.pk %}">{% csrf_token %}<button class="btn-gold px-4 py-3 rounded-lg" type="submit"><i class="fas fa-paper-plane mr-2"></i>Submit for approval</button></form>
+            {% endif %}
+            {% if order.status == 'pending_approval' %}
+            <form method="post" action="{% url 'purchase_order_approve' order.pk %}">{% csrf_token %}<input type="hidden" name="decision" value="approve"><button class="btn-gold px-4 py-3 rounded-lg" type="submit"><i class="fas fa-check mr-2"></i>Approve</button></form>
+            <form method="post" action="{% url 'purchase_order_approve' order.pk %}">{% csrf_token %}<input type="hidden" name="decision" value="reject"><button class="glass px-4 py-3 text-red-300" type="submit"><i class="fas fa-xmark mr-2"></i>Reject</button></form>
+            {% endif %}
+            {% if order.status == 'approved' or order.status == 'sent_to_vendor' or order.status == 'partially_received' %}
+            <a href="{% url 'purchase_order_receive' order.pk %}" class="btn-gold px-4 py-3 rounded-lg"><i class="fas fa-box-open mr-2"></i>Receive goods</a>
+            {% endif %}
+        </div>
+        <p class="text-xs text-slate-500 mt-4">Approving a purchase order checks the vendor's purchase-hold status before release.</p>
+    </section>
+
+    <section class="glass overflow-hidden">
+        <div class="px-6 py-5 border-b border-white/10"><h3 class="text-xl text-white font-semibold"><i class="fas fa-list mr-2 text-cyan-300"></i>Lines</h3></div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left min-w-[1000px]">
+                <thead class="text-xs uppercase text-slate-500 border-b border-white/10 bg-white/5"><tr><th class="px-6 py-4">Product</th><th>Ordered</th><th>Received</th><th>Invoiced</th><th>Remaining</th><th class="text-right px-6">Line total</th></tr></thead>
+                <tbody>
+                {% for line in lines %}
+                <tr class="border-b border-white/5 text-sm">
+                    <td class="px-6 py-3 text-white">{{ line.product.name }}</td>
+                    <td class="text-slate-300">{{ line.quantity }}</td>
+                    <td class="text-slate-300">{{ line.received_quantity }}</td>
+                    <td class="text-slate-300">{{ line.invoiced_quantity }}</td>
+                    <td class="text-amber-300">{{ line.remaining_quantity }}</td>
+                    <td class="text-right px-6 font-semibold text-emerald-300">₹{{ line.line_total|floatformat:2 }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    {% if order.goods_receipts.all %}
+    <section class="glass overflow-hidden">
+        <div class="px-6 py-5 border-b border-white/10"><h3 class="text-xl text-white font-semibold"><i class="fas fa-truck-ramp-box mr-2 text-cyan-300"></i>Goods receipts</h3></div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left min-w-[700px]">
+                <thead class="text-xs uppercase text-slate-500 border-b border-white/10 bg-white/5"><tr><th class="px-6 py-4">Receipt</th><th>Date</th><th>Status</th><th class="px-6">Action</th></tr></thead>
+                <tbody>
+                {% for receipt in order.goods_receipts.all %}
+                <tr class="border-b border-white/5 text-sm">
+                    <td class="px-6 py-3 text-cyan-300 font-semibold">{{ receipt.receipt_no }}</td>
+                    <td class="text-slate-300">{{ receipt.receipt_date|date:'d M Y' }}</td>
+                    <td><span class="px-2 py-1 rounded text-xs font-semibold bg-sky-500/15 text-sky-300">{{ receipt.get_status_display }}</span></td>
+                    <td class="px-6"><a href="{% url 'purchase_invoice_create_from_receipt' receipt.pk %}" class="glass px-3 py-2 text-xs text-cyan-300 whitespace-nowrap"><i class="fas fa-file-invoice mr-1"></i>Create invoice</a></td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+    {% endif %}
+
+    {% include 'erp/_related_documents.html' %}
+    {% include 'erp/_status_timeline.html' %}
+</div>
+{% endblock %}

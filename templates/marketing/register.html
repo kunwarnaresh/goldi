@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Create Your Goldio Workspace</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{ --gold:#d4af37; --gold-deep:#c49a26; }
+  *{box-sizing:border-box;}
+  body{
+    background:linear-gradient(135deg,#0f0e11 0%,#1a1723 50%,#0f0e11 100%);
+    background-attachment:fixed;
+    font-family:'DM Sans','Segoe UI',sans-serif;
+    min-height:100vh;color:#e9e6df;
+  }
+  h1,h2,h3{font-family:'Space Grotesk','DM Sans',sans-serif;}
+  .glass{background:rgba(255,255,255,0.06);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.12);border-radius:16px;}
+  .gold-text{color:var(--gold);}
+  .gradient-text{
+    background:linear-gradient(135deg,#f0e68c 0%,var(--gold) 45%,#a9812a 100%);
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  }
+  .btn-gold{background:linear-gradient(135deg,var(--gold) 0%,var(--gold-deep) 100%);color:#171106;font-weight:700;transition:all .25s ease;box-shadow:0 8px 24px rgba(212,175,55,0.25);}
+  .btn-gold:hover{transform:translateY(-2px);box-shadow:0 10px 32px rgba(212,175,55,0.4);}
+  input,select{background:rgba(255,255,255,0.05)!important;border:1px solid rgba(255,255,255,0.12)!important;color:#e9e6df!important;border-radius:8px;padding:0.7rem 0.9rem;width:100%;transition:all .2s ease;}
+  input:focus,select:focus{outline:none;border-color:var(--gold)!important;box-shadow:0 0 0 3px rgba(212,175,55,0.15);}
+  input::placeholder{color:rgba(255,255,255,0.35);}
+  label{font-size:0.82rem;color:#b8b3c2;font-weight:600;display:block;margin-bottom:0.4rem;}
+  .step-dot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.2);}
+  .step-dot.active{background:var(--gold);}
+  .error-message{background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#fca5a5;padding:10px 14px;border-radius:8px;font-size:0.85rem;}
+  .success-message{background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.3);color:#6ee7b7;padding:10px 14px;border-radius:8px;font-size:0.85rem;}
+</style>
+</head>
+<body class="px-4 py-12">
+  <div class="max-w-md mx-auto">
+    <a href="/" class="flex items-center justify-center gap-2 mb-8 text-xl font-bold">
+      <i class="fas fa-gem gold-text"></i><span class="gradient-text">GOLDIO</span>
+    </a>
+
+    <div class="glass p-8">
+      <h1 class="text-2xl font-bold text-white mb-1">Create Your Goldio Workspace</h1>
+      <p class="text-sm text-gray-400 mb-6">Your jewellery business deserves its own software environment.</p>
+
+      {% if messages %}
+        <div class="space-y-2 mb-5">
+          {% for message in messages %}
+            <div class="{% if message.tags == 'success' %}success-message{% else %}error-message{% endif %}">
+              <i class="fas {% if message.tags == 'success' %}fa-circle-check{% else %}fa-circle-exclamation{% endif %} mr-2"></i>{{ message }}
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      <form method="post" class="space-y-4">
+        {% csrf_token %}
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label>First Name</label>
+            <input type="text" name="first_name" placeholder="Raj" value="{{ form_data.first_name|default:'' }}" required>
+          </div>
+          <div>
+            <label>Last Name</label>
+            <input type="text" name="last_name" placeholder="Sharma" value="{{ form_data.last_name|default:'' }}">
+          </div>
+        </div>
+        <div>
+          <label>Email</label>
+          <input type="email" name="email" placeholder="you@business.com" value="{{ form_data.email|default:'' }}" required>
+        </div>
+        <div>
+          <label>Mobile Number</label>
+          <input type="tel" name="mobile" placeholder="+91 98765 43210" value="{{ form_data.mobile|default:'' }}">
+        </div>
+        <div>
+          <label>Business Name</label>
+          <input type="text" name="business_name" placeholder="Raj Jewellers" value="{{ form_data.business_name|default:'' }}" required>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label>Password</label>
+            <input type="password" name="password" placeholder="At least 8 characters" required>
+          </div>
+          <div>
+            <label>Confirm Password</label>
+            <input type="password" name="confirm_password" placeholder="Repeat password" required>
+          </div>
+        </div>
+        <label class="flex items-start gap-2 !mb-0 pt-1">
+          <input type="checkbox" required class="!w-auto mt-1">
+          <span class="text-xs text-gray-400 font-normal">I agree to Goldio Terms of Service and Privacy Policy.</span>
+        </label>
+        <button type="submit" class="btn-gold w-full py-3.5 rounded-lg font-semibold mt-2">Create My Goldio</button>
+      </form>
+
+      <p class="text-center text-sm text-gray-400 mt-6">
+        Already have a Goldio account? <a href="{% url 'login' %}" class="gold-text font-semibold hover:underline">Login</a>
+      </p>
+    </div>
+    <p class="text-center text-xs text-gray-500 mt-6">No credit card required.</p>
+  </div>
+</body>
+</html>

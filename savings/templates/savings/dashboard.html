@@ -1,0 +1,50 @@
+{% extends 'savings/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}Jewellery Savings dashboard{% endblock %}
+{% block heading %}Scheme dashboard{% endblock %}
+{% block subheading %}Enrolments · collections · maturity · redemption · scheme liability{% endblock %}
+{% block actions %}
+{% if perms_sav.enroll %}<a href="{% url 'savings_member_new' %}" class="btn-gold px-4 py-2 rounded-lg text-sm whitespace-nowrap"><i class="fas fa-user-plus mr-2"></i>Enrol new member</a>{% endif %}
+<a href="{% url 'savings_report_pending' %}" class="px-4 py-2 rounded-lg bg-slate-700 text-white text-sm whitespace-nowrap">Pending installments</a>
+{% if perms_sav.configure and not schemes %}
+<form method="post">{% csrf_token %}<input type="hidden" name="action" value="create_template">
+    <button class="btn-gold px-4 py-2 rounded-lg text-sm whitespace-nowrap"><i class="fas fa-plus mr-2"></i>Create 11+1 plan template</button>
+</form>
+{% endif %}
+{% endblock %}
+{% block body %}
+<section class="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Active schemes</p><p class="text-2xl font-bold text-white">{{ kpis.active }}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Collection today</p><p class="text-2xl font-bold text-white">{{ kpis.collection_today|inr }}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Collection this month</p><p class="text-2xl font-bold text-white">{{ kpis.collection_month|inr }}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Pending approval</p><p class="text-2xl font-bold {% if kpis.pending_approval %}text-amber-600{% else %}text-white{% endif %}">{{ kpis.pending_approval }}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Due installments</p><p class="text-2xl font-bold text-white">{{ kpis.due_count }}</p><p class="text-xs text-slate-500">{{ kpis.due_amount|inr }}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Overdue installments</p><p class="text-2xl font-bold {% if kpis.overdue_count %}text-rose-600{% else %}text-white{% endif %}">{{ kpis.overdue_count }}</p><p class="text-xs text-slate-500">{{ kpis.overdue_amount|inr }}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Matured · benefit pending</p><p class="text-2xl font-bold text-white">{{ kpis.matured }} · {{ kpis.benefit_pending }}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Pending redemption</p><p class="text-2xl font-bold text-white">{{ kpis.pending_redemption }}</p><p class="text-xs {% if kpis.expiring %}text-amber-600{% else %}text-slate-500{% endif %}">{{ kpis.expiring }} expiring in 30 days</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Redeemed</p><p class="text-2xl font-bold text-white">{{ kpis.redeemed }}</p></div>
+    <div class="glass p-4"><p class="text-xs uppercase text-slate-500">Cancelled / refunded</p><p class="text-2xl font-bold text-white">{{ kpis.cancelled }}</p><p class="text-xs text-slate-500">{{ kpis.cancellations_pending }} cancellation · {{ kpis.refunds_pending }} refund pending</p></div>
+</section>
+
+<section class="glass p-5">
+    <h3 class="font-semibold text-white mb-3">Scheme liability</h3>
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
+        <div><p class="text-xs uppercase text-slate-500">Customer contribution balance</p><p class="text-xl font-bold text-white">{{ kpis.liability.contribution_liability|inr }}</p></div>
+        <div><p class="text-xs uppercase text-slate-500">Jeweller benefit balance</p><p class="text-xl font-bold text-white">{{ kpis.liability.benefit_liability|inr }}</p></div>
+        <div><p class="text-xs uppercase text-slate-500">Total purchase entitlement owed</p><p class="text-xl font-bold text-white">{{ kpis.liability.total_liability|inr }}</p></div>
+        <div><p class="text-xs uppercase text-slate-500">Expected benefit (contributing)</p><p class="text-xl font-bold text-white">{{ kpis.expected_benefit|inr }}</p></div>
+    </div>
+</section>
+
+<div class="grid lg:grid-cols-2 gap-6">
+    <section class="glass overflow-hidden">
+        <div class="px-5 py-4 border-b border-white/10"><h3 class="font-semibold text-white">Schemes</h3></div>
+        <table class="w-full text-left text-sm"><thead class="text-xs uppercase text-slate-500"><tr><th class="px-5 py-2">Scheme</th><th>Status</th><th class="text-right">Active</th><th class="text-right">Collected</th><th class="text-right px-5">Liability</th></tr></thead>
+        <tbody>{% for row in schemes %}<tr class="border-b border-white/5"><td class="px-5 py-2 font-semibold">{{ row.scheme.code }} <span class="text-slate-500 font-normal">{{ row.scheme.name }}</span></td><td>{% badge row.scheme.status %}</td><td class="text-right">{{ row.active }}</td><td class="text-right">{{ row.collected|inr }}</td><td class="text-right px-5">{{ row.liability|inr }}</td></tr>{% empty %}<tr><td colspan="5" class="px-5 py-6 text-slate-500">No schemes configured yet.</td></tr>{% endfor %}</tbody></table>
+    </section>
+    <section class="glass overflow-hidden">
+        <div class="px-5 py-4 border-b border-white/10"><h3 class="font-semibold text-white">Recent enrolments</h3></div>
+        <table class="w-full text-left text-sm"><tbody>{% for e in recent %}<tr class="border-b border-white/5"><td class="px-5 py-2 font-semibold">{{ e.account_no }}</td><td>{{ e.customer_name }}</td><td class="text-right">{{ e.installment_amount|inr }}</td><td class="text-right px-5">{% badge e.status %}</td></tr>{% empty %}<tr><td class="px-5 py-6 text-slate-500">No enrolments yet.</td></tr>{% endfor %}</tbody></table>
+    </section>
+</div>
+{% endblock %}

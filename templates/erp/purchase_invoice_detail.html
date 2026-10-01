@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% block title %}{{ invoice.document_no|default:invoice.invoice_no }} | Purchase Invoice{% endblock %}
+{% block content %}
+<div class="max-w-6xl mx-auto px-6 pb-32 space-y-7">
+    <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+            <p class="text-sm uppercase tracking-[0.25em] text-sky-300">Purchase Invoice</p>
+            <h2 class="text-4xl font-bold text-white mt-2">{{ invoice.document_no|default:invoice.invoice_no }}</h2>
+            <p class="text-slate-400 mt-2">{{ invoice.supplier.name }} &middot; Vendor Inv. {{ invoice.invoice_no }} &middot; {{ invoice.invoice_date|date:'d M Y' }}</p>
+        </div>
+        <div class="flex gap-3">
+            <span class="px-4 py-2 rounded-full bg-cyan-500/15 text-cyan-300">{{ invoice.get_workflow_status_display }}</span>
+            <span class="px-4 py-2 rounded-full bg-emerald-500/15 text-emerald-300">{{ invoice.get_status_display }}</span>
+        </div>
+    </div>
+
+    <section class="grid md:grid-cols-4 gap-4">
+        <div class="glass p-5"><p class="text-slate-400 text-xs uppercase">Gross</p><p class="text-xl text-white font-semibold mt-2">₹{{ invoice.gross_amount|floatformat:2 }}</p></div>
+        <div class="glass p-5"><p class="text-slate-400 text-xs uppercase">Tax</p><p class="text-xl text-white font-semibold mt-2">₹{{ invoice.tax_amount|floatformat:2 }}</p></div>
+        <div class="glass p-5"><p class="text-slate-400 text-xs uppercase">Net</p><p class="text-xl gold-text font-semibold mt-2">₹{{ invoice.net_amount|floatformat:2 }}</p></div>
+        <div class="glass p-5"><p class="text-slate-400 text-xs uppercase">Outstanding</p><p class="text-xl text-amber-300 font-semibold mt-2">₹{{ invoice.outstanding_amount|floatformat:2 }}</p></div>
+    </section>
+
+    <section class="glass p-6">
+        <div class="flex flex-wrap gap-3">
+            {% if invoice.workflow_status == 'draft' or invoice.workflow_status == 'approved' %}
+            <form method="post" action="{% url 'purchase_invoice_post' invoice.pk %}">{% csrf_token %}<button class="btn-gold px-4 py-3 rounded-lg" type="submit"><i class="fas fa-lock mr-2"></i>Post invoice</button></form>
+            {% endif %}
+            {% if invoice.outstanding_amount > 0 %}
+            <a href="{% url 'vendor_payment_create' %}?vendor={{ invoice.supplier_id }}" class="glass px-4 py-3 text-slate-300"><i class="fas fa-money-bill-transfer mr-2"></i>Record payment</a>
+            {% endif %}
+        </div>
+    </section>
+
+    <section class="glass overflow-hidden">
+        <div class="px-6 py-5 border-b border-white/10"><h3 class="text-xl text-white font-semibold"><i class="fas fa-list mr-2 text-cyan-300"></i>Lines</h3></div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left min-w-[900px]">
+                <thead class="text-xs uppercase text-slate-500 border-b border-white/10 bg-white/5"><tr><th class="px-6 py-4">Product</th><th>Qty</th><th>Unit cost</th><th>Tax</th><th class="text-right px-6">Line total</th></tr></thead>
+                <tbody>
+                {% for line in lines %}
+                <tr class="border-b border-white/5 text-sm">
+                    <td class="px-6 py-3 text-white">{{ line.product.name|default:line.description }}</td>
+                    <td class="text-slate-300">{{ line.quantity }}</td>
+                    <td class="text-slate-300">₹{{ line.unit_cost|floatformat:2 }}</td>
+                    <td class="text-slate-300">₹{{ line.gst_amount|floatformat:2 }}</td>
+                    <td class="text-right px-6 font-semibold text-emerald-300">₹{{ line.line_total|floatformat:2 }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    {% include 'erp/_related_documents.html' %}
+    {% include 'erp/_status_timeline.html' %}
+</div>
+{% endblock %}

@@ -1,0 +1,20 @@
+{% extends 'jobwork/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}Job work orders{% endblock %}
+{% block heading %}Job work & subcontract orders{% endblock %}
+{% block actions %}{% if perms_jw.create %}<a href="{% url 'jobwork_order_new' %}" class="btn-gold px-4 py-2 rounded-lg text-sm"><i class="fas fa-plus mr-2"></i>New order</a>{% endif %}{% endblock %}
+{% block body %}
+<form class="glass p-4 flex flex-wrap gap-2 text-sm"><input name="q" value="{{ q }}" placeholder="Order, job worker or production order" class="w-72">
+    <select name="status"><option value="">All statuses</option><option value="open" {% if status == 'open' %}selected{% endif %}>Open</option>{% for v, l in statuses %}<option value="{{ v }}" {% if status == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+    <button class="glass px-3 py-2 text-sky-700">Filter</button></form>
+<section class="glass overflow-hidden"><div class="overflow-x-auto"><table class="w-full text-left text-sm min-w-[1000px]">
+    <thead class="text-xs uppercase text-slate-500 bg-white/5"><tr><th class="px-5 py-3">Order</th><th>Kind / type</th><th>Job worker</th><th>Source</th><th class="text-right">Qty</th><th class="text-right">Expected charge</th><th>Expected back</th><th>Statutory due</th><th class="text-right px-5">Status</th></tr></thead>
+    <tbody>{% for o in orders %}<tr class="border-b border-white/5">
+        <td class="px-5 py-2"><a class="text-sky-700 font-semibold" href="{% url 'jobwork_order_detail' o.pk %}">{{ o.order_no }}</a></td>
+        <td>{{ o.get_order_kind_display }}<span class="text-xs text-slate-500 block">{{ o.get_transaction_type_display }}</span></td>
+        <td>{{ o.job_worker.code }}</td><td class="text-xs">{% if o.production_order %}{{ o.production_order.order_no }}{% else %}{{ o.get_source_type_display }}{% endif %}</td>
+        <td class="text-right">{{ o.planned_quantity|qty }}</td><td class="text-right">{{ o.expected_charge|inr }}</td>
+        <td class="{% if o.is_overdue %}text-rose-600{% endif %}">{{ o.expected_return_date|default:'' }}</td><td>{{ o.compliance_due_date|default:'' }}</td>
+        <td class="text-right px-5">{% badge o.status %}</td></tr>{% empty %}<tr><td colspan="9" class="px-5 py-10 text-center text-slate-500">No orders.</td></tr>{% endfor %}</tbody>
+</table></div></section>
+{% endblock %}

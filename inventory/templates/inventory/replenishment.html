@@ -1,0 +1,20 @@
+{% extends 'inventory/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}Replenishment worksheet{% endblock %}
+{% block eyebrow %}Planning{% endblock %}
+{% block heading %}Replenishment worksheet{% endblock %}
+{% block subheading %}Suggests transfers when available + incoming stock falls below a SKU's reorder point (or minimum): suggested = maximum − current.{% endblock %}
+{% block actions %}<form method="post">{% csrf_token %}<button name="action" value="generate" class="btn-gold px-4 py-2 rounded-lg text-sm"><i class="fas fa-calculator mr-1"></i>Calculate suggestions</button></form>{% endblock %}
+{% block body %}
+<form method="post">{% csrf_token %}
+<section class="glass overflow-x-auto"><table class="w-full text-left text-sm min-w-[1000px]">
+    <thead class="text-xs uppercase text-slate-500 bg-white/5"><tr><th class="px-4 py-3"><input type="checkbox" class="w-auto" onclick="document.querySelectorAll('[name=line]').forEach(c => c.checked = this.checked)"></th><th>Location</th><th>SKU</th><th class="text-right">Current</th><th class="text-right">Minimum</th><th class="text-right">Reorder pt</th><th class="text-right">Maximum</th><th class="text-right">Shortage</th><th class="text-right">Suggested qty</th><th>Source location</th><th class="px-4">Status</th></tr></thead>
+    <tbody>{% for l in lines %}<tr class="border-b border-white/5"><td class="px-4 py-2"><input type="checkbox" name="line" value="{{ l.pk }}" class="w-auto"></td><td>{{ l.location.code }}</td><td><a class="text-sky-700" href="{% url 'inventory_sku_card' l.sku.pk %}">{{ l.sku.code }}</a></td>
+        <td class="text-right">{{ l.current_qty|qty }}</td><td class="text-right">{{ l.minimum_qty|qty }}</td><td class="text-right">{{ l.reorder_point|qty }}</td><td class="text-right">{{ l.maximum_qty|qty }}</td><td class="text-right text-rose-600">{{ l.shortage_qty|qty }}</td>
+        <td class="text-right"><input name="qty_{{ l.pk }}" value="{{ l.suggested_qty|qty }}" class="w-20 text-right"></td>
+        <td><select name="source_{{ l.pk }}" class="text-sm"><option value="">–</option>{% for s in sources %}{% if s.pk != l.location_id %}<option value="{{ s.pk }}" {% if l.source_location_id == s.pk %}selected{% endif %}>{{ s.code }}</option>{% endif %}{% endfor %}</select></td><td class="px-4">{% badge l.status %}</td></tr>
+    {% empty %}<tr><td colspan="11" class="px-5 py-10 text-center text-slate-500">No suggestions. Set reorder points / maximum stock on SKUs, then calculate.</td></tr>{% endfor %}</tbody>
+</table></section>
+{% if lines %}<div class="flex justify-end gap-3 mt-4"><button name="action" value="ignore" class="glass px-4 py-2 text-sm text-slate-500">Ignore selected</button><button name="action" value="approve" class="glass px-4 py-2 text-sm text-emerald-700">Approve selected</button><button name="action" value="create" class="btn-gold px-5 py-2 rounded-lg text-sm">Create transfer orders</button></div>{% endif %}
+</form>
+{% endblock %}

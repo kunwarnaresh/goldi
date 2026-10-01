@@ -1,0 +1,22 @@
+{% extends 'savings/base.html' %}
+{% block page_title %}Savings setup{% endblock %}
+{% block heading %}Savings setup{% endblock %}
+{% block subheading %}Module name, approvals and customer limits{% endblock %}
+{% block body %}
+<form method="post" class="glass p-6 grid md:grid-cols-2 gap-5 text-sm max-w-3xl">
+    {% csrf_token %}
+    {% with ro=perms_sav.configure|yesno:',disabled' %}
+    <label class="md:col-span-2"><span class="text-slate-500 text-xs uppercase">Customer-facing name</span><input name="display_name" value="{{ setup.display_name }}" {{ ro }}></label>
+    <label class="md:col-span-2 flex items-start gap-2"><input type="checkbox" name="require_enrollment_approval" class="mt-1" {% if setup.require_enrollment_approval %}checked{% endif %} {{ ro }}>
+        <span>Enrolments need manager approval before installments can be collected</span></label>
+    <label class="md:col-span-2 flex items-start gap-2"><input type="checkbox" name="allow_self_approval" class="mt-1" {% if setup.allow_self_approval %}checked{% endif %} {{ ro }}>
+        <span>Maker-checker: allow self-approval <span class="text-slate-500">(switch on for a single-owner shop, so the same person can create and approve schemes, enrolments, refunds and adjustments)</span></span></label>
+    <label class="md:col-span-2 flex items-start gap-2"><input type="checkbox" name="allow_multiple_active_schemes" class="mt-1" {% if setup.allow_multiple_active_schemes %}checked{% endif %} {{ ro }}>
+        <span>A customer may hold more than one active scheme</span></label>
+    <label><span class="text-slate-500 text-xs uppercase">Max active schemes per customer (0 = no limit)</span><input name="max_active_schemes_per_customer" type="number" min="0" value="{{ setup.max_active_schemes_per_customer }}" {{ ro }}></label>
+    <label><span class="text-slate-500 text-xs uppercase">Max monthly contribution per customer ₹ (0 = no limit)</span><input name="max_monthly_contribution" type="number" step="0.01" min="0" value="{{ setup.max_monthly_contribution }}" {{ ro }}></label>
+    <label><span class="text-slate-500 text-xs uppercase">Reminder: days before due date</span><input name="reminder_days" type="number" min="0" value="{{ setup.reminder_days }}" {{ ro }}></label>
+    {% if perms_sav.configure %}<div class="md:col-span-2"><button class="btn-gold px-5 py-2 rounded-lg">Save setup</button></div>{% endif %}
+    {% endwith %}
+</form>
+{% endblock %}

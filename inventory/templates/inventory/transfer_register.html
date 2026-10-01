@@ -1,0 +1,14 @@
+{% extends 'inventory/base.html' %}
+{% load inventory_tags %}
+{% block page_title %}Transfer register{% endblock %}
+{% block eyebrow %}Reports{% endblock %}
+{% block heading %}Transfer register{% endblock %}
+{% block actions %}<a href="?{{ request.GET.urlencode }}&export=xlsx" class="glass px-3 py-2 text-slate-300 text-sm"><i class="fas fa-file-excel mr-1"></i>Excel</a><a href="?{{ request.GET.urlencode }}&export=csv" class="glass px-3 py-2 text-slate-300 text-sm">CSV</a><a href="?{{ request.GET.urlencode }}&export=pdf" class="glass px-3 py-2 text-slate-300 text-sm">PDF</a>{% endblock %}
+{% block body %}
+<form method="get" class="glass p-4 flex gap-3 items-end"><div><label class="text-xs uppercase text-slate-500">From</label><input type="date" name="from" value="{{ date_from|date:'Y-m-d' }}"></div><div><label class="text-xs uppercase text-slate-500">To</label><input type="date" name="to" value="{{ date_to|date:'Y-m-d' }}"></div><button class="btn-gold px-5 py-3 rounded-lg text-sm">Show</button></form>
+<section class="glass overflow-x-auto"><table class="w-full text-left text-sm min-w-[1000px]">
+    <thead class="text-xs uppercase text-slate-500 bg-white/5"><tr><th class="px-5 py-3">Transfer</th><th>Date</th><th>From</th><th>To</th><th class="text-right">Items</th><th class="text-right">Qty</th><th class="text-right">Weight</th><th class="text-right">Value</th><th class="text-right">Shipped</th><th class="text-right">Received</th><th class="text-right">Outstanding</th><th class="px-5">Status</th></tr></thead>
+    <tbody>{% for r in rows %}<tr class="border-b border-white/5"><td class="px-5 py-2"><a class="text-sky-700 font-semibold" href="{% url 'inventory_transfer_detail' r.order.pk %}">{{ r.order.transfer_no }}</a></td><td>{{ r.order.transfer_date|date:'d M Y' }}</td><td>{{ r.order.from_location.code }}</td><td>{{ r.order.to_location.code }}</td><td class="text-right">{{ r.items }}</td><td class="text-right">{{ r.qty|qty }}</td><td class="text-right">{{ r.weight|grams }}</td><td class="text-right">{{ r.value|inr }}</td><td class="text-right">{{ r.shipped|qty }}</td><td class="text-right">{{ r.received|qty }}</td><td class="text-right font-semibold">{{ r.outstanding|qty }}</td><td class="px-5">{% badge r.order.status %}</td></tr>
+    {% empty %}<tr><td colspan="12" class="px-5 py-10 text-center text-slate-500">No transfers in this period.</td></tr>{% endfor %}</tbody>
+</table></section>
+{% endblock %}

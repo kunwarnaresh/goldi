@@ -1,0 +1,24 @@
+{% extends 'erp/retail/form.html' %}
+{% block after %}
+{{ store_locations|json_script:'store-locations' }}
+<script>
+(() => {
+    // Location and Store are 1:1 - keep the two selectors in step so they can never disagree.
+    const map = JSON.parse(document.getElementById('store-locations').textContent);  // {storeId: locationId}
+    const store = document.getElementById('id_store'), location = document.getElementById('id_location');
+    if (!store || !location || store.disabled) return;
+    const allStores = [...store.options].map(o => o.cloneNode(true));
+    function syncFromLocation() {
+        const loc = location.value, keep = store.value;
+        store.innerHTML = '';
+        allStores.filter(o => !o.value || !loc || String(map[o.value]) === loc).forEach(o => store.appendChild(o.cloneNode(true)));
+        const match = Object.keys(map).find(id => String(map[id]) === loc);
+        store.value = loc ? (match || '') : keep;
+    }
+    function syncFromStore() { if (store.value) location.value = String(map[store.value] || ''); }
+    location.addEventListener('change', syncFromLocation);
+    store.addEventListener('change', syncFromStore);
+    if (location.value) syncFromLocation(); else syncFromStore();
+})();
+</script>
+{% endblock %}

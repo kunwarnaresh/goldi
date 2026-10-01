@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Goldio — Jewellery POS, ERP &amp; Business Software</title>
+<meta name="description" content="Goldio is a cloud jewellery business platform for POS, inventory, customers, sales, purchases, finance, gold and silver pricing, and business management.">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0f0e11;
+    --ink-2:#1a1723;
+    --panel:#16141c;
+    --panel-2:#1e1b26;
+    --border:rgba(255,255,255,0.09);
+    --gold:#d4af37;
+    --gold-2:#f0e68c;
+    --gold-deep:#c49a26;
+    --text:#e9e6df;
+    --muted:#9b96a8;
+    --silver:#c7cad1;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    background:var(--ink);
+    color:var(--text);
+    font-family:'DM Sans','Segoe UI',sans-serif;
+    overflow-x:hidden;
+  }
+  h1,h2,h3,h4,.brand,.nav-link{font-family:'Space Grotesk','DM Sans',sans-serif;}
+  .gold-text{color:var(--gold);}
+  .gradient-text{
+    background:linear-gradient(135deg,#f0e68c 0%,#d4af37 45%,#a9812a 100%);
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  }
+  .bg-panel{background:var(--panel);border:1px solid var(--border);}
+  .bg-panel-2{background:var(--panel-2);border:1px solid var(--border);}
+  .btn-gold{
+    background:linear-gradient(135deg,var(--gold) 0%,var(--gold-deep) 100%);
+    color:#171106;font-weight:700;
+    box-shadow:0 8px 24px rgba(212,175,55,0.25);
+    transition:all .25s ease;
+  }
+  .btn-gold:hover{transform:translateY(-2px);box-shadow:0 10px 32px rgba(212,175,55,0.4);}
+  .btn-outline{
+    border:1px solid rgba(255,255,255,0.18);color:var(--text);transition:all .25s ease;
+  }
+  .btn-outline:hover{border-color:var(--gold);color:var(--gold);}
+  .glow{
+    position:absolute;border-radius:50%;filter:blur(70px);pointer-events:none;
+    background:radial-gradient(circle,rgba(212,175,55,0.16) 0%,transparent 70%);
+  }
+  .card-hover{transition:transform .3s cubic-bezier(.34,1.56,.64,1),border-color .3s ease,box-shadow .3s ease;}
+  .card-hover:hover{transform:translateY(-4px);border-color:rgba(212,175,55,0.4);box-shadow:0 12px 30px rgba(0,0,0,0.35);}
+  .fade-up{opacity:0;transform:translateY(24px);transition:opacity .7s ease,transform .7s ease;}
+  .fade-up.in{opacity:1;transform:translateY(0);}
+  .ticker{animation:pulse-soft 2.4s ease-in-out infinite;}
+  @keyframes pulse-soft{0%,100%{opacity:1;}50%{opacity:.55;}}
+  .hairline{border-color:var(--border);}
+  ::selection{background:var(--gold);color:#171106;}
+  .faq-a{max-height:0;overflow:hidden;transition:max-height .35s ease;}
+  .faq-item.open .faq-a{max-height:260px;}
+  .faq-item.open .faq-icon{transform:rotate(45deg);}
+  .faq-icon{transition:transform .25s ease;}
+  .compare-x{color:#7d7688;}
+  .compare-check{color:var(--gold);}
+  #mobile-menu{display:none;}
+  #mobile-menu.open{display:block;}
+</style>
+</head>
+<body>
+
+<!-- ================= NAV ================= -->
+<header class="fixed top-0 inset-x-0 z-50 backdrop-blur-md bg-[rgba(15,14,17,0.85)] border-b hairline">
+  <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+    <a href="#" class="flex items-center gap-2 brand text-xl font-bold">
+      <i class="fas fa-gem gold-text"></i>
+      <span class="gradient-text">GOLDIO</span>
+    </a>
+    <nav class="hidden md:flex items-center gap-8 text-sm text-gray-300 nav-link">
+      <a href="#platform" class="hover:text-white transition">Product</a>
+      <a href="#why" class="hover:text-white transition">Solutions</a>
+      <a href="#features" class="hover:text-white transition">Features</a>
+      <a href="#pricing" class="hover:text-white transition">Pricing</a>
+      <a href="#faq" class="hover:text-white transition">Resources</a>
+    </nav>
+    <div class="hidden md:flex items-center gap-4">
+      <a href="{% url 'login' %}" class="text-sm text-gray-300 hover:text-white transition">Login</a>
+      <a href="{% url 'register' %}" class="btn-gold text-sm px-5 py-2.5 rounded-lg">Create Free Goldio</a>
+    </div>
+    <button id="menu-btn" class="md:hidden text-gray-200 text-xl"><i class="fas fa-bars"></i></button>
+  </div>
+  <div id="mobile-menu" class="md:hidden border-t hairline px-6 py-4 space-y-3 text-sm text-gray-300">
+    <a href="#platform" class="block">Product</a>
+    <a href="#why" class="block">Solutions</a>
+    <a href="#features" class="block">Features</a>
+    <a href="#pricing" class="block">Pricing</a>
+    <a href="#faq" class="block">Resources</a>
+    <a href="{% url 'login' %}" class="block pt-2 border-t hairline">Login</a>
+    <a href="{% url 'register' %}" class="btn-gold block text-center px-5 py-2.5 rounded-lg mt-2">Create Free Goldio</a>
+  </div>
+</header>
+
+<!-- ================= HERO ================= -->
+<section class="relative pt-40 pb-24 px-6 overflow-hidden">
+  <div class="glow w-[520px] h-[520px] -top-40 -left-40"></div>
+  <div class="glow w-[420px] h-[420px] top-1/3 right-0"></div>
+  <div class="max-w-7xl mx-auto grid lg:grid-cols-2 gap-16 items-center relative">
+    <div>
+      <p class="inline-flex items-center gap-2 text-xs uppercase tracking-widest text-gray-400 bg-panel px-3 py-1.5 rounded-full mb-6">
+        <i class="fas fa-sparkles gold-text"></i> The operating system for modern jewellery businesses
+      </p>
+      <h1 class="text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight mb-6">
+        Your Jewellery Business.<br>
+        <span class="gradient-text">Finally, on One Platform.</span>
+      </h1>
+      <p class="text-lg text-gray-400 max-w-xl mb-8 leading-relaxed">
+        Gold, Silver, Diamonds, Customers, Inventory, POS, Sales, Purchases and Finance —
+        all connected in one intelligent jewellery business platform.
+      </p>
+      <div class="flex flex-wrap gap-4 mb-6">
+        <a href="{% url 'register' %}" class="btn-gold px-7 py-3.5 rounded-lg font-semibold">Create My Free Goldio</a>
+        <a href="#platform" class="btn-outline px-7 py-3.5 rounded-lg font-semibold">See How Goldio Works</a>
+      </div>
+      <p class="text-sm text-gray-500">No sales call required. Create your business workspace in minutes.</p>
+    </div>
+
+    <!-- Dashboard visual -->
+    <div class="relative fade-up">
+      <div class="bg-panel rounded-2xl p-6 shadow-2xl border hairline">
+        <div class="flex items-center justify-between mb-5">
+          <div>
+            <p class="text-xs uppercase tracking-widest text-gray-500">Good Morning</p>
+            <h3 class="text-xl font-bold text-white">Raj Jewellers</h3>
+          </div>
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 ticker"></span>
+        </div>
+        <div class="grid grid-cols-2 gap-3 mb-4">
+          <div class="bg-panel-2 rounded-xl p-4">
+            <p class="text-xs text-gray-500 mb-1">Today's Sales</p>
+            <p class="text-xl font-bold text-white">₹4,82,650</p>
+          </div>
+          <div class="bg-panel-2 rounded-xl p-4">
+            <p class="text-xs text-gray-500 mb-1">Today's Invoices</p>
+            <p class="text-xl font-bold text-white">37</p>
+          </div>
+          <div class="bg-panel-2 rounded-xl p-4">
+            <p class="text-xs text-gray-500 mb-1">Gold Stock</p>
+            <p class="text-xl font-bold text-white">18.42 <span class="text-sm text-gray-400">KG</span></p>
+          </div>
+          <div class="bg-panel-2 rounded-xl p-4">
+            <p class="text-xs text-gray-500 mb-1">Silver Stock</p>
+            <p class="text-xl font-bold text-white">42.75 <span class="text-sm text-gray-400">KG</span></p>
+          </div>
+        </div>
+        <div class="flex items-center justify-between bg-panel-2 rounded-xl p-4 mb-3">
+          <div>
+            <p class="text-xs text-gray-500">Gold Rate</p>
+            <p class="font-bold gold-text">₹12,850/g</p>
+          </div>
+          <span class="text-emerald-400 text-sm font-semibold"><i class="fas fa-arrow-up mr-1"></i>1.8%</span>
+        </div>
+        <div class="flex items-center justify-between bg-panel-2 rounded-xl p-4">
+          <div>
+            <p class="text-xs text-gray-500">Silver Rate</p>
+            <p class="font-bold" style="color:var(--silver);">₹155/g</p>
+          </div>
+          <span class="text-emerald-400 text-sm font-semibold"><i class="fas fa-arrow-up mr-1"></i>0.9%</span>
+        </div>
+      </div>
+      <!-- floating product chips -->
+      <div class="hidden sm:flex flex-col gap-3 absolute -right-6 top-8">
+        <div class="bg-panel-2 border hairline rounded-lg px-4 py-2 shadow-xl text-xs text-gray-300 flex items-center gap-2">
+          <i class="fas fa-ring gold-text"></i> Gold Ring · 10.0g
+        </div>
+        <div class="bg-panel-2 border hairline rounded-lg px-4 py-2 shadow-xl text-xs text-gray-300 flex items-center gap-2">
+          <i class="fas fa-gem gold-text"></i> Diamond Necklace
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= WHY JEWELLERY-SPECIFIC ================= -->
+<section id="platform" class="py-24 px-6 border-t hairline">
+  <div class="max-w-4xl mx-auto text-center fade-up">
+    <h2 class="text-3xl sm:text-4xl font-bold mb-6">Why keep running your jewellery business<br>on yesterday's software?</h2>
+    <p class="text-gray-400 leading-relaxed max-w-2xl mx-auto">
+      Jewellery is different. Your software should be different too.
+      Gold rates change. Making charges change. Wastage matters. Purity matters.
+      Weight matters. Stones matter. Customers matter. GST matters.
+      <span class="text-white font-semibold"> Goldio understands all of it.</span>
+    </p>
+  </div>
+
+  <div class="max-w-6xl mx-auto mt-16 grid md:grid-cols-2 gap-8 fade-up">
+    <div class="bg-panel rounded-2xl p-8">
+      <p class="text-xs uppercase tracking-widest text-gray-500 mb-4">Generic Software</p>
+      <ul class="space-y-3 text-gray-400 text-sm">
+        <li><i class="fas fa-times compare-x mr-3"></i>Generic products &amp; pricing</li>
+        <li><i class="fas fa-times compare-x mr-3"></i>Generic inventory</li>
+        <li><i class="fas fa-times compare-x mr-3"></i>Generic billing</li>
+        <li><i class="fas fa-times compare-x mr-3"></i>Generic workflows</li>
+      </ul>
+    </div>
+    <div class="bg-panel-2 rounded-2xl p-8 border" style="border-color:rgba(212,175,55,0.35);">
+      <p class="text-xs uppercase tracking-widest gold-text mb-4 font-semibold">GOLDIO</p>
+      <ul class="space-y-3 text-gray-200 text-sm">
+        <li><i class="fas fa-check compare-check mr-3"></i>Gold &amp; Silver pricing, purity &amp; weight</li>
+        <li><i class="fas fa-check compare-check mr-3"></i>Making charges &amp; wastage</li>
+        <li><i class="fas fa-check compare-check mr-3"></i>Stones, diamonds, HUID &amp; hallmark</li>
+        <li><i class="fas fa-check compare-check mr-3"></i>Serialized inventory &amp; jewellery barcode</li>
+        <li><i class="fas fa-check compare-check mr-3"></i>Jewellery POS &amp; GST</li>
+        <li><i class="fas fa-check compare-check mr-3"></i>Customer history &amp; jewellery-specific reports</li>
+      </ul>
+    </div>
+  </div>
+  <p class="text-center text-2xl font-bold mt-14 fade-up">Built for Jewellery. <span class="gradient-text">Not Adapted for Jewellery.</span></p>
+</section>
+
+<!-- ================= METAL PRICING ================= -->
+<section class="py-24 px-6 bg-panel border-t hairline">
+  <div class="max-w-6xl mx-auto">
+    <div class="text-center mb-14 fade-up">
+      <h2 class="text-3xl sm:text-4xl font-bold mb-4">Jewellery Pricing That Understands Jewellery.</h2>
+      <p class="text-gray-400">When the metal rate changes, your jewellery pricing engine knows.</p>
+    </div>
+    <div class="grid lg:grid-cols-2 gap-8">
+      <div class="bg-panel-2 rounded-2xl p-8 fade-up">
+        <div class="flex items-center justify-between mb-6">
+          <h3 class="font-bold text-lg gold-text"><i class="fas fa-circle-dot mr-2"></i>GOLD</h3>
+          <span class="text-emerald-400 text-xs font-semibold"><i class="fas fa-arrow-up mr-1"></i>1.8%</span>
+        </div>
+        <div class="space-y-3 text-sm">
+          <div class="flex justify-between border-b hairline pb-3"><span class="text-gray-400">24K</span><span class="font-bold text-white">₹12,850 / g</span></div>
+          <div class="flex justify-between border-b hairline pb-3"><span class="text-gray-400">22K</span><span class="font-bold text-white">₹11,779 / g</span></div>
+          <div class="flex justify-between"><span class="text-gray-400">18K</span><span class="font-bold text-white">₹9,638 / g</span></div>
+        </div>
+      </div>
+      <div class="bg-panel-2 rounded-2xl p-8 fade-up">
+        <div class="flex items-center justify-between mb-6">
+          <h3 class="font-bold text-lg" style="color:var(--silver);"><i class="fas fa-circle-dot mr-2"></i>SILVER</h3>
+          <span class="text-emerald-400 text-xs font-semibold"><i class="fas fa-arrow-up mr-1"></i>0.9%</span>
+        </div>
+        <div class="space-y-3 text-sm">
+          <div class="flex justify-between border-b hairline pb-3"><span class="text-gray-400">999</span><span class="font-bold text-white">₹155.00 / g</span></div>
+          <div class="flex justify-between"><span class="text-gray-400">925</span><span class="font-bold text-white">₹143.38 / g</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-panel-2 rounded-2xl p-8 mt-8 fade-up">
+      <p class="text-xs uppercase tracking-widest text-gray-500 mb-4">Example — Gold Ring</p>
+      <div class="grid sm:grid-cols-2 gap-x-10 gap-y-2 text-sm text-gray-300">
+        <div class="flex justify-between border-b hairline py-2"><span>Net Metal Weight</span><span>10.00 g</span></div>
+        <div class="flex justify-between border-b hairline py-2"><span>Gold Rate (22K)</span><span>₹11,779 / g</span></div>
+        <div class="flex justify-between border-b hairline py-2"><span>Metal Value</span><span>₹1,17,790</span></div>
+        <div class="flex justify-between border-b hairline py-2"><span>Making Charge</span><span>₹8,500</span></div>
+        <div class="flex justify-between border-b hairline py-2"><span>Stone Value</span><span>₹4,000</span></div>
+        <div class="flex justify-between border-b hairline py-2"><span>Discount</span><span>-₹2,000</span></div>
+        <div class="flex justify-between py-2 font-bold text-white sm:col-span-2 text-base"><span>Final Price</span><span class="gold-text">₹1,29,564*</span></div>
+      </div>
+      <p class="text-xs text-gray-500 mt-4">*Tax applied per your GST configuration. Illustrative example — rates configured per business.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= FEATURE SHOWCASE ================= -->
+<section id="features" class="py-24 px-6 border-t hairline">
+  <div class="max-w-6xl mx-auto">
+    <h2 class="text-3xl sm:text-4xl font-bold text-center mb-14 fade-up">One Platform. Every Jewellery Workflow.</h2>
+    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      {% for f in features %}
+      <div class="bg-panel rounded-2xl p-6 card-hover fade-up">
+        <div class="w-11 h-11 rounded-lg flex items-center justify-center mb-4" style="background:rgba(212,175,55,0.12);">
+          <i class="fas {{ f.icon }} gold-text"></i>
+        </div>
+        <h3 class="font-bold text-white mb-1.5">{{ f.title }}</h3>
+        <p class="text-sm text-gray-400 leading-relaxed">{{ f.desc }}</p>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<!-- ================= YOUR GOLDIO / TENANT ISOLATION ================= -->
+<section id="why" class="py-24 px-6 bg-panel border-t hairline">
+  <div class="max-w-6xl mx-auto grid lg:grid-cols-2 gap-16 items-center">
+    <div class="fade-up">
+      <h2 class="text-3xl sm:text-4xl font-bold mb-6">Your Goldio.<br><span class="gradient-text">Your Business. Your Data.</span></h2>
+      <p class="text-gray-400 leading-relaxed mb-6">
+        Goldio is built as a true cloud SaaS platform. Create your own secure business workspace
+        and start configuring your jewellery business immediately.
+      </p>
+      <ul class="space-y-3 text-sm text-gray-300 mb-8">
+        <li><i class="fas fa-shield-halved gold-text mr-3"></i>No shared data. No shared customers. No shared inventory.</li>
+        <li><i class="fas fa-shield-halved gold-text mr-3"></i>Your business gets its own secure environment inside Goldio.</li>
+      </ul>
+      <a href="{% url 'register' %}" class="btn-gold px-7 py-3.5 rounded-lg font-semibold inline-block">Create My Free Goldio</a>
+    </div>
+    <div class="fade-up">
+      <div class="bg-panel-2 rounded-2xl p-6 border hairline text-center mb-4">
+        <p class="font-bold text-white">GOLDIO</p>
+        <p class="text-xs text-gray-500">Multi-Tenant Platform</p>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div class="bg-panel-2 rounded-2xl p-5 border hairline">
+          <p class="font-semibold text-white text-sm mb-3">Raj Jewellers</p>
+          <ul class="space-y-1.5 text-xs text-gray-400">
+            <li>Customers</li><li>Inventory</li><li>POS</li><li>Sales</li><li>Finance</li>
+          </ul>
+        </div>
+        <div class="bg-panel-2 rounded-2xl p-5 border hairline">
+          <p class="font-semibold text-white text-sm mb-3">Sharma Jewels</p>
+          <ul class="space-y-1.5 text-xs text-gray-400">
+            <li>Customers</li><li>Inventory</li><li>POS</li><li>Sales</li><li>Finance</li>
+          </ul>
+        </div>
+      </div>
+      <p class="text-center text-xs text-gray-500 mt-4 uppercase tracking-widest">Completely Isolated</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 3-STEP ONBOARDING ================= -->
+<section class="py-24 px-6 border-t hairline">
+  <div class="max-w-6xl mx-auto">
+    <h2 class="text-3xl sm:text-4xl font-bold text-center mb-14 fade-up">From Zero to Jewellery Software in Minutes.</h2>
+    <div class="grid md:grid-cols-3 gap-8">
+      <div class="fade-up">
+        <p class="gold-text text-sm font-bold mb-2">STEP 01</p>
+        <h3 class="text-xl font-bold text-white mb-3">Create Your Account</h3>
+        <p class="text-sm text-gray-400">Name, email, mobile and password. Nothing more.</p>
+      </div>
+      <div class="fade-up">
+        <p class="gold-text text-sm font-bold mb-2">STEP 02</p>
+        <h3 class="text-xl font-bold text-white mb-3">Create Your Business</h3>
+        <p class="text-sm text-gray-400">Business name, type, country and currency.</p>
+      </div>
+      <div class="fade-up">
+        <p class="gold-text text-sm font-bold mb-2">STEP 03</p>
+        <h3 class="text-xl font-bold text-white mb-3">Start Goldio</h3>
+        <p class="text-sm text-gray-400">Your workspace, store, POS and finance setup are created automatically.</p>
+      </div>
+    </div>
+    <p class="text-center text-gray-500 mt-12 fade-up">
+      <strong class="text-white">No sales call. No complicated demo. No waiting.</strong><br>
+      Create Account → Create Business → Choose Workspace → Enter Goldio
+    </p>
+  </div>
+</section>
+
+<!-- ================= PRICING ================= -->
+<section id="pricing" class="py-24 px-6 bg-panel border-t hairline">
+  <div class="max-w-5xl mx-auto text-center mb-14 fade-up">
+    <h2 class="text-3xl sm:text-4xl font-bold mb-4">Start Free. Build Your Jewellery Business.</h2>
+    <p class="text-gray-400">Experience the complete Goldio platform today. Start without a complicated sales process.</p>
+  </div>
+  <div class="max-w-4xl mx-auto grid sm:grid-cols-2 gap-8">
+    <div class="bg-panel-2 rounded-2xl p-8 border hairline fade-up">
+      <span class="text-xs uppercase tracking-widest text-gray-500 font-semibold">Forever Free</span>
+      <p class="text-4xl font-bold text-white mt-3 mb-1">$0</p>
+      <p class="text-sm text-gray-400 mb-6">Everything you need to start building your jewellery business on Goldio.</p>
+      <ul class="space-y-2.5 text-sm text-gray-300 mb-8">
+        <li><i class="fas fa-check compare-check mr-2"></i>Complete Goldio platform access</li>
+        <li><i class="fas fa-check compare-check mr-2"></i>Jewellery POS, Inventory &amp; Customers</li>
+        <li><i class="fas fa-check compare-check mr-2"></i>Sales, Purchases &amp; Finance</li>
+        <li><i class="fas fa-check compare-check mr-2"></i>Gold/Silver rate configuration</li>
+        <li><i class="fas fa-check compare-check mr-2"></i>Barcode &amp; GST configuration</li>
+        <li><i class="fas fa-check compare-check mr-2"></i>Secure business workspace</li>
+      </ul>
+      <a href="{% url 'register' %}" class="btn-gold block text-center py-3 rounded-lg font-semibold">Start Free</a>
+      <p class="text-xs text-gray-500 text-center mt-3">No credit card required.</p>
+    </div>
+    <div class="bg-panel-2 rounded-2xl p-8 border-2 fade-up" style="border-color:var(--gold);">
+      <span class="text-xs uppercase tracking-widest gold-text font-semibold">Support Goldio</span>
+      <p class="text-4xl font-bold text-white mt-3 mb-1">$2</p>
+      <p class="text-sm text-gray-400 mb-6">Love Goldio and want to support its journey? Become a Goldio Supporter.</p>
+      <ul class="space-y-2.5 text-sm text-gray-300 mb-8">
+        <li><i class="fas fa-check compare-check mr-2"></i>Everything in Goldio Free</li>
+        <li><i class="fas fa-check compare-check mr-2"></i>Support independent software development</li>
+        <li><i class="fas fa-check compare-check mr-2"></i>Support new jewellery features</li>
+        <li><i class="fas fa-check compare-check mr-2"></i>Support future AI &amp; integrations</li>
+      </ul>
+      <a href="{% url 'register' %}" class="btn-gold block text-center py-3 rounded-lg font-semibold">Support Goldio — $2</a>
+    </div>
+  </div>
+  <p class="text-center text-sm text-gray-500 mt-10 fade-up">Same software. Same features. The $2 plan simply supports Goldio's journey.</p>
+</section>
+
+<!-- ================= TRUST / SECURITY ================= -->
+<section class="py-24 px-6 border-t hairline">
+  <div class="max-w-5xl mx-auto text-center fade-up">
+    <h2 class="text-3xl sm:text-4xl font-bold mb-6">Your Business. Your Workspace. <span class="gradient-text">Your Data.</span></h2>
+    <p class="text-gray-400 max-w-2xl mx-auto mb-12">
+      Every Goldio business operates inside its own logical workspace. Your customers, products,
+      transactions and financial information belong to your business environment.
+    </p>
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-5">
+      {% for t in trust_items %}
+      <div class="bg-panel rounded-xl p-5">
+        <i class="fas fa-check gold-text mb-2 block text-lg"></i>
+        <p class="text-sm text-gray-300">{{ t }}</p>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<!-- ================= INDUSTRY CATEGORIES ================= -->
+<section class="py-20 px-6 bg-panel border-t hairline">
+  <div class="max-w-5xl mx-auto text-center fade-up">
+    <h2 class="text-2xl sm:text-3xl font-bold mb-10">Built for the Next Generation of Jewellers.</h2>
+    <div class="flex flex-wrap justify-center gap-3">
+      {% for c in industries %}
+      <span class="bg-panel-2 border hairline text-gray-300 text-sm px-4 py-2 rounded-full">{{ c }}</span>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<!-- ================= FAQ ================= -->
+<section id="faq" class="py-24 px-6 border-t hairline">
+  <div class="max-w-3xl mx-auto">
+    <h2 class="text-3xl font-bold text-center mb-12 fade-up">Frequently Asked Questions</h2>
+    <div class="space-y-3">
+      {% for q, a in faqs %}
+      <div class="faq-item bg-panel rounded-xl px-6 py-5 fade-up">
+        <button type="button" class="faq-q w-full flex items-center justify-between text-left font-semibold text-white">
+          <span>{{ q }}</span>
+          <i class="fas fa-plus faq-icon gold-text text-sm"></i>
+        </button>
+        <div class="faq-a">
+          <p class="text-sm text-gray-400 pt-3 leading-relaxed">{{ a }}</p>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<!-- ================= FINAL CTA ================= -->
+<section class="relative py-28 px-6 border-t hairline overflow-hidden text-center">
+  <div class="glow w-[600px] h-[600px] top-0 left-1/2 -translate-x-1/2"></div>
+  <div class="max-w-3xl mx-auto relative fade-up">
+    <h2 class="text-3xl sm:text-5xl font-bold mb-6">Your Jewellery Business <span class="gradient-text">Starts Here.</span></h2>
+    <p class="text-gray-400 mb-10">Create your Goldio workspace today and start building the future of your jewellery business.</p>
+    <div class="flex flex-wrap justify-center gap-4">
+      <a href="{% url 'register' %}" class="btn-gold px-8 py-4 rounded-lg font-semibold">Create My Free Goldio</a>
+      <a href="{% url 'login' %}" class="btn-outline px-8 py-4 rounded-lg font-semibold">Login to Goldio</a>
+    </div>
+    <p class="text-xs text-gray-500 mt-6">Free to start. No credit card required.</p>
+  </div>
+</section>
+
+<!-- ================= FOOTER ================= -->
+<footer class="border-t hairline px-6 py-16">
+  <div class="max-w-7xl mx-auto grid sm:grid-cols-2 lg:grid-cols-5 gap-10 mb-12">
+    <div>
+      <a href="#" class="flex items-center gap-2 brand text-lg font-bold mb-3">
+        <i class="fas fa-gem gold-text"></i><span class="gradient-text">GOLDIO</span>
+      </a>
+      <p class="text-sm text-gray-500">The operating system for modern jewellery businesses.</p>
+    </div>
+    <div>
+      <p class="text-xs uppercase tracking-widest text-gray-500 mb-4">Product</p>
+      <ul class="space-y-2 text-sm text-gray-400">
+        <li><a href="#features" class="hover:text-white">POS</a></li>
+        <li><a href="#features" class="hover:text-white">Inventory</a></li>
+        <li><a href="#features" class="hover:text-white">Customers</a></li>
+        <li><a href="#pricing" class="hover:text-white">Pricing</a></li>
+      </ul>
+    </div>
+    <div>
+      <p class="text-xs uppercase tracking-widest text-gray-500 mb-4">Company</p>
+      <ul class="space-y-2 text-sm text-gray-400">
+        <li><a href="#" class="hover:text-white">About</a></li>
+        <li><a href="#" class="hover:text-white">Contact</a></li>
+        <li><a href="#" class="hover:text-white">Careers</a></li>
+      </ul>
+    </div>
+    <div>
+      <p class="text-xs uppercase tracking-widest text-gray-500 mb-4">Resources</p>
+      <ul class="space-y-2 text-sm text-gray-400">
+        <li><a href="#faq" class="hover:text-white">Help Center</a></li>
+        <li><a href="#faq" class="hover:text-white">FAQ</a></li>
+      </ul>
+    </div>
+    <div>
+      <p class="text-xs uppercase tracking-widest text-gray-500 mb-4">Legal</p>
+      <ul class="space-y-2 text-sm text-gray-400">
+        <li><a href="#" class="hover:text-white">Privacy Policy</a></li>
+        <li><a href="#" class="hover:text-white">Terms of Service</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="max-w-7xl mx-auto border-t hairline pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+    <p class="text-xs text-gray-600">© 2026 Goldio. Built for the jewellery industry.</p>
+    <a href="{% url 'register' %}" class="btn-gold px-5 py-2.5 rounded-lg text-sm font-semibold">Create Free Goldio</a>
+  </div>
+</footer>
+
+<script>
+  document.getElementById('menu-btn').addEventListener('click', () => {
+    document.getElementById('mobile-menu').classList.toggle('open');
+  });
+
+  document.querySelectorAll('.faq-q').forEach(btn => {
+    btn.addEventListener('click', () => btn.closest('.faq-item').classList.toggle('open'));
+  });
+
+  const io = new IntersectionObserver(entries => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('in'); });
+  }, { threshold: 0.12 });
+  document.querySelectorAll('.fade-up').forEach(el => io.observe(el));
+</script>
+</body>
+</html>
