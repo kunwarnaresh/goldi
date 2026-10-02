@@ -25,7 +25,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DEBUG', 'False').strip().lower() in ('true', '1', 'yes')
+debug_setting = os.environ.get('DEBUG')
+if debug_setting is None:
+    debug_setting = 'False' if os.environ.get('DATABASE_URL') or os.environ.get('RENDER_EXTERNAL_HOSTNAME') else 'True'
+DEBUG = debug_setting.strip().lower() in ('true', '1', 'yes')
 
 SECRET_KEY = os.environ.get('SECRET_KEY')
 if not SECRET_KEY:
